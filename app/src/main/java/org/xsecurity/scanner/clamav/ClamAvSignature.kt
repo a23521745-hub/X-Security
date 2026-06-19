@@ -1,6 +1,6 @@
 package org.xsecurity.scanner.clamav
 
-data class ClamAvSignature(
+class ClamAvSignature(
     val name: String,
     val pattern: ByteArray
 )
