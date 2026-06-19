@@ -9,7 +9,7 @@
         android:supportsRtl="true">
 
         <service
-            android:name=".service.ApkScanService"
+            android:name="org.xsecurity.scanner.service.ApkScanService"
             android:enabled="true"
             android:exported="false" />
 

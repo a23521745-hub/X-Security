@@ -41,8 +41,12 @@ class ClamAvScanner(
                     i++
                 }
 
-                val keep = (maxPattern - 1).coerceAtMost(data.size)
-                carry = if (keep > 0) data.copyOfRange(data.size - keep, data.size) else ByteArray(0)
+                val boundaryCarryLength = (maxPattern - 1).coerceAtMost(data.size)
+                carry = if (boundaryCarryLength > 0) {
+                    data.copyOfRange(data.size - boundaryCarryLength, data.size)
+                } else {
+                    ByteArray(0)
+                }
             }
         }
 

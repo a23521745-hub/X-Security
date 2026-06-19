@@ -11,33 +11,34 @@ import androidx.work.WorkManager
 import org.xsecurity.scanner.worker.ApkScanWorker
 
 class ApkScanService : LifecycleService() {
+    companion object {
+        fun enqueueScan(
+            context: Context,
+            apkPath: String,
+            yaraRulePath: String,
+            clamAvDbPath: String
+        ) {
+            val request = OneTimeWorkRequestBuilder<ApkScanWorker>()
+                .setConstraints(
+                    Constraints.Builder()
+                        .setRequiredNetworkType(NetworkType.NOT_REQUIRED)
+                        .setRequiresBatteryNotLow(true)
+                        .build()
+                )
+                .setInputData(
+                    Data.Builder()
+                        .putString(ApkScanWorker.KEY_APK_PATH, apkPath)
+                        .putString(ApkScanWorker.KEY_YARA_PATH, yaraRulePath)
+                        .putString(ApkScanWorker.KEY_CLAM_DB_PATH, clamAvDbPath)
+                        .build()
+                )
+                .build()
 
-    fun enqueueScan(
-        context: Context,
-        apkPath: String,
-        yaraRulePath: String,
-        clamAvDbPath: String
-    ) {
-        val request = OneTimeWorkRequestBuilder<ApkScanWorker>()
-            .setConstraints(
-                Constraints.Builder()
-                    .setRequiredNetworkType(NetworkType.NOT_REQUIRED)
-                    .setRequiresBatteryNotLow(true)
-                    .build()
+            WorkManager.getInstance(context).enqueueUniqueWork(
+                "apk_scan_$apkPath",
+                ExistingWorkPolicy.REPLACE,
+                request
             )
-            .setInputData(
-                Data.Builder()
-                    .putString(ApkScanWorker.KEY_APK_PATH, apkPath)
-                    .putString(ApkScanWorker.KEY_YARA_PATH, yaraRulePath)
-                    .putString(ApkScanWorker.KEY_CLAM_DB_PATH, clamAvDbPath)
-                    .build()
-            )
-            .build()
-
-        WorkManager.getInstance(context).enqueueUniqueWork(
-            "apk_scan_$apkPath",
-            ExistingWorkPolicy.REPLACE,
-            request
-        )
+        }
     }
 }
