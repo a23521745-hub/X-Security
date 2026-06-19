@@ -8,8 +8,7 @@ import org.xsecurity.scanner.engine.ApkScannerEngine
 
 class ApkScanWorker(
     appContext: Context,
-    workerParams: WorkerParameters,
-    private val scannerEngine: ApkScannerEngine = ApkScannerEngine()
+    workerParams: WorkerParameters
 ) : CoroutineWorker(appContext, workerParams) {
 
     override suspend fun doWork(): Result {
@@ -17,7 +16,7 @@ class ApkScanWorker(
         val yaraPath = inputData.getString(KEY_YARA_PATH) ?: return Result.failure()
         val clamDbPath = inputData.getString(KEY_CLAM_DB_PATH) ?: return Result.failure()
 
-        val result = scannerEngine.scan(apkPath, yaraPath, clamDbPath)
+        val result = ApkScannerEngine().scan(apkPath, yaraPath, clamDbPath)
 
         return Result.success(
             Data.Builder()

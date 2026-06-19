@@ -3,7 +3,7 @@ package org.xsecurity.scanner.yara
 import java.io.File
 
 class YaraMatcher(
-    private val maxBytesToRead: Int = 8 * 1024 * 1024
+    private val maxBytesToRead: Int = DEFAULT_MAX_BYTES_TO_READ
 ) {
     fun match(apkFile: File, rules: List<YaraRule>): List<String> {
         if (!apkFile.exists() || rules.isEmpty()) return emptyList()
@@ -46,5 +46,9 @@ class YaraMatcher(
             start++
         }
         return false
+    }
+
+    companion object {
+        private const val DEFAULT_MAX_BYTES_TO_READ: Int = 8 * 1024 * 1024
     }
 }

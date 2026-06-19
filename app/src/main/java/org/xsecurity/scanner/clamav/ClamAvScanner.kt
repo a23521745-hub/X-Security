@@ -3,7 +3,7 @@ package org.xsecurity.scanner.clamav
 import java.io.File
 
 class ClamAvScanner(
-    private val chunkSize: Int = 32 * 1024
+    private val chunkSize: Int = DEFAULT_CHUNK_SIZE
 ) {
     fun scan(apkFile: File, signatures: List<ClamAvSignature>): List<String> {
         if (!apkFile.exists() || signatures.isEmpty()) return emptyList()
@@ -58,5 +58,9 @@ class ClamAvScanner(
             if (data[start + offset] != pattern[offset]) return false
         }
         return true
+    }
+
+    companion object {
+        private const val DEFAULT_CHUNK_SIZE: Int = 32 * 1024
     }
 }

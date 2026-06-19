@@ -16,12 +16,11 @@ class YaraRuleParser {
                 when {
                     line.startsWith("rule ") -> {
                         flushRule(currentRuleName, currentStrings, rules)
-                        currentRuleName = line.removePrefix("rule ").substringBefore("{").trim()
+                        currentRuleName = extractRuleName(line)
                     }
                     line.startsWith("$") && line.contains("=") -> {
-                        val literal = line.substringAfter("=").trim()
-                            .trim('"')
-                        if (literal.isNotEmpty()) {
+                        val literal = extractQuotedLiteral(line.substringAfter("=").trim())
+                        if (!literal.isNullOrEmpty()) {
                             currentStrings.add(literal.encodeToByteArray())
                         }
                     }
@@ -42,5 +41,44 @@ class YaraRuleParser {
             output.add(YaraRule(name = name, stringLiterals = strings.toList()))
         }
         strings.clear()
+    }
+
+    private fun extractRuleName(ruleLine: String): String? {
+        val remainder = ruleLine.removePrefix("rule ").trim()
+        if (remainder.isEmpty()) return null
+
+        val head = remainder.substringBefore('{').trim()
+        return head.substringBefore(':').trim().ifEmpty { null }
+    }
+
+    private fun extractQuotedLiteral(value: String): String? {
+        if (!value.startsWith('"')) return null
+
+        val out = StringBuilder()
+        var escaping = false
+        for (i in 1 until value.length) {
+            val c = value[i]
+            if (escaping) {
+                out.append(
+                    when (c) {
+                        'n' -> '\n'
+                        't' -> '\t'
+                        'r' -> '\r'
+                        '"' -> '"'
+                        '\\' -> '\\'
+                        else -> c
+                    }
+                )
+                escaping = false
+            } else if (c == '\\') {
+                escaping = true
+            } else if (c == '"') {
+                return out.toString()
+            } else {
+                out.append(c)
+            }
+        }
+
+        return null
     }
 }

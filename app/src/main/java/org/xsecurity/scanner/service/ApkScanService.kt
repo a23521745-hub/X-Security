@@ -10,9 +10,9 @@ import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import org.xsecurity.scanner.worker.ApkScanWorker
+import java.security.MessageDigest
 
 class ApkScanService : LifecycleService() {
-
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val apkPath = intent?.getStringExtra(EXTRA_APK_PATH)
@@ -67,11 +67,17 @@ class ApkScanService : LifecycleService() {
                 )
                 .build()
 
+            val scanId = sha256Hex(apkPath)
             WorkManager.getInstance(context).enqueueUniqueWork(
-                "apk_scan_$apkPath",
+                "apk_scan_$scanId",
                 ExistingWorkPolicy.REPLACE,
                 request
             )
+        }
+
+        private fun sha256Hex(value: String): String {
+            val digest = MessageDigest.getInstance("SHA-256")
+            return digest.digest(value.toByteArray()).joinToString("") { "%02x".format(it) }
         }
     }
 }
