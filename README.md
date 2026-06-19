@@ -26,10 +26,13 @@ Basic open-source Android background scanning service structure in Kotlin with:
 This repository contains a basic Android service-oriented project structure. Build requires:
 - Android SDK installed
 - JDK 17
-- Gradle wrapper generation (`gradle wrapper`) or local Gradle
 
 Then run:
 
 ```bash
-./gradlew assembleDebug
+./gradlew :app:assembleDebug
 ```
+
+## CI release build
+
+On pushes to `main`, GitHub Actions runs `.github/workflows/android-release-apk.yml` to build `:app:assembleRelease` and upload the generated APK artifact.
