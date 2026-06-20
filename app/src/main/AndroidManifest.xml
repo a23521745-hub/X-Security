@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+
+    <application
+        android:allowBackup="false"
+        android:label="X-Security"
+        android:supportsRtl="true">
+
+        <service
+            android:name="org.xsecurity.scanner.service.ApkScanService"
+            android:enabled="true"
+            android:exported="false" />
+
+    </application>
+</manifest>
