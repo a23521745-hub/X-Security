@@ -1,4 +1,4 @@
-# X-Security
+# X-Security GELIŞTIRILIYOR
 
 Basic open-source Android background scanning service structure in Kotlin with:
 - Local YARA rule parsing and string-literal matching
