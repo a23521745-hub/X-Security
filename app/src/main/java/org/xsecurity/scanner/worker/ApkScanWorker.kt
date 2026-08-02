@@ -5,6 +5,7 @@ import androidx.work.CoroutineWorker
 import androidx.work.Data
 import androidx.work.WorkerParameters
 import org.xsecurity.scanner.engine.ApkScannerEngine
+import java.io.File
 
 class ApkScanWorker(
     appContext: Context,
@@ -16,7 +17,9 @@ class ApkScanWorker(
         val yaraPath = inputData.getString(KEY_YARA_PATH) ?: return Result.failure()
         val clamDbPath = inputData.getString(KEY_CLAM_DB_PATH) ?: return Result.failure()
 
-        val result = ApkScannerEngine().scan(apkPath, yaraPath, clamDbPath)
+        val engine = ApkScannerEngine()
+        engine.initEngine(File(yaraPath), File(clamDbPath))
+        val result = engine.scan(File(apkPath))
 
         return Result.success(
             Data.Builder()

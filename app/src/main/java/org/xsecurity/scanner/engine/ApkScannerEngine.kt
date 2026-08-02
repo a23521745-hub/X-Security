@@ -4,7 +4,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.xsecurity.scanner.clamav.ClamAvDatabaseParser
 import org.xsecurity.scanner.clamav.ClamAvScanner
-import org.xsecurity.scanner.clamav.ClamSignature
+import org.xsecurity.scanner.clamav.ClamAvSignature
 import org.xsecurity.scanner.yara.YaraMatcher
 import org.xsecurity.scanner.yara.YaraRule
 import org.xsecurity.scanner.yara.YaraRuleParser
@@ -19,7 +19,7 @@ class ApkScannerEngine(
 
     // Kuralları bellekte tutmak için cache yapıları
     private var cachedYaraRules: List<YaraRule>? = null
-    private var cachedClamSignatures: List<ClamSignature>? = null
+    private var cachedClamSignatures: List<ClamAvSignature>? = null
 
     /**
      * Veritabanlarını belleğe tek seferde yükler.
