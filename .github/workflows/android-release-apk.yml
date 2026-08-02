@@ -1,4 +1,4 @@
-name: Build Release APK
+name: Build Debug APK
 
 on:
   push:
@@ -10,14 +10,8 @@ permissions:
   contents: read
 
 jobs:
-  build-release-apk:
+  build-debug-apk:
     runs-on: ubuntu-latest
-
-    env:
-      KEYSTORE_FILE_PATH: ${{ github.workspace }}/release.keystore
-      KEYSTORE_PASSWORD: ${{ secrets.KEY_STORE_PASSWORD }}
-      KEY_ALIAS: ${{ secrets.ALIAS }}
-      KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
 
     steps:
       - name: Checkout
@@ -30,27 +24,15 @@ jobs:
           java-version: '17'
           cache: gradle
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v4
+      - name: Make gradlew executable
+        run: chmod +x gradlew
 
-      - name: Install Android SDK packages
-        run: sdkmanager "platforms;android-34" "build-tools;34.0.0"
+      - name: Build Debug APK
+        run: ./gradlew --no-daemon :app:assembleDebug
 
-      - name: Decode signing keystore
-        run: |
-          echo "${{ secrets.SIGNING_KEY }}" | base64 --decode > "$KEYSTORE_FILE_PATH"
-          test -s "$KEYSTORE_FILE_PATH"
-
-      - name: Build signed release APK
-        run: ./gradlew --no-daemon :app:assembleRelease
-
-      - name: Verify APK signature
-        run: |
-          "$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --verbose app/build/outputs/apk/release/app-release.apk
-
-      - name: Upload release APK artifact
+      - name: Upload Debug APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: app-release-apk-signed
-          path: app/build/outputs/apk/release/*.apk
+          name: app-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
