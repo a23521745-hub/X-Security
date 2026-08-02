@@ -36,7 +36,6 @@ android {
         jvmTarget = "17"
     }
 
-    // Compose derleme özelliklerini aktif ediyoruz
     buildFeatures {
         compose = true
     }
@@ -51,7 +50,6 @@ dependencies {
     implementation("androidx.work:work-runtime-ktx:2.9.0")
     implementation("androidx.lifecycle:lifecycle-service:2.8.3")
 
-    // --- Jetpack Compose Bağımlılıkları ---
     val composeBom = platform("androidx.compose:compose-bom:2024.04.01")
     implementation(composeBom)
     androidTestImplementation(composeBom)
