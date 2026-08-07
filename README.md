@@ -1,4 +1,4 @@
-# X-Security GELIŞTIRILIYOR
+# X-Security 0.90 Pre-Release
 
 Basic open-source Android background scanning service structure in Kotlin with:
 - Local YARA rule parsing and string-literal matching
@@ -23,9 +23,10 @@ Basic open-source Android background scanning service structure in Kotlin with:
 
 ## Build notes
 
-This repository contains a basic Android service-oriented project structure. Build requires:
+This repository contains a working Android service-oriented project structure for X-Security 0.90 Pre-Release. Build requires:
 - Android SDK installed
 - JDK 17
+- SDK components: platform-tools, platforms;android-34, build-tools;34.0.0
 
 Then run:
 
@@ -36,3 +37,8 @@ Then run:
 ## CI release build
 
 On pushes to `main`, GitHub Actions runs `.github/workflows/android-release-apk.yml` to build `:app:assembleRelease` and upload the generated APK artifact.
+
+## Pre-release status
+
+- Debug build verified successfully
+- Release build preparation completed for version 0.90.0-pre-release
