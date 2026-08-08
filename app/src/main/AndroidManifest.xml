@@ -2,37 +2,21 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- ========================================== -->
-    <!-- SİBER GÜVENLİK VE TARAMA İZİNLERİ         -->
-    <!-- ========================================== -->
-    
-    <!-- Arka planda güvenli tarama yapabilmek için -->
+    <!-- Siber Güvenlik ve Tarama İzinleri -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
-    
-    <!-- Veritabanı ve imza güncellemeleri için ağ erişimi -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    
-    <!-- Cihazdaki diğer APK'ları ve paketleri tarayabilmek için (Kritik) -->
     <uses-permission 
         android:name="android.permission.QUERY_ALL_PACKAGES" 
         tools:ignore="QueryAllPackagesPermission" />
 
-    <!-- ========================================== -->
-    <!-- UYGULAMA YAPISI VE BİLEŞENLERİ             -->
-    <!-- ========================================== -->
-    
     <application
         android:allowBackup="false"
-        android:icon="@mipmap/ic_launcher"
-        android:label="@string/app_name"
-        android:roundIcon="@mipmap/ic_launcher_round"
-        android:supportsRtl="true"
-        android:theme="@style/Theme.XSecurity"
-        tools:targetApi="34">
+        android:label="X-Security"
+        android:supportsRtl="true">
 
-        <!-- 1. ANA ARAYÜZ (MainActivity): Uygulamanın menüde görünmesini ve açılmasını sağlar -->
+        <!-- Ana Arayüz (MainActivity) -->
         <activity
             android:name="org.xsecurity.scanner.ui.MainActivity"
             android:exported="true"
@@ -43,7 +27,7 @@
             </intent-filter>
         </activity>
 
-        <!-- 2. ARKA PLAN SERVİSİ (ApkScanService): Modern Android kurallarına uygun Foreground Service -->
+        <!-- Arka Plan Servisi -->
         <service
             android:name="org.xsecurity.scanner.service.ApkScanService"
             android:enabled="true"
