@@ -1,4 +1,4 @@
-name: Build Debug APK
+name: Build Realses APK
 
 on:
   push:
@@ -27,8 +27,8 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x gradlew
 
-      - name: Build Debug APK
-        run: ./gradlew --no-daemon :app:assembleDebug
+      - name: Build Realses APK
+        run: ./gradlew --no-daemon :app:assembleRealses
 
       - name: Upload Debug APK artifact
         uses: actions/upload-artifact@v4
