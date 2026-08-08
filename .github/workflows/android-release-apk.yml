@@ -30,9 +30,9 @@ jobs:
       - name: Build Realses APK
         run: ./gradlew --no-daemon :app:assembleRelease
 
-      - name: Upload Debug APK artifact
+      - name: Upload Realse APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: app-debug-apk
-          path: app/build/outputs/apk/debug/*.apk
+          name: app-release-apk
+          path: app/build/outputs/apk/release/*.apk
           if-no-files-found: error
