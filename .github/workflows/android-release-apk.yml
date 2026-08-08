@@ -28,7 +28,7 @@ jobs:
         run: chmod +x gradlew
 
       - name: Build Realses APK
-        run: ./gradlew --no-daemon :app:assembleRealse
+        run: ./gradlew --no-daemon :app:assembleRelease
 
       - name: Upload Debug APK artifact
         uses: actions/upload-artifact@v4
