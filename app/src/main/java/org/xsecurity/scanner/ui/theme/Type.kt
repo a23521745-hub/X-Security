@@ -6,8 +6,9 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
-// Android varsayılan olarak zaten Roboto kullanır.
-// R.font hatasını önlemek ve res/font bağımlılığını kaldırmak için FontFamily.Default kullanıyoruz:
+// Android varsayilan olarak zaten Roboto kullanir; `res/font` bagimliligi olmadan
+// FontFamily.Default ile ayni sonuc aliniyor (R.font hatasi da boylece cikmiyor).
+// Not: Material3 typography stil adlari sabittir; `RobotoFontFamily` yalnizca adlandirma.
 val RobotoFontFamily = FontFamily.Default
 
 val XSecurityTypography = Typography(
@@ -109,10 +110,11 @@ val XSecurityTypography = Typography(
         lineHeight = 16.sp,
         letterSpacing = 0.5.sp,
     ),
+    // 11sp yerine Material'in asgari okunabilir degeri: kucuk etiketler 12sp.
     labelSmall = TextStyle(
         fontFamily = RobotoFontFamily,
         fontWeight = FontWeight.Medium,
-        fontSize = 11.sp,
+        fontSize = 12.sp,
         lineHeight = 16.sp,
         letterSpacing = 0.5.sp,
     ),

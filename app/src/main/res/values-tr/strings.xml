@@ -1,0 +1,65 @@
+<resources>
+    <string name="app_name">X-Security</string>
+    <string name="app_version">0.91.0-pre-release</string>
+
+    <string name="dashboard_subtitle">YARA + ClamAV imza motoruyla yerel APK taraması</string>
+    <string name="dashboard_footnote">X-Security %1$s · analizler cihazınızda yapılır, ağ izni yoktur</string>
+
+    <string name="status_idle">Tarama bekleniyor</string>
+    <string name="status_idle_hint">Başlamak için bir APK dosyası seçin.</string>
+    <string name="status_queued">Tarama kuyruğa alındı…</string>
+    <string name="status_scanning">Taranıyor</string>
+    <string name="status_scanning_percent">Dosyanın %1$d%% tarandı</string>
+    <string name="status_clean">Tehdit bulunmadı</string>
+    <string name="status_threats">%1$d tehdit bulundu</string>
+    <string name="status_failed">Tarama tamamlanamadı</string>
+    <string name="status_result_summary">%1$s tarandı · %2$d ms</string>
+
+    <string name="action_scan">APK seç ve tara</string>
+    <string name="action_scan_busy">Tarama sürüyor…</string>
+    <string name="action_cancel">İptal et</string>
+
+    <string name="lastscan_title">Son tarama</string>
+    <string name="lastscan_finished">Bitiş zamanı</string>
+    <string name="lastscan_count">Taranan dosya sayısı</string>
+    <string name="lastscan_file">Dosya</string>
+    <string name="lastscan_size">Boyut</string>
+    <string name="lastscan_hash">SHA-256 (ilk 16)</string>
+    <string name="lastscan_duration">Süre</string>
+    <string name="duration_ms">%1$d ms</string>
+    <string name="value_none">—</string>
+
+    <string name="threats_title">Bulgular</string>
+    <string name="threats_none">Eşleşen imza yok</string>
+    <string name="threats_none_hint">Yüklenen kurallar ve imzalar bu dosyada eşleşme bulmadı.</string>
+    <string name="threats_found">%1$d bulgu</string>
+    <string name="threats_unknown">Tarama tamamlanmadığı için sonuç bilinmiyor.</string>
+    <string name="threats_more">ve %1$d bulgu daha…</string>
+
+    <string name="engine_title">Motor ve imzalar</string>
+    <string name="engine_not_loaded">İmza veritabanı yüklenemedi. Aşağıdaki dosyalardan birini seçin veya var olanı onarın.</string>
+    <string name="engine_yara_rules">YARA kuralı</string>
+    <string name="engine_yara_patterns">YARA kalıbı</string>
+    <string name="engine_clam_signatures">ClamAV imzası</string>
+    <string name="engine_pick_yara">.yar seç</string>
+    <string name="engine_pick_clam">.ndb seç</string>
+    <string name="engine_reload">Yeniden yükle</string>
+    <string name="engine_hint">İmza dosyaları uygulama depolamasına kopyalanır; tarama için ağ kullanılmaz.</string>
+    <string name="engine_warnings_title">Motor uyarıları (%1$d)</string>
+    <string name="engine_warnings_more">ve %1$d uyarı daha…</string>
+    <string name="engine_unavailable">Motor hazırlanamadı: %1$s</string>
+    <string name="engine_unknown_error">bilinmeyen hata</string>
+
+    <string name="stage_preparing">Dosya kopyalanıyor ve özetleniyor…</string>
+    <string name="stage_failed">Dosya hazırlanamadı</string>
+    <string name="signature_install_failed">İmza dosyası kurulamadı</string>
+
+    <string name="notif_channel_name">Tarama durumu</string>
+    <string name="notif_channel_description">APK taramasının ilerlemesi ve sonucu</string>
+    <string name="notif_scanning_title">Tarama sürüyor</string>
+    <string name="notif_clean_title">Tehdit bulunmadı</string>
+    <string name="notif_clean_body">%1$s tarandı, eşleşen imza yok.</string>
+    <string name="notif_threats_title">%1$d tehdit bulundu</string>
+    <string name="notif_failed_title">Tarama tamamlanamadı</string>
+    <string name="notif_failed_body">Motor veya dosya hatası; ayrıntılar için uygulamayı açın.</string>
+</resources>

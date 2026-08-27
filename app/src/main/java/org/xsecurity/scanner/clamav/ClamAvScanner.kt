@@ -1,66 +1,84 @@
 package org.xsecurity.scanner.clamav
 
+import org.xsecurity.scanner.matcher.BytePattern
+import org.xsecurity.scanner.matcher.BytePatternMatcher
 import java.io.File
 
+/**
+ * ClamAV `.ndb` imzalarini dosya iceriginde arar.
+ *
+ * Tarama mantigi [BytePatternMatcher] ile paylasilir: dosyanin tamamı, sabit boyutlu
+ * chunk'larla ve parca sinirini asan kaliplar icin "carry" tasiyarak taranir.
+ * `.ndb` `Offset` alanindan gelen konum kosullari [positionFilter] olarak uygulanir.
+ */
 class ClamAvScanner(
-    private val chunkSize: Int = DEFAULT_CHUNK_SIZE
+    private val chunkSize: Int = BytePatternMatcher.DEFAULT_CHUNK_SIZE,
+    private val maxBytesToScan: Long = BytePatternMatcher.DEFAULT_MAX_BYTES_TO_SCAN
 ) {
-    fun scan(apkFile: File, signatures: List<ClamAvSignature>): List<String> {
-        if (!apkFile.exists() || signatures.isEmpty()) return emptyList()
 
-        val byFirstByte = signatures
-            .filter { it.pattern.isNotEmpty() }
-            .groupBy { it.pattern[0] }
+    class Hit(val name: String, val firstPosition: Long?)
 
-        if (byFirstByte.isEmpty()) return emptyList()
-
-        val maxPattern = signatures.maxOf { it.pattern.size }
-        val matches = linkedSetOf<String>()
-
-        apkFile.inputStream().buffered(chunkSize).use { input ->
-            var carry = ByteArray(0)
-            val chunk = ByteArray(chunkSize)
-
-            while (true) {
-                val read = input.read(chunk)
-                if (read <= 0) break
-
-                val data = ByteArray(carry.size + read)
-                System.arraycopy(carry, 0, data, 0, carry.size)
-                System.arraycopy(chunk, 0, data, carry.size, read)
-
-                var i = 0
-                while (i < data.size) {
-                    val candidates = byFirstByte[data[i]] ?: emptyList()
-                    for (candidate in candidates) {
-                        if (i + candidate.pattern.size > data.size) continue
-                        if (matchesPatternAt(data, i, candidate.pattern)) {
-                            matches += candidate.name
-                        }
-                    }
-                    i++
-                }
-
-                val boundaryCarryLength = (maxPattern - 1).coerceAtMost(data.size)
-                carry = if (boundaryCarryLength > 0) {
-                    data.copyOfRange(data.size - boundaryCarryLength, data.size)
-                } else {
-                    ByteArray(0)
-                }
-            }
-        }
-
-        return matches.toList()
+    class Outcome(
+        val hits: List<Hit>,
+        val scannedBytes: Long,
+        val truncated: Boolean,
+        val evaluatedPatterns: Int,
+        val droppedPatterns: Int
+    ) {
+        val names: List<String> get() = hits.map { it.name }
+        val isEmpty: Boolean get() = hits.isEmpty()
     }
 
-    private fun matchesPatternAt(data: ByteArray, start: Int, pattern: ByteArray): Boolean {
-        for (offset in pattern.indices) {
-            if (data[start + offset] != pattern[offset]) return false
+    fun scan(file: File, database: ClamAvDatabaseParser.Database, onBytes: (Long) -> Unit = {}): Outcome {
+        val signatures = database.signatures
+        if (signatures.isEmpty() || !file.isFile) {
+            return Outcome(
+                hits = emptyList(),
+                scannedBytes = 0L,
+                truncated = false,
+                evaluatedPatterns = 0,
+                droppedPatterns = 0
+            )
         }
-        return true
-    }
 
-    companion object {
-        private const val DEFAULT_CHUNK_SIZE: Int = 32 * 1024
+        val patterns = ArrayList<BytePattern>(signatures.size)
+        for (index in signatures.indices) {
+            val signature = signatures[index]
+            patterns += BytePattern(
+                id = index,
+                bytes = signature.bytes,
+                mask = signature.mask,
+                ignoreCase = false
+            )
+        }
+
+        val matcher = BytePatternMatcher(patterns, chunkSize, maxBytesToScan)
+        if (matcher.isEmpty) {
+            return Outcome(
+                hits = emptyList(),
+                scannedBytes = 0L,
+                truncated = false,
+                evaluatedPatterns = 0,
+                droppedPatterns = matcher.unusablePatternCount
+            )
+        }
+
+        val scan = matcher.scan(
+            file = file,
+            positionFilter = { id, position -> signatures[id].offset.accepts(position) },
+            maxPositionsPerId = 1,
+            onBytesConsumed = onBytes
+        )
+
+        val hits = scan.matchedIds.sorted().map { id ->
+            Hit(name = signatures[id].name, firstPosition = scan.positions[id]?.firstOrNull())
+        }
+        return Outcome(
+            hits = hits,
+            scannedBytes = scan.bytesScanned,
+            truncated = scan.truncated,
+            evaluatedPatterns = matcher.patternCount,
+            droppedPatterns = matcher.unusablePatternCount
+        )
     }
 }

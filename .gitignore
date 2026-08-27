@@ -219,3 +219,18 @@ __marimo__/
 
 # Gradle local state
 .gradle/
+
+# --- X-Security / Android -------------------------------------------------
+local.properties
+*.jks
+*.keystore
+*.keystore.jks
+.idea/
+*.iml
+.gradle/
+build/
+app/build/
+captures/
+.externalNativeBuild/
+.cxx/
+lint-baseline.xml

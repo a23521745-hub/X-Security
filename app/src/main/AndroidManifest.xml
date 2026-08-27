@@ -1,39 +1,36 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Siber Güvenlik ve Tarama İzinleri -->
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
-    <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <uses-permission 
-        android:name="android.permission.QUERY_ALL_PACKAGES" 
-        tools:ignore="QueryAllPackagesPermission" />
+    <!--
+      Kaldirilan izinler:
+       - INTERNET / ACCESS_NETWORK_STATE: tarama tamamiyla yerel; ag kodu yoktu.
+       - QUERY_ALL_PACKAGES: Play'de gerekce tabi, kisitli bir izindi ve kod hic
+         PackageManager kullanmiyordu.
+       - FOREGROUND_SERVICE*: servis katmani kaldirildi (isler artik dogrudan
+         WorkManager ile kuyruklaniyor; API 26+ 'da arka plandan startService
+         IllegalStateException ile cokuyordu).
+    -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:allowBackup="false"
-        android:label="X-Security"
-        android:supportsRtl="true">
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.XSecurity">
 
-        <!-- Ana Arayüz (MainActivity) -->
+        <!-- onceki surumde bu Activity sinifi hic yoktu: acilis ActivityNotFoundException ile cokuyordu -->
         <activity
             android:name="org.xsecurity.scanner.ui.MainActivity"
             android:exported="true"
+            android:label="@string/app_name"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-
-        <!-- Arka Plan Servisi -->
-        <service
-            android:name="org.xsecurity.scanner.service.ApkScanService"
-            android:enabled="true"
-            android:exported="false"
-            android:foregroundServiceType="dataSync" />
-
     </application>
 
 </manifest>
