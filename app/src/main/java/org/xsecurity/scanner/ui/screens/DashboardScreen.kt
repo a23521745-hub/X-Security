@@ -1,220 +1,278 @@
 package org.xsecurity.scanner.ui.screens
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.material3.*
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import org.xsecurity.scanner.R
+import org.xsecurity.scanner.engine.ScanResult
+import org.xsecurity.scanner.engine.ThreatMatch
+import org.xsecurity.scanner.data.EngineInfo
+import org.xsecurity.scanner.data.ScanPhase
+import org.xsecurity.scanner.data.ScanUiState
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
+/**
+ * Ana ekran.
+ *
+ * Onceki surum tamamen sabit metinler gosteriyordu ("Your Device is Secure",
+ * "12,547 dosya tarandi", "Real-time Protection: Active") ve `ApkScanWorker`
+ * sonuclarini hic okumuyordu. Artik tum alanlar [ScanUiState]'ten geliyor;
+ * tarama tamamlanmadiysa arayuz "temiz" demiyor, hata/uyari gösteriyor.
+ */
 @Composable
 fun DashboardScreen(
-    onStartScan: () -> Unit = {},
-    onFullScan: () -> Unit = {},
-    onSettings: () -> Unit = {}
+    state: ScanUiState,
+    onScanApk: () -> Unit,
+    onPickYaraRules: () -> Unit,
+    onPickClamDatabase: () -> Unit,
+    onReloadEngine: () -> Unit,
+    onCancelScan: () -> Unit
 ) {
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
+            .safeDrawingPadding()
             .verticalScroll(rememberScrollState())
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Header
+        Header()
+        StatusCard(state = state, onCancelScan = onCancelScan)
+        LastScanCard(state = state)
+        ThreatsCard(result = state.lastResult)
+        EngineCard(engine = state.engine, onPickYara = onPickYaraRules, onPickClam = onPickClamDatabase, onReload = onReloadEngine)
+        ScanActionButton(enabled = !state.isBusy, onScanApk = onScanApk)
+        Footnote()
+    }
+}
+
+private val ScanUiState.isBusy: Boolean
+    get() = phase == ScanPhase.QUEUED || phase == ScanPhase.SCANNING
+
+@Composable
+private fun Header() {
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Text(
-            text = "X-Security",
-            style = MaterialTheme.typography.headlineLarge,
-            modifier = Modifier.padding(bottom = 8.dp)
+            text = stringResource(R.string.app_name),
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold
         )
-
-        // Security Status Card
-        SecurityStatusCard()
-
-        // Last Scan Info
-        LastScanCard()
-
-        // Quick Actions
-        QuickActionsSection(
-            onStartScan = onStartScan,
-            onFullScan = onFullScan,
-            onSettings = onSettings
+        Text(
+            text = stringResource(R.string.dashboard_subtitle),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
-
-        // Protection Modules
-        ProtectionModulesCard()
     }
 }
 
 @Composable
-fun SecurityStatusCard() {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(180.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer
-        ),
-        shape = RoundedCornerShape(16.dp)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(24.dp),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Icon(
-                imageVector = Icons.Filled.Star,
-                contentDescription = "Secure",
-                modifier = Modifier.size(64.dp),
-                tint = MaterialTheme.colorScheme.primary
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            Text(
-                text = "Your Device is Secure",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = "No threats detected",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onPrimaryContainer
-            )
-        }
+private fun StatusCard(state: ScanUiState, onCancelScan: () -> Unit) {
+    val result0 = state.lastResult
+    val palette = when {
+        state.phase == ScanPhase.SCANNING || state.phase == ScanPhase.QUEUED -> StatusPalette(
+            icon = Icons.Filled.Refresh,
+            title = stringResource(R.string.status_scanning),
+            container = MaterialTheme.colorScheme.secondaryContainer,
+            onContainer = MaterialTheme.colorScheme.onSecondaryContainer
+        )
+        state.phase == ScanPhase.FAILED -> StatusPalette(
+            icon = Icons.Filled.Warning,
+            title = stringResource(R.string.status_failed),
+            container = MaterialTheme.colorScheme.errorContainer,
+            onContainer = MaterialTheme.colorScheme.onErrorContainer
+        )
+        result0 == null -> StatusPalette(
+            icon = Icons.Filled.Info,
+            title = stringResource(R.string.status_idle),
+            container = MaterialTheme.colorScheme.surfaceVariant,
+            onContainer = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        result0.isInfected -> StatusPalette(
+            icon = Icons.Filled.Warning,
+            title = stringResource(R.string.status_threats, result0.threats.size),
+            container = MaterialTheme.colorScheme.errorContainer,
+            onContainer = MaterialTheme.colorScheme.onErrorContainer
+        )
+        else -> StatusPalette(
+            icon = Icons.Filled.Check,
+            title = stringResource(R.string.status_clean),
+            container = MaterialTheme.colorScheme.primaryContainer,
+            onContainer = MaterialTheme.colorScheme.onPrimaryContainer
+        )
     }
-}
 
-@Composable
-fun LastScanCard() {
+    val result = state.lastResult
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
-        shape = RoundedCornerShape(16.dp)
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = palette.container)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+                .padding(20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Text(
-                text = "Last Scan",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
+            Icon(
+                imageVector = palette.icon,
+                contentDescription = null,
+                modifier = Modifier.size(44.dp),
+                tint = palette.onContainer
             )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column {
-                    Text(
-                        text = "Date & Time",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = "Today at 10:30 AM",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
+            Text(
+                text = palette.title,
+                style = MaterialTheme.typography.titleLarge,
+                color = palette.onContainer,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center
+            )
+            val subtitle = when {
+                !state.message.isNullOrBlank() -> state.message
+                state.phase == ScanPhase.SCANNING -> stringResource(
+                    R.string.status_scanning_percent,
+                    (state.progress * 100f).toInt().coerceIn(0, 100)
+                )
+                state.phase == ScanPhase.QUEUED -> stringResource(R.string.status_queued)
+                result != null && result.isComplete -> stringResource(
+                    R.string.status_result_summary,
+                    formatBytes(result.bytesScanned),
+                    result.durationMillis
+                )
+                else -> stringResource(R.string.status_idle_hint)
+            }
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodyMedium,
+                color = palette.onContainer,
+                textAlign = TextAlign.Center
+            )
+            if (state.isBusy) {
+                LinearProgressIndicator(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 4.dp)
+                )
+                OutlinedButton(onClick = onCancelScan) {
+                    Text(stringResource(R.string.action_cancel))
                 }
-                Spacer(modifier = Modifier.width(16.dp))
-                Column(horizontalAlignment = Alignment.End) {
-                    Text(
-                        text = "Files Scanned",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = "12,547",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                }
+            }
+            if (result != null && result.engineWarnings.isNotEmpty()) {
+                WarningsBlock(result.engineWarnings, palette.onContainer)
             }
         }
     }
 }
 
+private class StatusPalette(
+    val icon: ImageVector,
+    val title: String,
+    val container: Color,
+    val onContainer: Color
+)
+
 @Composable
-fun QuickActionsSection(
-    onStartScan: () -> Unit,
-    onFullScan: () -> Unit,
-    onSettings: () -> Unit
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        QuickActionButton(
-            icon = Icons.Default.PlayArrow,
-            title = "Quick Scan",
-            description = "Scan critical areas",
-            onClick = onStartScan
+private fun LastScanCard(state: ScanUiState) {
+    val formatter = remember { SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault()) }
+    SectionCard(title = stringResource(R.string.lastscan_title)) {
+        InfoRow(
+            label = stringResource(R.string.lastscan_finished),
+            value = if (state.finishedAt > 0L) formatter.format(Date(state.finishedAt)) else stringResource(R.string.value_none)
         )
-        QuickActionButton(
-            icon = Icons.Filled.Star,
-            title = "Full Scan",
-            description = "Complete device scan",
-            onClick = onFullScan
+        InfoRow(
+            label = stringResource(R.string.lastscan_count),
+            value = state.scannedFiles.toString()
         )
-        QuickActionButton(
-            icon = Icons.Default.Settings,
-            title = "Settings",
-            description = "Configure protection",
-            onClick = onSettings
-        )
+        val result = state.lastResult
+        if (result != null) {
+            InfoRow(label = stringResource(R.string.lastscan_file), value = result.fileName)
+            InfoRow(label = stringResource(R.string.lastscan_size), value = formatBytes(result.fileSize))
+            InfoRow(
+                label = stringResource(R.string.lastscan_hash),
+                value = result.sha256?.take(16) ?: stringResource(R.string.value_none)
+            )
+            InfoRow(
+                label = stringResource(R.string.lastscan_duration),
+                value = stringResource(R.string.duration_ms, result.durationMillis)
+            )
+        }
     }
 }
 
 @Composable
-fun QuickActionButton(
-    icon: ImageVector,
-    title: String,
-    description: String,
-    onClick: () -> Unit
-) {
-    ElevatedCard(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(64.dp),
-        onClick = onClick,
-        shape = RoundedCornerShape(12.dp)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = title,
-                modifier = Modifier.size(32.dp),
-                tint = MaterialTheme.colorScheme.primary
+private fun ThreatsCard(result: ScanResult?) {
+    val threats = result?.threats.orEmpty()
+    if (threats.isEmpty() && (result == null || !result.isComplete)) {
+        // Tarama hata ile bittiyse "tehdit yok" izlenimi verme.
+        SectionCard(title = stringResource(R.string.threats_title)) {
+            Text(
+                text = stringResource(R.string.threats_unknown),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            Column(modifier = Modifier.weight(1f)) {
+        }
+        return
+    }
+    SectionCard(
+        title = if (threats.isEmpty()) {
+            stringResource(R.string.threats_none)
+        } else {
+            stringResource(R.string.threats_found, threats.size)
+        }
+    ) {
+        if (threats.isEmpty()) {
+            Text(
+                text = stringResource(R.string.threats_none_hint),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        } else {
+            threats.take(MAX_VISIBLE_THREATS).forEach { threat ->
+                ThreatRow(threat)
+            }
+            if (threats.size > MAX_VISIBLE_THREATS) {
                 Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Text(
-                    text = description,
-                    style = MaterialTheme.typography.labelSmall,
+                    text = stringResource(R.string.threats_more, threats.size - MAX_VISIBLE_THREATS),
+                    style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
@@ -223,89 +281,220 @@ fun QuickActionButton(
 }
 
 @Composable
-fun ProtectionModulesCard() {
+private fun ThreatRow(threat: ThreatMatch) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(
+                MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.35f),
+                RoundedCornerShape(12.dp)
+            )
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.Top
+    ) {
+        Icon(
+            imageVector = Icons.Filled.Warning,
+            contentDescription = null,
+            modifier = Modifier.size(20.dp),
+            tint = MaterialTheme.colorScheme.error
+        )
+        Spacer(modifier = Modifier.width(10.dp))
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(text = threat.name, style = MaterialTheme.typography.titleSmall)
+            Text(
+                text = listOfNotNull(threat.engine, threat.detail).joinToString(" · "),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+private fun EngineCard(
+    engine: EngineInfo?,
+    onPickYara: () -> Unit,
+    onPickClam: () -> Unit,
+    onReload: () -> Unit
+) {
+    SectionCard(title = stringResource(R.string.engine_title)) {
+        if (engine == null) {
+            Text(
+                text = stringResource(R.string.engine_not_loaded),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.error
+            )
+        } else {
+            InfoRow(
+                label = stringResource(R.string.engine_yara_rules),
+                value = engine.yaraRules.toString()
+            )
+            InfoRow(
+                label = stringResource(R.string.engine_yara_patterns),
+                value = engine.yaraPatterns.toString()
+            )
+            InfoRow(
+                label = stringResource(R.string.engine_clam_signatures),
+                value = engine.clamSignatures.toString()
+            )
+            if (engine.warnings.isNotEmpty()) {
+                WarningsBlock(engine.warnings, MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = onPickYara, modifier = Modifier.weight(1f)) {
+                Text(stringResource(R.string.engine_pick_yara), style = MaterialTheme.typography.labelLarge)
+            }
+            OutlinedButton(onClick = onPickClam, modifier = Modifier.weight(1f)) {
+                Text(stringResource(R.string.engine_pick_clam), style = MaterialTheme.typography.labelLarge)
+            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Button(onClick = onReload) {
+                Icon(imageVector = Icons.Filled.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(stringResource(R.string.engine_reload))
+            }
+            Text(
+                text = stringResource(R.string.engine_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+private fun ScanActionButton(enabled: Boolean, onScanApk: () -> Unit) {
+    Button(
+        onClick = onScanApk,
+        enabled = enabled,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 4.dp),
+        shape = RoundedCornerShape(16.dp),
+        colors = ButtonDefaults.buttonColors()
+    ) {
+        Icon(
+            imageVector = if (enabled) Icons.Filled.PlayArrow else Icons.Filled.Refresh,
+            contentDescription = null,
+            modifier = Modifier.size(22.dp)
+        )
+        Spacer(modifier = Modifier.width(10.dp))
+        Text(
+            text = stringResource(if (enabled) R.string.action_scan else R.string.action_scan_busy),
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.padding(vertical = 8.dp)
+        )
+    }
+}
+
+@Composable
+private fun Footnote() {
+    Text(
+        text = stringResource(R.string.dashboard_footnote, stringResource(R.string.app_version)),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(bottom = 8.dp)
+    )
+}
+
+@Composable
+private fun SectionCard(title: String, content: @Composable () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
-        shape = RoundedCornerShape(16.dp)
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Text(
-                text = "Protection Modules",
+                text = title,
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
             )
-            ProtectionModule("Real-time Protection", true)
-            ProtectionModule("Web Protection", true)
-            ProtectionModule("Application Guard", false)
+            content()
         }
     }
 }
 
+
 @Composable
-fun ProtectionModule(name: String, isEnabled: Boolean) {
+private fun InfoRow(label: String, value: String) {
     Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.Top
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(end = 12.dp)
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyMedium,
+            textAlign = TextAlign.End,
+            modifier = Modifier.weight(1f, fill = false)
+        )
+    }
+}
+
+@Composable
+private fun WarningsBlock(warnings: List<String>, tint: Color) {
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = name,
-                style = MaterialTheme.typography.bodyMedium
+            .background(
+                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                RoundedCornerShape(12.dp)
             )
+            .padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        Text(
+            text = stringResource(R.string.engine_warnings_title, warnings.size),
+            style = MaterialTheme.typography.labelLarge,
+            color = tint,
+            fontWeight = FontWeight.SemiBold
+        )
+        warnings.take(MAX_VISIBLE_WARNINGS).forEach { warning ->
             Text(
-                text = if (isEnabled) "Active" else "Inactive",
-                style = MaterialTheme.typography.labelSmall,
-                color = if (isEnabled) {
-                    MaterialTheme.colorScheme.primary
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                }
+                text = "• $warning",
+                style = MaterialTheme.typography.bodySmall,
+                color = tint
             )
         }
-        Badge(
-            modifier = Modifier
-                .clip(RoundedCornerShape(8.dp))
-                .background(
-                    if (isEnabled) {
-                        MaterialTheme.colorScheme.primaryContainer
-                    } else {
-                        MaterialTheme.colorScheme.errorContainer
-                    }
-                )
-                .padding(horizontal = 8.dp, vertical = 4.dp),
-            contentColor = if (isEnabled) {
-                MaterialTheme.colorScheme.primary
-            } else {
-                MaterialTheme.colorScheme.error
-            }
-        ) {
+        if (warnings.size > MAX_VISIBLE_WARNINGS) {
             Text(
-                text = if (isEnabled) "ON" else "OFF",
-                style = MaterialTheme.typography.labelSmall,
-                fontSize = 10.sp
+                text = stringResource(R.string.engine_warnings_more, warnings.size - MAX_VISIBLE_WARNINGS),
+                style = MaterialTheme.typography.bodySmall,
+                color = tint
             )
         }
     }
 }
 
-@Composable
-fun Badge(
-    modifier: Modifier = Modifier,
-    contentColor: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.primary,
-    content: @Composable () -> Unit
-) {
-    Box(modifier = modifier, contentAlignment = Alignment.Center) {
-        content()
+private fun formatBytes(bytes: Long): String {
+    if (bytes <= 0L) return "0 B"
+    val units = arrayOf("B", "KB", "MB", "GB", "TB")
+    var value = bytes.toDouble()
+    var index = 0
+    while (value >= 1024.0 && index < units.size - 1) {
+        value /= 1024.0
+        index++
+    }
+    return if (index == 0) {
+        "${bytes} B"
+    } else {
+        String.format(Locale.US, "%.1f %s", value, units[index])
     }
 }
+
+private const val MAX_VISIBLE_THREATS = 12
+private const val MAX_VISIBLE_WARNINGS = 6

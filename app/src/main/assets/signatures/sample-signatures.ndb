@@ -1,0 +1,9 @@
+# X-Security ornek ClamAV `.ndb` imza veritabani.
+# Format: Name:TargetType:Offset:HexSignature[:MinSize,MaxSize]
+#
+# Bu dosya gercek bir ClamAV dagitimi DEGILDIR; motorun .ndb okuyucusunu ve
+# offset/mask uygulamalarini dogrulamak icin kucuk, zararsiz ornekler icerir.
+# Ornek olarak EICAR test vektoru kullanilmistir.
+Eicar.Test-File:0:0:58354f2150254041505b345c505a58353428505e2937434329377d2445494341522d5354414e444152442d414e544956495255532d544553542d46494c452124482b482a:68-
+Android.Sample.DexMagic:0:0:64 65 78 0a ?? ?? ?? ??
+Android.Sample.ManifestHint:0:0,64:3c 6d 61 6e 69 66 65 73 74

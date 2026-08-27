@@ -1,4 +1,65 @@
 <resources>
     <string name="app_name">X-Security</string>
-    <string name="app_version">0.90 Pre-Release</string>
+    <string name="app_version">0.91.0-pre-release</string>
+
+    <string name="dashboard_subtitle">Local APK scanning with YARA rules and ClamAV signatures</string>
+    <string name="dashboard_footnote">X-Security %1$s · all analysis happens on-device; the app has no network permission</string>
+
+    <string name="status_idle">Waiting for a scan</string>
+    <string name="status_idle_hint">Pick an APK file to start.</string>
+    <string name="status_queued">Scan queued…</string>
+    <string name="status_scanning">Scanning</string>
+    <string name="status_scanning_percent">%1$d%% of the file scanned</string>
+    <string name="status_clean">No threats found</string>
+    <string name="status_threats">%1$d threat(s) found</string>
+    <string name="status_failed">Scan did not complete</string>
+    <string name="status_result_summary">%1$s scanned · %2$d ms</string>
+
+    <string name="action_scan">Pick an APK and scan</string>
+    <string name="action_scan_busy">Scan in progress…</string>
+    <string name="action_cancel">Cancel</string>
+
+    <string name="lastscan_title">Last scan</string>
+    <string name="lastscan_finished">Finished at</string>
+    <string name="lastscan_count">Files scanned</string>
+    <string name="lastscan_file">File</string>
+    <string name="lastscan_size">Size</string>
+    <string name="lastscan_hash">SHA-256 (first 16)</string>
+    <string name="lastscan_duration">Duration</string>
+    <string name="duration_ms">%1$d ms</string>
+    <string name="value_none">—</string>
+
+    <string name="threats_title">Findings</string>
+    <string name="threats_none">No signature matched</string>
+    <string name="threats_none_hint">Neither the loaded rules nor the signatures matched this file.</string>
+    <string name="threats_found">%1$d finding(s)</string>
+    <string name="threats_unknown">Unknown: the scan did not complete.</string>
+    <string name="threats_more">and %1$d more finding(s)…</string>
+
+    <string name="engine_title">Engine and signatures</string>
+    <string name="engine_not_loaded">No signature database was loaded. Pick a rules or database file below.</string>
+    <string name="engine_yara_rules">YARA rules</string>
+    <string name="engine_yara_patterns">YARA patterns</string>
+    <string name="engine_clam_signatures">ClamAV signatures</string>
+    <string name="engine_pick_yara">Pick .yar</string>
+    <string name="engine_pick_clam">Pick .ndb</string>
+    <string name="engine_reload">Reload engine</string>
+    <string name="engine_hint">Signature files are copied into app storage; scanning never uses the network.</string>
+    <string name="engine_warnings_title">Engine warnings (%1$d)</string>
+    <string name="engine_warnings_more">and %1$d more warning(s)…</string>
+    <string name="engine_unavailable">Engine unavailable: %1$s</string>
+    <string name="engine_unknown_error">unknown error</string>
+
+    <string name="stage_preparing">Copying and hashing the file…</string>
+    <string name="stage_failed">The file could not be prepared</string>
+    <string name="signature_install_failed">The signature file could not be installed</string>
+
+    <string name="notif_channel_name">Scan status</string>
+    <string name="notif_channel_description">Progress and results of APK scans</string>
+    <string name="notif_scanning_title">Scan in progress</string>
+    <string name="notif_clean_title">No threats found</string>
+    <string name="notif_clean_body">%1$s was scanned; no signature matched.</string>
+    <string name="notif_threats_title">%1$d threat(s) found</string>
+    <string name="notif_failed_title">Scan did not complete</string>
+    <string name="notif_failed_body">Engine or file error; open the app for details.</string>
 </resources>
