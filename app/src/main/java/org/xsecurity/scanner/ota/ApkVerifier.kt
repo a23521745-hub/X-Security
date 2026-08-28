@@ -54,7 +54,7 @@ object ApkVerifier {
                     if (total > maxBytes) {
                         return fail(target, "APK, izin verilen boyut sinirini aştı (${maxBytes} bayt)")
                     }
-                    if (expectedSize in 1..<total) {
+                    if (expectedSize > 0L && total > expectedSize) {
                         return fail(target, "APK, manifestte bildirilen boyuttan büyük (${expectedSize} bayt)")
                     }
                     digest.update(buffer, 0, read)
