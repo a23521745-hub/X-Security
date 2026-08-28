@@ -96,11 +96,15 @@ jobs:
           XSEC_KEY_PASSWORD: ${{ secrets.XSEC_KEY_PASSWORD }}
         run: ./gradlew --no-daemon :app:assembleRelease
 
-      - name: Prepare Artifacts & Generate update.json
+      - name: Prepare Artifacts & Generate + Sign update.json
         env:
           NEXT_VER: ${{ steps.version.outputs.next }}
           VER_NAME: ${{ steps.version.outputs.version_name }}
           TAG_NAME: ${{ steps.version.outputs.tag }}
+          # OTA manifestini imzalamak icin kullanilan RSA-2048 PRIVATE anahtari
+          # (base64 kodlu PEM). Uygulama imzasiz manifesti KABUL ETMEZ; bu secret
+          # yoksa yayinlanan update.json yalnizca bilgilendirme amaclidir.
+          OTA_SIGNING_KEY_B64: ${{ secrets.XSEC_OTA_SIGNING_KEY }}
         run: |
           set -euo pipefail
           APK_PATH=$(find app/build/outputs/apk/release/ -name "*.apk" | head -n 1)
@@ -112,11 +116,26 @@ jobs:
           {
             "versionCode": ${NEXT_VER},
             "versionName": "${VER_NAME}",
-            "url": "https://github.com/${{ github.repository }}/releases/download/${TAG_NAME}/X-Security.apk",
-            "sha256": "${SHA256}",
+            "apkUrl": "https://github.com/${{ github.repository }}/releases/download/${TAG_NAME}/X-Security.apk",
+            "apkSha256": "${SHA256}",
+            "apkSizeBytes": $(stat -c%s X-Security.apk),
+            "minSdk": 26,
+            "forceUpdate": false,
+            "changelog": "X-Security otomatik OTA güncellemesi (v${NEXT_VER})",
             "releaseNotes": "X-Security Otomatik OTA Güncellemesi (v${NEXT_VER})"
           }
           EOF
+          
+          if [ -n "$OTA_SIGNING_KEY_B64" ]; then
+            printf '%s' "$OTA_SIGNING_KEY_B64" | base64 -d > "$RUNNER_TEMP/ota-signing-private.pem"
+            openssl dgst -sha256 -sign "$RUNNER_TEMP/ota-signing-private.pem" \
+              -out update.json.sig update.json
+            rm -f "$RUNNER_TEMP/ota-signing-private.pem"
+            echo "update.json imzalandi (update.json.sig uretildi)."
+          else
+            echo "UYARI: XSEC_OTA_SIGNING_KEY tanimli degil; update.json IMZASIZ." >&2
+            echo "Uygulama bu manifesti reddeder (imza dogrulamasi basarisi olur)." >&2
+          fi
 
       - name: 🚀 Publish GitHub Release
         uses: softprops/action-gh-release@v2
@@ -127,6 +146,7 @@ jobs:
           files: |
             X-Security.apk
             update.json
+            update.json.sig
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
