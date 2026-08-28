@@ -24,8 +24,12 @@ import org.xsecurity.scanner.data.ScanNotifications
 import org.xsecurity.scanner.data.ScanStore
 import org.xsecurity.scanner.data.SignatureStore
 import org.xsecurity.scanner.engine.ScanEngines
+import org.xsecurity.scanner.ota.OtaController
+import org.xsecurity.scanner.ota.OtaNotifications
+import org.xsecurity.scanner.ota.OtaStore
 import org.xsecurity.scanner.ui.screens.DashboardScreen
 import org.xsecurity.scanner.ui.theme.XSecurityTheme
+import java.io.File
 
 /**
  * Uygulamanin tek ekrani.
@@ -61,20 +65,28 @@ class MainActivity : ComponentActivity() {
 
         SignatureStore.ensureBundledDefaults(this)
         ScanNotifications.ensureChannel(this)
+        OtaNotifications.ensureChannel(this)
         ScanStore.restore(this)
+        OtaStore.restore(this)
         requestNotificationPermissionIfNeeded()
         reloadEngine()
 
         setContent {
             XSecurityTheme {
                 val state by ScanStore.state.collectAsState()
+                val otaState by OtaStore.state.collectAsState()
                 DashboardScreen(
                     state = state,
+                    otaState = otaState,
+                    installedVersionCode = OtaController.currentVersionCode(this),
                     onScanApk = { apkPicker.launch(APK_MIME_TYPES) },
                     onPickYaraRules = { yaraPicker.launch(ANY_MIME_TYPES) },
                     onPickClamDatabase = { clamPicker.launch(ANY_MIME_TYPES) },
                     onReloadEngine = { reloadEngine() },
-                    onCancelScan = { ScanController.cancelAll(this) }
+                    onCancelScan = { ScanController.cancelAll(this) },
+                    onCheckUpdate = { lifecycleScope.launch { OtaController.check(this@MainActivity) } },
+                    onDownloadUpdate = { startDownload() },
+                    onInstallUpdate = { installDownloadedUpdate() }
                 )
             }
         }
@@ -84,6 +96,29 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         // Worker baska bir surecten calissa bile sonucui yenile.
         ScanStore.restore(this)
+        OtaStore.restore(this)
+    }
+
+    /** Indirme butonu: yalnizca dogrulanmis bir guncelleme varken Worker'i kuyruklar. */
+    private fun startDownload() {
+        val info = OtaStore.state.value.available ?: return
+        OtaController.enqueueDownload(this, info)
+    }
+
+    /**
+     * Kur butonu: indirilmis + dogrulanmis APK icin sistemin paket kurulum ekranini acar.
+     * Uygulama hicbir zaman sessiz kurmaz; izin yoksa kullanici sistem ayarina yonlendirilir.
+     */
+    private fun installDownloadedUpdate() {
+        val path = OtaStore.state.value.downloadedPath ?: return
+        when (val result = OtaController.install(this, File(path))) {
+            is OtaController.Result.NeedsPermission -> {
+                runCatching { startActivity(result.settingsIntent) }
+                OtaStore.error(getString(R.string.ota_install_permission))
+            }
+            is OtaController.Result.Error -> OtaStore.error(result.message)
+            OtaController.Result.InstallPromptLaunched -> Unit // sistem kurulum ekrani acildi
+        }
     }
 
     private fun queueScan(uri: Uri) {

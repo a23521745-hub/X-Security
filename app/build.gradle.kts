@@ -12,6 +12,21 @@ val keystorePath = providers.gradleProperty("xsecKeystore").orNull
 val keystoreFile: File? = keystorePath?.let { File(it) }
 val hasSigningMaterial = keystoreFile != null && keystoreFile.isFile
 
+// OTA yapilandirmasi da yalnizca derleme ortamindan (Gradle property / ortam degiskeni)
+// gelir; depoya sunucu adresi ya da dogrulama anahtari sabitlenmez. Public anahtar
+// zaten gizli degildir (istemcide gomulu olur) ama uretim degeri boylece disaridan
+// yonetilir. Bos manifest URL'i = OTA kapali (uygulama "yapilandirilmamis" der).
+val otaManifestUrl = providers.gradleProperty("xsecOtaManifestUrl").orNull
+    ?: System.getenv("XSEC_OTA_MANIFEST_URL") ?: ""
+val otaPublicKeyPem = providers.gradleProperty("xsecOtaPublicKeyPem").orNull
+    ?: System.getenv("XSEC_OTA_PUBLIC_KEY_PEM") ?: ""
+val otaAllowedHosts = providers.gradleProperty("xsecOtaAllowedHosts").orNull
+    ?: System.getenv("XSEC_OTA_ALLOWED_HOSTS") ?: ""
+
+/** BuildConfig String alani icin kacisli Java sabiti. */
+fun javaStringLiteral(value: String): String =
+    "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "") + "\""
+
 android {
     namespace = "org.xsecurity.scanner"
 
@@ -22,10 +37,15 @@ android {
         applicationId = "org.xsecurity.scanner"
         minSdk = 26
         targetSdk = 35
-        versionCode = 3
-        versionName = "0.91.0-pre-release"
+        versionCode = 4
+        versionName = "0.92.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // OTA istemcisi bu degerleri calisma zamaninda okur (bkz. OtaController).
+        buildConfigField("String", "OTA_MANIFEST_URL", javaStringLiteral(otaManifestUrl))
+        buildConfigField("String", "OTA_PUBLIC_KEY_PEM", javaStringLiteral(otaPublicKeyPem))
+        buildConfigField("String", "OTA_ALLOWED_HOSTS", javaStringLiteral(otaAllowedHosts))
     }
 
     signingConfigs {
@@ -80,6 +100,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     composeOptions {
@@ -130,5 +151,7 @@ dependencies {
     debugImplementation("androidx.compose.ui:ui-tooling")
 
     testImplementation("junit:junit:4.13.2")
+    // Saf JVM birim testlerinde org.json (Android'de platform ile gelir) kullanabilmek icin.
+    testImplementation("org.json:json:20240303")
     androidTestImplementation("androidx.test.ext:junit:1.1.5")
 }

@@ -234,3 +234,11 @@ captures/
 .externalNativeBuild/
 .cxx/
 lint-baseline.xml
+
+# --- OTA imzalama anahtarlari -------------------------------------------
+# Private imza anahtari HICBIR ZAMAN depoya girmemeli. Public anahtar (.pub) ve
+# ornek public anahtar (ota-signing-dev-public.pem) serbesttir.
+ota_keys/
+tools/ota/**/*private*.pem
+tools/ota/**/*-private.pem
+*.private.pem
