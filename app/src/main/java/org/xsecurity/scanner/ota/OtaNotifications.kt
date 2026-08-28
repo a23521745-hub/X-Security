@@ -40,11 +40,28 @@ object OtaNotifications {
         val percent = (fraction.coerceIn(0f, 1f) * 100f).toInt()
         val notification = base(context)
             .setContentTitle(context.getString(R.string.ota_notif_downloading_title))
+            .setContentText(context.getString(R.string.ota_downloading, percent))
             .setSmallIcon(R.drawable.ic_stat_shield)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setSilent(true)
-            .setProgress(100, percent, percent <= 0)
+            .setProgress(100, percent, false)
+            .build()
+        notify(context, notification)
+    }
+
+    /**
+     * Periyodik kontrolun "yeni surum var" sonucu icin sessiz, dusuk oncelikli
+     * bildirim. Uygulamayi acar; indirme/kurulum karari yine kullanicinindir.
+     */
+    fun showUpdateAvailable(context: Context, info: UpdateInfo) {
+        val notification = base(context)
+            .setContentTitle(context.getString(R.string.ota_notif_available_title))
+            .setContentText(context.getString(R.string.ota_notif_available_body, info.versionName))
+            .setSmallIcon(R.drawable.ic_stat_shield)
+            .setOngoing(false)
+            .setAutoCancel(true)
+            .setSilent(true)
             .build()
         notify(context, notification)
     }

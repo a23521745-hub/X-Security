@@ -13,7 +13,9 @@ class UpdateInfoTest {
         versionName: String = "0.92.1",
         apkUrl: String = "https://updates.example.com/x-security/app-release.apk",
         apkSha256: String = sha,
-        apkSize: String = "1234567"
+        apkSize: String = "1234567",
+        forceUpdate: String? = null,
+        changelog: String? = null
     ): String = """
         {
           "versionCode": $versionCode,
@@ -22,7 +24,7 @@ class UpdateInfoTest {
           "apkSha256": "$apkSha256",
           "apkSizeBytes": $apkSize,
           "releaseNotes": "Duzeltmeler.",
-          "minSdk": 26
+          "minSdk": 26${if (forceUpdate != null) ",\n          \"forceUpdate\": $forceUpdate" else ""}${if (changelog != null) ",\n          \"changelog\": $changelog" else ""}
         }
     """.trimIndent()
 
@@ -41,6 +43,33 @@ class UpdateInfoTest {
         val info = UpdateInfo.parse(manifest().toByteArray())
         val again = UpdateInfo.fromJson(info.toJson())
         assertEquals(info, again)
+    }
+
+    @Test
+    fun parsesForceUpdateAndChangelog() {
+        val info = UpdateInfo.parse(
+            manifest(forceUpdate = "true", changelog = "\"- resume destegi\n- Ed25519\"").toByteArray()
+        )
+        assertEquals(true, info.forceUpdate)
+        assertEquals("- resume destegi\n- Ed25519", info.changelog)
+        assertEquals("- resume destegi\n- Ed25519", info.displayNotes)
+    }
+
+    @Test
+    fun forceUpdateAndChangelogDefaultWhenAbsent() {
+        val info = UpdateInfo.parse(manifest().toByteArray())
+        assertEquals(false, info.forceUpdate)
+        assertEquals("", info.changelog)
+        // Not alani yoksa displayNotes kisa not'a duser.
+        assertEquals("Duzeltmeler.", info.displayNotes)
+    }
+
+    @Test
+    fun extendedManifestRoundTripsThroughJson() {
+        val info = UpdateInfo.parse(
+            manifest(forceUpdate = "true", changelog = "\"- a\n- b\"").toByteArray()
+        )
+        assertEquals(info, UpdateInfo.fromJson(info.toJson()))
     }
 
     @Test

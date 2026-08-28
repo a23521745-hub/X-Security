@@ -15,7 +15,8 @@ class OtaCheckerTest {
     private fun manifest(
         versionCode: Long = 5,
         apkUrl: String = "https://updates.example.com/app.apk",
-        size: Long = 100
+        size: Long = 100,
+        minSdk: Int = 26
     ): ByteArray = """
         {
           "versionCode": $versionCode,
@@ -24,7 +25,7 @@ class OtaCheckerTest {
           "apkSha256": "${"a".repeat(64)}",
           "apkSizeBytes": $size,
           "releaseNotes": "test",
-          "minSdk": 26
+          "minSdk": $minSdk
         }
     """.trimIndent().toByteArray()
 
@@ -119,7 +120,7 @@ class OtaCheckerTest {
     @Test
     fun embeddedSamplePublicKeyLoadsAndIsRsa() {
         // Gomulu ornek anahtar yuklenebilmeli (yapilandirma bozulursa erken fark edilsin).
-        val key = RsaVerifier.loadPublicKey(OtaConfig.SAMPLE_PUBLIC_KEY_PEM)
+        val key = SignatureVerifier.loadPublicKey(OtaConfig.SAMPLE_PUBLIC_KEY_PEM)
         assertEquals("RSA", key.algorithm)
         // Bilinen anahtarin base64 govdesi 392 karakterdir (2048 bit SPKI).
         val body = OtaConfig.SAMPLE_PUBLIC_KEY_PEM
@@ -127,5 +128,34 @@ class OtaCheckerTest {
             .replace("-----END PUBLIC KEY-----", "")
             .replace("""\s""".toRegex(), "")
         assertTrue(Base64.getDecoder().decode(body).size > 250)
+    }
+
+    @Test
+    fun manifestRequiringNewerSdkIsRejected() {
+        val manifestBytes = manifest(minSdk = 34)
+        val outcome = OtaChecker.evaluate(
+            manifestBytes = manifestBytes,
+            signatureBytes = sign(manifestBytes),
+            publicKey = pair.public,
+            currentVersionCode = 4,
+            hosts = hosts,
+            deviceSdk = 30
+        )
+        assertTrue(outcome is OtaChecker.Outcome.Error)
+        assertTrue((outcome as OtaChecker.Outcome.Error).message.contains("desteklemiyor"))
+    }
+
+    @Test
+    fun manifestMatchingDeviceSdkIsAccepted() {
+        val manifestBytes = manifest(minSdk = 26)
+        val outcome = OtaChecker.evaluate(
+            manifestBytes = manifestBytes,
+            signatureBytes = sign(manifestBytes),
+            publicKey = pair.public,
+            currentVersionCode = 4,
+            hosts = hosts,
+            deviceSdk = 26
+        )
+        assertTrue(outcome is OtaChecker.Outcome.UpdateAvailable)
     }
 }

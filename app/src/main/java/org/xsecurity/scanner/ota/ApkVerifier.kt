@@ -86,4 +86,34 @@ object ApkVerifier {
         runCatching { if (file.exists()) file.delete() }
         return Result.Failure(message)
     }
+
+    /**
+     * Diskte **hazir** dosyayi bastan sona dogrular: boyut + SHA-256.
+     *
+     * Kullanim yerleri:
+     *  - kesintiye ugrayip tamamlanmis gorunen bir indirmeyi sonlandirirken,
+     *  - kurulum oncesi, indirilen dosyanin indirme sonrasi bozulup bozulmadigini
+     *    tekrar kontrol ederken (savunma derinligi).
+     */
+    fun verifyFile(file: File, expectedSha256: String, expectedSize: Long, maxBytes: Long): Result {
+        if (!file.isFile) {
+            return Result.Failure("Doğrulanacak dosya bulunamadı: ${file.name}")
+        }
+        val size = file.length()
+        if (size > maxBytes) {
+            return Result.Failure("APK, izin verilen boyut sınırını aştı ($maxBytes bayt)")
+        }
+        if (expectedSize > 0L && size != expectedSize) {
+            return Result.Failure("APK boyutu eşleşmedi: bildirilen $expectedSize, dosyadaki $size")
+        }
+        val actualSha = try {
+            org.xsecurity.scanner.core.Digest.sha256Hex(file)
+        } catch (error: Throwable) {
+            return Result.Failure("Dosya okunamadı: ${error.message ?: "bilinmeyen hata"}")
+        }
+        if (!actualSha.equals(expectedSha256, ignoreCase = true)) {
+            return Result.Failure("APK SHA-256 eşleşmedi — dosya reddedildi")
+        }
+        return Result.Success(file, size, actualSha)
+    }
 }

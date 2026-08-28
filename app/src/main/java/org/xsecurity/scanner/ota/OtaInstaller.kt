@@ -87,11 +87,20 @@ object OtaInstaller {
             info == null -> "İndirilen dosya geçerli bir Android paketi değil."
             info.packageName != expectedPackage ->
                 "Paket adı uyuşmuyor: ${info.packageName} (beklenen $expectedPackage)."
-            info.longVersionCode <= expectedVersionCode ->
+            archiveVersionCode(info) <= expectedVersionCode ->
                 "Paket sürümü yüklü sürümden yeni değil (downgrade engellendi)."
             else -> null
         }
     } catch (error: Throwable) {
         "Paket doğrulanamadı: ${error.message ?: "bilinmeyen hata"}"
     }
+
+    /** API 28 oncesinde `longVersionCode` yoktur; eski alandan okunur. */
+    private fun archiveVersionCode(info: android.content.pm.PackageInfo): Long =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            info.longVersionCode
+        } else {
+            @Suppress("DEPRECATION")
+            info.versionCode.toLong()
+        }
 }

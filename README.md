@@ -1,4 +1,4 @@
-# X-Security 0.91 Pre-Release
+# X-Security 0.93 Pre-Release
 
 A small, fully on-device Android APK scanner: it parses YARA rules and ClamAV `.ndb`
 signature files locally and scans files with a memory-bounded streaming matcher.
@@ -39,6 +39,8 @@ app/src/main/java/org/xsecurity/scanner/
   clamav/                         ClamAvDatabaseParser, ClamAvScanner
   matcher/                        BytePattern, BytePatternMatcher, HexPatternCodec (shared)
   worker/ApkScanWorker.kt         CoroutineWorker: never crashes the app, small output
+  worker/OtaCheckWorker.kt        daily signed-manifest check (WorkManager, network-constrained)
+  worker/OtaDownloadWorker.kt     resumable, verified APK download (WorkManager + backoff)
 app/src/main/assets/signatures/   sample .yar + .ndb used by tests and first launch
 app/src/test/java/...             JVM unit tests for the parser/matcher/engine
 ```
@@ -65,27 +67,54 @@ private storage, so no storage permission is required under scoped storage.
 ## Over-the-air updates
 
 The updater lives in `app/src/main/java/org/xsecurity/scanner/ota/`
-(`UrlPolicy`, `OtaChecker`, `ApkDownloader`/`ApkVerifier`, `RsaVerifier`, `UpdateInfo`,
-plus an `OtaDownloadWorker`, installer and UI card). It is deliberately conservative:
+(`UrlPolicy`, `OtaChecker`, `ApkDownloader`/`ApkVerifier`, `SignatureVerifier`,
+`UpdateInfo`, `OtaStore`/`OtaController`, installer, notifications) plus two
+WorkManager jobs (`OtaCheckWorker`, `OtaDownloadWorker`) and a UI card. It is
+deliberately conservative:
 
 - **HTTPS-only + host allowlist** (`UrlPolicy`): manifest and APK URLs must be
   `https://` on a compile-time allowlisted host; redirects are followed manually and
   each hop is re-checked; cleartext is also blocked by `@xml/network_security_config`.
-- **Signature before parse** (`OtaChecker` + `RsaVerifier`): the raw `update.json`
-  bytes must verify against the embedded RSA-2048 public key
-  (`SHA256withRSA`). An unsigned or tampered manifest is rejected before it is ever
-  parsed. The signing key is injected at build time (see
-  `tools/ota/README.md`); builds that don't inject one ship with a clearly-labelled
-  **development** key.
-- **APK verification during download** (`ApkVerifier`): the file is streamed to disk
-  while its SHA-256 and length are checked against the manifest, with a hard size cap;
-  any mismatch aborts and deletes the partial file.
+- **Signature before parse** (`OtaChecker` + `SignatureVerifier`): the raw `update.json`
+  bytes must verify against the embedded public key using a strong algorithm selected
+  by the key type — **RSA-2048 / `SHA256withRSA`** (default, works on every supported
+  device) or **Ed25519** (modern devices; unsupported providers fail closed, never
+  "valid"). An unsigned or tampered manifest is rejected before it is ever parsed.
+  The signing key is injected at build time (see `tools/ota/README.md`); builds that
+  don't inject one ship with a clearly-labelled **development** key.
+- **Resumable, atomically-published downloads** (`ApkDownloader` + `ApkVerifier`): the
+  APK is streamed to a `<name>.part` file while its SHA-256 and length are computed
+  against the manifest, with a hard size cap. Interruptions (network loss, process
+  death) keep the `.part` file; the retry continues from where it left off via
+  `Range: bytes=N-` + `If-Range: <etag>` (`206` → append, `200` → the representation
+  changed and the download restarts, `416` on a complete part → verify only). Only a
+  fully hash-verified file is atomically renamed into place — a partial file can never
+  reach the installer. Integrity failures (hash/size mismatch, cap exceeded) delete
+  the partial data instead of resuming from it.
 - **Identity & no downgrade** (`OtaInstaller`): package name must equal
   `org.xsecurity.scanner` and `versionCode` must increase; Android additionally refuses
   to install an APK that isn't signed with the same release key as the installed app.
+- **Background work via WorkManager**: the daily signed-update check
+  (`OtaCheckWorker`, network-constrained, silent) and the download
+  (`OtaDownloadWorker`, network-constrained, exponential backoff) both run through
+  WorkManager — no foreground service, no battery-draining polling. Download progress
+  is shown transparently as a progress-bar notification (percent), with
+  ready/error notifications afterwards.
+- **Manifest schema** (`UpdateInfo`): `versionCode`, `versionName`, `apkUrl`,
+  `apkSha256`, `apkSizeBytes`, `minSdk` (updates requiring a newer Android version
+  than the device are rejected), `forceUpdate` (server-marked mandatory update,
+  surfaced prominently in the UI), `changelog` (detailed notes; `releaseNotes` remains
+  supported as the short form).
 - **No silent install**: after a verified download the user taps **Install**, which
   opens the standard Android package installer (and routes to the "install unknown
   apps" settings on Android 8+ if needed). Nothing installs in the background.
+- **Fail-safe error handling & fallback**: every stage reports failures as
+  user-readable state instead of crashing — the workers wrap their whole body in
+  safe catch blocks, the installer re-verifies the file hash right before launching
+  the system prompt (deleting and offering a re-download if the cached file was
+  corrupted or tampered with), and the currently installed app is never touched by
+  any update failure: a rejected/failed update simply leaves the working version in
+  place (the OS installer itself guarantees atomic, same-key, no-downgrade installs).
 
 Operator key/sign tooling and the manifest format are documented in
 [`tools/ota/README.md`](tools/ota/README.md). The endpoint URL, verification key and
@@ -122,20 +151,28 @@ adds no real security here, and an unverified optimizer could change scan behavi
 
 ## CI
 
-The repaired pipeline lives in **`.github/ci/android-release-apk.yml`**, outside
-`.github/workflows/`: the automation account used to prepare this branch has no
-`workflows` permission, so GitHub rejects any push that touches that directory.
-Activate it with:
+The **fixed** pipeline is staged in **`.github/ci/android-release-apk.yml`**: the
+automation account used to prepare this branch has no `workflows` permission, so
+GitHub rejects any push that touches `.github/workflows/`. Activate it with:
 
 ```bash
+git checkout .github/workflows/android-release-apk.yml  # eski (kusurlu) surumden kurtul
 git mv .github/ci/android-release-apk.yml .github/workflows/android-release-apk.yml
-git commit -m "ci: enable the JDK 17 + unit test + lint + release pipeline"
+git commit -m "ci: enable the fixed test/lint/release pipeline (signed update.json)"
 ```
 
-It runs unit tests and lint, then `:app:assembleRelease` (signed when the `XSEC_*`
-secrets exist, unsigned otherwise) and uploads the APK plus lint/test reports on
-failure. The workflow currently still under `.github/workflows/` is the old, broken one
-(wrong job id, no SDK setup, no tests) and is only kept so this branch could be pushed.
+The staged pipeline sets up JDK 17 + the Android SDK, runs the JVM unit tests and
+lint (both abort the build on failure), builds the release APK (signed when the
+`XSEC_KEYSTORE_*` secrets exist), computes its SHA-256, writes an `update.json`
+**with the correct schema and signs it** with the `XSEC_OTA_SIGNING_KEY` secret
+(base64 PEM of the OTA private key — without it the manifest stays unsigned and the
+app will refuse it), and publishes the APK + manifest + signature as a GitHub
+Release. Test/lint reports are uploaded as artifacts on failure.
+
+> The workflow currently still under `.github/workflows/` is the older revision:
+> it emits `update.json` with wrong field names (`url`/`sha256`) and never signs
+> it, so OTA clients would reject those manifests. Activate the staged fix above
+> (a one-time action that needs an account with `workflows` permission).
 
 ## Before publishing on Google Play
 

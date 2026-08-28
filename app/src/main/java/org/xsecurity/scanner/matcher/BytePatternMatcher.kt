@@ -3,13 +3,23 @@ package org.xsecurity.scanner.matcher
 import java.io.File
 import java.io.InputStream
 
+/**
+ * Bellek-bagimsiz, akis temelli kalip eslestirici.
+ *
+ *  - Dosya sabit boyutlu chunk'lar halinde okunur; chunk sinirini asan kaliplar
+ *    icin onceki pencerenin son `enUzunKalip - 1` bayti ("carry") tasinir.
+ *  - Ilk bayt kovalama (bucketing) ile cogu bayt tek hash aramasiyla elenir.
+ *  - [maxBytesToScan] siniri asilirsa sonuc `truncated` olarak isaretlenir;
+ *    sessizce eksik tarama yapilmaz.
+ */
 class BytePatternMatcher(
     val patterns: List<BytePattern>,
-    val chunkSize: Int = DEFAULT_CHUNK_SIZE
+    val chunkSize: Int = DEFAULT_CHUNK_SIZE,
+    val maxBytesToScan: Long = DEFAULT_MAX_BYTES_TO_SCAN
 ) {
     companion object {
         const val DEFAULT_CHUNK_SIZE: Int = 128 * 1024
-        const val DEFAULT_MAX_BYTES_TO_SCAN: Long = 100L * 1024 * 1024
+        const val DEFAULT_MAX_BYTES_TO_SCAN: Long = 512L * 1024 * 1024
     }
 
     val patternCount: Int get() = patterns.size
@@ -18,16 +28,13 @@ class BytePatternMatcher(
     val isEmpty: Boolean get() = usablePatternCount == 0
     val isNotEmpty: Boolean get() = !isEmpty
 
-    // Eski tarayıcıların tek parametreli veya farklı imzalı çağrılarına uyumluluk için ek constructor
-    constructor(patterns: List<BytePattern>) : this(patterns, DEFAULT_CHUNK_SIZE)
-
     private class Candidate(
         val pattern: BytePattern,
         val anchorIndex: Int,
         val anchorless: Boolean,
         val effLen: Int
     ) {
-        var consumed: kotlin.Boolean = false
+        var consumed: Boolean = false
     }
 
     private val buckets: Array<MutableList<Candidate>?> = arrayOfNulls(256)
@@ -54,7 +61,7 @@ class BytePatternMatcher(
             } else {
                 val ancByte = p.anchorByte.toInt() and 0xFF
                 val cand = Candidate(p, ancIdx, false, len)
-                
+
                 if (p.ignoreCase && BytePattern.isAsciiLetter(ancByte)) {
                     val lower = BytePattern.lowerAsciiInt(ancByte)
                     val upper = BytePattern.upperAsciiInt(ancByte)
@@ -92,9 +99,9 @@ class BytePatternMatcher(
 
     fun scan(
         file: File,
-        maxBytesToScan: Long = DEFAULT_MAX_BYTES_TO_SCAN,
+        maxBytesToScan: Long = this.maxBytesToScan,
         chunkSize: Int = this.chunkSize,
-        positionFilter: ((BytePattern, Long) -> Boolean)? = null,
+        positionFilter: ((Any, Long) -> Boolean)? = null,
         maxPositionsPerId: Int = 1,
         onBytesConsumed: ((Long) -> Unit)? = null
     ): Result {
@@ -105,9 +112,9 @@ class BytePatternMatcher(
 
     fun scan(
         data: ByteArray,
-        maxBytesToScan: Long = DEFAULT_MAX_BYTES_TO_SCAN,
+        maxBytesToScan: Long = this.maxBytesToScan,
         chunkSize: Int = this.chunkSize,
-        positionFilter: ((BytePattern, Long) -> Boolean)? = null,
+        positionFilter: ((Any, Long) -> Boolean)? = null,
         maxPositionsPerId: Int = 1,
         onBytesConsumed: ((Long) -> Unit)? = null
     ): Result {
@@ -118,9 +125,9 @@ class BytePatternMatcher(
 
     fun scan(
         stream: InputStream,
-        maxBytesToScan: Long = DEFAULT_MAX_BYTES_TO_SCAN,
+        maxBytesToScan: Long = this.maxBytesToScan,
         chunkSize: Int = this.chunkSize,
-        positionFilter: ((BytePattern, Long) -> Boolean)? = null,
+        positionFilter: ((Any, Long) -> Boolean)? = null,
         maxPositionsPerId: Int = 1,
         onBytesConsumed: ((Long) -> Unit)? = null
     ): Result {
@@ -130,6 +137,11 @@ class BytePatternMatcher(
         if (isEmpty) {
             return Result(matchedIds, positionsMap, 0L, false, patternCount, unusablePatternCount)
         }
+
+        // "consumed" durumu tarama-basi bir optimizasyondur: ayni matcher ile yapilan
+        // ikinci bir tarama (kullanicinin ayni kurallarla yeni bir dosya taramasi gibi)
+        // bayat durumdan etkilenmemeli. Her tarama oncesi sifirlanir.
+        resetCandidates()
 
         val overlap = (maxPatternLength - 1).coerceAtLeast(0)
         val window = ByteArray(overlap + chunkSize)
@@ -195,6 +207,13 @@ class BytePatternMatcher(
         )
     }
 
+    private fun resetCandidates() {
+        for (list in buckets) {
+            list?.forEach { it.consumed = false }
+        }
+        anchorlessCandidates.forEach { it.consumed = false }
+    }
+
     private fun scanWindow(
         window: ByteArray,
         windowSize: Int,
@@ -202,7 +221,7 @@ class BytePatternMatcher(
         dataStart: Long,
         matchedIds: MutableSet<Any>,
         positionsMap: MutableMap<Any, MutableList<Long>>,
-        positionFilter: ((BytePattern, Long) -> Boolean)?,
+        positionFilter: ((Any, Long) -> Boolean)?,
         maxPositionsPerId: Int
     ) {
         for (i in 0 until windowSize) {
@@ -234,7 +253,7 @@ class BytePatternMatcher(
         dataStart: Long,
         matchedIds: MutableSet<Any>,
         positionsMap: MutableMap<Any, MutableList<Long>>,
-        positionFilter: ((BytePattern, Long) -> Boolean)?,
+        positionFilter: ((Any, Long) -> Boolean)?,
         maxPositionsPerId: Int
     ) {
         val start = if (cand.anchorless) currentIndex else currentIndex - cand.anchorIndex
@@ -246,7 +265,7 @@ class BytePatternMatcher(
             val absolutePos = dataStart + start
             cand.consumed = true
 
-            val shouldRecord = positionFilter == null || positionFilter(cand.pattern, absolutePos)
+            val shouldRecord = positionFilter == null || positionFilter(cand.pattern.id, absolutePos)
             if (shouldRecord) {
                 val id = cand.pattern.id
                 matchedIds.add(id)
