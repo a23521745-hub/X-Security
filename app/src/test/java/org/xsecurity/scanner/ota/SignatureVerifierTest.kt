@@ -7,7 +7,7 @@ import java.security.KeyPairGenerator
 import java.security.Signature
 import java.util.Base64
 
-class RsaVerifierTest {
+class SignatureVerifierTest {
 
     private fun newKeyPair() = KeyPairGenerator.getInstance("RSA").apply {
         initialize(2048)
@@ -31,8 +31,8 @@ class RsaVerifierTest {
         val data = "imzali manifest govdesi".toByteArray()
         val signature = signSha256(pair.private, data)
 
-        val key = RsaVerifier.loadPublicKey(pem(pair.public))
-        assertTrue(RsaVerifier.verify(key, data, signature))
+        val key = SignatureVerifier.loadPublicKey(pem(pair.public))
+        assertTrue(SignatureVerifier.verify(key, data, signature))
     }
 
     @Test
@@ -41,8 +41,8 @@ class RsaVerifierTest {
         val data = "{\"versionCode\":5}".toByteArray()
         val signatureB64 = Base64.getEncoder().encodeToString(signSha256(pair.private, data))
 
-        val key = RsaVerifier.loadPublicKey(pem(pair.public))
-        assertTrue(RsaVerifier.verify(key, data, signatureB64))
+        val key = SignatureVerifier.loadPublicKey(pem(pair.public))
+        assertTrue(SignatureVerifier.verify(key, data, signatureB64))
     }
 
     @Test
@@ -51,8 +51,8 @@ class RsaVerifierTest {
         val data = "orijinal".toByteArray()
         val signature = signSha256(pair.private, data)
 
-        val key = RsaVerifier.loadPublicKey(pem(pair.public))
-        assertFalse(RsaVerifier.verify(key, "degistirilmis".toByteArray(), signature))
+        val key = SignatureVerifier.loadPublicKey(pem(pair.public))
+        assertFalse(SignatureVerifier.verify(key, "degistirilmis".toByteArray(), signature))
     }
 
     @Test
@@ -62,25 +62,50 @@ class RsaVerifierTest {
         val data = "manifest".toByteArray()
         val signature = signSha256(signer.private, data)
 
-        val verifierKey = RsaVerifier.loadPublicKey(pem(verifierPair.public))
-        assertFalse(RsaVerifier.verify(verifierKey, data, signature))
+        val verifierKey = SignatureVerifier.loadPublicKey(pem(verifierPair.public))
+        assertFalse(SignatureVerifier.verify(verifierKey, data, signature))
     }
 
     @Test
     fun verifyFailsClosedOnGarbageInput() {
         val pair = newKeyPair()
-        val key = RsaVerifier.loadPublicKey(pem(pair.public))
-        assertFalse(RsaVerifier.verify(key, "x".toByteArray(), "!!!gecersiz base64!!!"))
+        val key = SignatureVerifier.loadPublicKey(pem(pair.public))
+        assertFalse(SignatureVerifier.verify(key, "x".toByteArray(), "!!!gecersiz base64!!!"))
     }
 
     @Test
     fun rejectsMalformedPublicKey() {
         var threw = false
         try {
-            RsaVerifier.loadPublicKey("bu bir anahtar degil")
+            SignatureVerifier.loadPublicKey("bu bir anahtar degil")
         } catch (_: Throwable) {
             threw = true
         }
         assertTrue(threw)
+    }
+
+    @Test
+    fun ed25519SignaturesVerifyWhenSupported() {
+        // JVM 15+/Android 13+ saglayicilari Ed25519 destekler; desteklenmeyen
+        // ortamda bu test "destek yok" olarak bilincli olarak atlanir.
+        val available = runCatching {
+            java.security.KeyPairGenerator.getInstance("Ed25519")
+        }.isSuccess
+        if (!available) return
+
+        val pair = java.security.KeyPairGenerator.getInstance("Ed25519").apply {
+            // initialize not required for Ed25519
+        }.generateKeyPair()
+        val data = "ed25519-manifest".toByteArray()
+        val signature = java.security.Signature.getInstance("Ed25519").run {
+            initSign(pair.private)
+            update(data)
+            sign()
+        }
+
+        val key = SignatureVerifier.loadPublicKey(pem(pair.public))
+        org.junit.Assert.assertEquals("Ed25519", SignatureVerifier.algorithmFor(key))
+        assertTrue(SignatureVerifier.verify(key, data, signature))
+        assertFalse(SignatureVerifier.verify(key, "degistirilmis".toByteArray(), signature))
     }
 }

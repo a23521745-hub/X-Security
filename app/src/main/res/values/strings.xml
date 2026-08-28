@@ -1,6 +1,6 @@
 <resources>
     <string name="app_name">X-Security</string>
-    <string name="app_version">0.92.0</string>
+    <string name="app_version">0.93.0</string>
 
     <string name="dashboard_subtitle">Local APK scanning with YARA rules and ClamAV signatures</string>
     <string name="dashboard_footnote">X-Security %1$s · all scanning happens on-device; network is used only for signed updates</string>
@@ -84,4 +84,7 @@
     <string name="ota_notif_ready_title">Update ready to install</string>
     <string name="ota_notif_ready_body">Version %1$s was downloaded and verified. Open the app and tap Install.</string>
     <string name="ota_notif_error_title">Update failed</string>
+    <string name="ota_notif_available_title">A new version is available</string>
+    <string name="ota_notif_available_body">Version %1$s is ready to download and install. Tap to review it.</string>
+    <string name="ota_force_update">This update is marked as required by the server.</string>
 </resources>

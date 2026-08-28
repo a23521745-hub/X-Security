@@ -18,10 +18,14 @@ import java.io.File
  * Gunceleme APK'sini indirip dogrulayan arka plan isi.
  *
  *  - Indirme + SHA-256/boyut dogrulamasi akista yapilir (bkz. [ApkDownloader]).
+ *  - **Resume**: ag kesilirse islem [Result.retry] doner; WorkManager (artan beklemeyle)
+ *    tekrar denediginde [ApkDownloader] `.part` dosyasindan kaldigi yerden devam eder —
+ *    indirme bastan baslamaz. Kesik dosya asla kuruluma sunulmaz.
  *  - Basarili sonucta durum READY_TO_INSTALL olur ve bir bildirim gosterilir; ancak
  *    kurulum **hicbir zaman otomatik baslamaz**. Kullanici bildirime/uygulamaya dokunup
  *    "Kur"a basinca sistem paket ekrani acilir.
- *  - Hata/cancel yollarinda kismi dosya silinir, `Result.failure/retry` doner.
+ *  - Butunluk hatasinda (hash/boyut uyusmazligi) kismi dosya temizlenir; ag hatasinda
+ *    bir sonraki deneme icin korunur.
  */
 class OtaDownloadWorker(
     appContext: Context,
@@ -31,11 +35,15 @@ class OtaDownloadWorker(
     override suspend fun doWork(): Result = try {
         withContext(Dispatchers.IO) { execute() }
     } catch (cancelled: CancellationException) {
-        OtaStore.reset()
+        // Kullanici iptal etti: kismi dosya birakilir (yeniden baslatilabilir).
+        OtaStore.error("İndirme iptal edildi; yeniden başlatıldığında kaldığı yerden devam eder.")
         throw cancelled
-    } catch (error: Exception) {
-        OtaStore.error(error.message ?: "Güncelleme indirilemedi.")
-        Result.failure(failureData(error.message ?: "indirme hatası"))
+    } catch (error: Throwable) {
+        // Uygulama asla bu is yuzunden cokmemeli: guvenli yakalama + kullanici dostu mesaj.
+        val message = error.message ?: "Güncelleme indirilemedi."
+        OtaStore.error(message)
+        runCatching { OtaNotifications.showError(applicationContext, message) }
+        Result.failure(failureData(message))
     }
 
     private fun execute(): Result {
@@ -55,7 +63,6 @@ class OtaDownloadWorker(
         OtaNotifications.showDownloading(context, 0f)
 
         val target = File(OtaController.downloadDirectory(context), "update-${info.versionCode}.apk")
-        runCatching { if (target.exists()) target.delete() }
 
         val outcome = ApkDownloader(OtaController.currentConfig()).download(info, target) { fraction ->
             OtaStore.setDownloadProgress(fraction)
@@ -75,7 +82,8 @@ class OtaDownloadWorker(
                 )
             }
             is ApkDownloader.Result.Failure -> {
-                runCatching { target.delete() }
+                // Not: bütünlük hatalarında ApkDownloader .part dosyasini kendi siler;
+                // ag hatalarinda dosya bir sonraki resume denemesi icin korunur.
                 OtaStore.error(outcome.message)
                 OtaNotifications.showError(context, outcome.message)
                 if (runAttemptCount < MAX_ATTEMPTS) Result.retry() else Result.failure(failureData(outcome.message))
@@ -93,6 +101,6 @@ class OtaDownloadWorker(
         const val KEY_BYTES = "bytes"
         const val KEY_ERROR = "error"
 
-        private const val MAX_ATTEMPTS = 2
+        private const val MAX_ATTEMPTS = 3
     }
 }

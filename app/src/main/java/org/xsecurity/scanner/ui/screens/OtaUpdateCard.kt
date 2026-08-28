@@ -147,11 +147,15 @@ private fun Body(state: OtaState) {
     }
     Text(text = text, style = MaterialTheme.typography.bodyMedium)
 
-    if (state.status == OtaStatus.READY_TO_INSTALL && !info?.releaseNotes.isNullOrBlank()) {
+    // Zorunlu guncelleme bayragi: sunucu bu surumu kritik sayiyor.
+    if (info?.forceUpdate == true &&
+        (state.status == OtaStatus.UPDATE_AVAILABLE || state.status == OtaStatus.READY_TO_INSTALL)
+    ) {
         Text(
-            text = stringResource(R.string.ota_release_notes, info?.releaseNotes.orEmpty()),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            text = stringResource(R.string.ota_force_update),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.error,
+            fontWeight = FontWeight.Bold
         )
     }
 
@@ -162,6 +166,17 @@ private fun Body(state: OtaState) {
         LinearProgressIndicator(
             progress = state.progress.coerceIn(0f, 1f),
             modifier = Modifier.fillMaxWidth()
+        )
+    }
+
+    // Surum notlari / degisiklik gunlugu: guncelleme listeliyken ve kuruma hazirken.
+    if ((state.status == OtaStatus.UPDATE_AVAILABLE || state.status == OtaStatus.READY_TO_INSTALL) &&
+        !info?.displayNotes.isNullOrBlank()
+    ) {
+        Text(
+            text = stringResource(R.string.ota_release_notes, info?.displayNotes.orEmpty()),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
 }

@@ -74,8 +74,9 @@ class YaraScanner(
         val scan = matcher.scan(file, maxPositionsPerId = 0, onBytesConsumed = onBytes)
         val matchedPerRule = Array(rules.size) { HashSet<String>() }
         for (patternId in scan.matchedIds) {
-            val ruleIndex = patternRule[patternId]
-            val stringIndex = patternString[patternId]
+            val pid = patternId as? Int ?: continue
+            val ruleIndex = patternRule[pid]
+            val stringIndex = patternString[pid]
             matchedPerRule[ruleIndex] += rules[ruleIndex].strings[stringIndex].identifier
         }
 

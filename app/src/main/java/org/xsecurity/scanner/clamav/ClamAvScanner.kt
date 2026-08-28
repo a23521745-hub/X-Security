@@ -65,12 +65,15 @@ class ClamAvScanner(
 
         val scan = matcher.scan(
             file = file,
-            positionFilter = { id, position -> signatures[id].offset.accepts(position) },
+            positionFilter = { id, position ->
+                // Kalip kimligi bu tarayicida imza listesinin indeksidir.
+                (id as? Int)?.let { signatures[it].offset.accepts(position) } ?: false
+            },
             maxPositionsPerId = 1,
             onBytesConsumed = onBytes
         )
 
-        val hits = scan.matchedIds.sorted().map { id ->
+        val hits = scan.matchedIds.mapNotNull { it as? Int }.sorted().map { id ->
             Hit(name = signatures[id].name, firstPosition = scan.positions[id]?.firstOrNull())
         }
         return Outcome(

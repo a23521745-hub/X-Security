@@ -9,8 +9,10 @@ package org.xsecurity.scanner.ota
  * anahtari depo disindan yonetilir.
  *
  * @property manifestUrl  `update.json`'in tam https adresi.
- * @property publicKeyPem manifest imzasini dogrulayan RSA-2048 public anahtar
- *   (PEM ya da tek-parca base64). Bos ise [SAMPLE_PUBLIC_KEY_PEM] kullanilir.
+ * @property publicKeyPem manifest imzasini dogrulayan public anahtar
+ *   (PEM ya da tek-parca base64). RSA-2048 (SHA256withRSA; tum cihazlar) veya
+ *   Ed25519 (modern cihazlar) anahtari verilebilir — algoritma anahtarin turunden
+ *   secilir. Bos ise [SAMPLE_PUBLIC_KEY_PEM] kullanilir.
  * @property allowedHosts manifest + APK indirmesine izin verilen ana bilgisayarlar.
  *   Bos birakilirsa [manifestUrl]'in host'u otomatik eklenir.
  */
@@ -33,7 +35,8 @@ data class OtaConfig(
         const val MAX_APK_BYTES: Long = 200L * 1024L * 1024L
 
         /**
-         * GELISTIRME ORNEK anahtari. `tools/ota/ota-signing-dev-public.pem` ile eslestiği
+         * GELISTIRME ORNEK anahtari (RSA-2048). `tools/ota/ota-signing-dev-public.pem`
+         * ile eslestigi
          * icin `tools/ota/` altindaki ornek manifesti dogrular. Uretime alirken:
          *   1. `tools/ota/generate-ota-key.sh` ile yeni anahtar uretin,
          *   2. private anahtari **asla** depoya koymayin (offline saklayin),
@@ -42,13 +45,13 @@ data class OtaConfig(
          */
         val SAMPLE_PUBLIC_KEY_PEM: String = """
             -----BEGIN PUBLIC KEY-----
-            MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAwFjJzcMiqNk9YO9naGxD
-            6rGJLsFVqS2+hQhHa2hSKriXyqVOeNkgPzhT1P3A6n7k9kIlLWGeBREplglrvhlr
-            qRv2ESh/0Y+E2IMBsVuQ/M9YLwfdjSpoHfjZcTz0qEAVxjw80js982lKTg9hcj18
-            tW8waYij4GEw71aai23661Hgcfww5lhk50ijivALSgL4/HOrVwuLIu8PxCXHSq41
-            eoakl250uG+HU3oEVkikBePti0FiFzMEB+6JCsFs6zix9YYrNPztaOF65Cf9TWoI
-            Bt9s8pydHL4Y6JLNvoFs/1+6Fg3h0CzWuNweGm/L/LCxXEfq15D8SPSGZy7XmpVt
-            3QIDAQAB
+            MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtw43MZ13JzoRKrIgMv7Q
+            wyg85532mFhs6tQcI0czOD4XUbWGAAxkf7zqFEcDx9HVdPQ7hIR3IJR/WkElihXa
+            6RvfqkCqscP4qUADySgsPE7AH5gyrPtpa9E2LJXm45ZJOv0+rrQQfzCgrRP7KeRw
+            poTK5DkXcwNIvfKbDFxP+EigoG4wkOP/fmTJiUe77qAIGaAQ5aWegfDyq+s5YeV5
+            x9OiOIWODOXKi5zcnSbb+yb5hpWHxZ0YowM+iZXIG8GXD75PvpYZYV/Rhj9i40vI
+            6yUEgkxmGV+wH3+IZtCjapxU8JIvk7ROmJPOOd2NSVAI2S4gQtINUFsVLVa7KpH9
+            HwIDAQAB
             -----END PUBLIC KEY-----
         """.trimIndent()
     }

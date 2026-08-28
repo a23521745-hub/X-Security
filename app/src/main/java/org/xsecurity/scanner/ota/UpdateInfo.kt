@@ -6,22 +6,24 @@ import org.json.JSONObject
  * Sunucudan gelen **imzali** guncelleme bildirimi (manifest).
  *
  * Guvenlik kontrati:
- *  - Bu sinif yalnizca [OtaChecker] icinde, manifestin RSA imzasi dogrulandiktan
- *    SONRA uretılır. Imzasiz/bozuk manifest asla bu nesneye donusmez.
+ *  - Bu sinif yalnizca [OtaChecker] icinde, manifestin RSA/Ed25519 imzasi
+ *    dogrulandiktan SONRA uretilir. Imzasiz/bozuk manifest asla bu nesneye donusmez.
  *  - Imza, manifest dosyasinin **ham baytlari** uzerinden dogrulanir; kanoniklestirme
  *    yoktur (sunucu `update.json` dosyasini ne yayinladiysa istemci onu dogrular).
  *  - Alanlar beyaz listedir; bilinmeyen alanlar yok sayilir.
  *
- * Ornek manifest:
+ * Desteklenen manifest semasi (tumu denetlenir):
  * ```
  * {
- *   "versionCode": 5,
- *   "versionName": "0.92.1",
+ *   "versionCode": 5,                       // pozitif tamsayi; yukselmek zorunda
+ *   "versionName": "0.93.0",                // bos olamaz
  *   "apkUrl": "https://updates.example.com/x-security/app-release.apk",
- *   "apkSha256": "<64 karakter hex>",
- *   "apkSizeBytes": 1234567,
- *   "releaseNotes": "Kisa surum notu.",
- *   "minSdk": 26
+ *   "apkSha256": "<64 karakter kucuk harf hex>",
+ *   "apkSizeBytes": 1234567,                // pozitif; boyut/is bütünlük kontrolü
+ *   "minSdk": 26,                           // bu güncellemenin istedigi en dusuk API
+ *   "forceUpdate": false,                   // zorunlu guncelleme bayragi
+ *   "changelog": "- A dundu\n- B dundu",    // detayli degisiklik gunlugu (opsiyonel)
+ *   "releaseNotes": "Kisa surum notu."      // kisa not (eski alan, hala destekli)
  * }
  * ```
  */
@@ -32,8 +34,13 @@ data class UpdateInfo(
     val apkSha256: String,
     val apkSizeBytes: Long,
     val releaseNotes: String,
-    val minSdk: Int
+    val minSdk: Int,
+    val forceUpdate: Boolean = false,
+    val changelog: String = ""
 ) {
+    /** Kullaniciya gosterilecek metin: varsa detayli changelog, yoksa kisa not. */
+    val displayNotes: String get() = changelog.ifBlank { releaseNotes }
+
     fun toJson(): String = JSONObject().apply {
         put(FIELD_VERSION_CODE, versionCode)
         put(FIELD_VERSION_NAME, versionName)
@@ -42,6 +49,8 @@ data class UpdateInfo(
         put(FIELD_APK_SIZE, apkSizeBytes)
         put(FIELD_RELEASE_NOTES, releaseNotes)
         put(FIELD_MIN_SDK, minSdk)
+        put(FIELD_FORCE_UPDATE, forceUpdate)
+        put(FIELD_CHANGELOG, changelog)
     }.toString()
 
     companion object {
@@ -52,6 +61,8 @@ data class UpdateInfo(
         const val FIELD_APK_SIZE = "apkSizeBytes"
         const val FIELD_RELEASE_NOTES = "releaseNotes"
         const val FIELD_MIN_SDK = "minSdk"
+        const val FIELD_FORCE_UPDATE = "forceUpdate"
+        const val FIELD_CHANGELOG = "changelog"
 
         private val HEX64 = Regex("[0-9a-f]{64}")
 
@@ -59,6 +70,8 @@ data class UpdateInfo(
          * Manifest baytlarini ayristirir. Eksik/gecersiz alan varsa
          * [IllegalArgumentException] firlatir; cagiran taraf bunu "manifest reddedildi"
          * olarak ele alir (asla sessizce varsayilan uretmez).
+         *
+         * `forceUpdate` ve `changelog` opsiyoneldir; eski manifestlerle geriye uyumludur.
          */
         fun parse(metadata: ByteArray): UpdateInfo {
             val root = JSONObject(String(metadata, Charsets.UTF_8))
@@ -88,7 +101,9 @@ data class UpdateInfo(
                 apkSha256 = sha256,
                 apkSizeBytes = size,
                 releaseNotes = root.optString(FIELD_RELEASE_NOTES).trim(),
-                minSdk = minSdk
+                minSdk = minSdk,
+                forceUpdate = root.optBoolean(FIELD_FORCE_UPDATE, false),
+                changelog = root.optString(FIELD_CHANGELOG).trim()
             )
         }
 

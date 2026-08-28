@@ -1,9 +1,11 @@
 {
   "versionCode": 5,
-  "versionName": "0.92.1",
+  "versionName": "0.93.0",
   "apkUrl": "https://updates.example.com/x-security/app-release.apk",
   "apkSha256": "0000000000000000000000000000000000000000000000000000000000000000",
   "apkSizeBytes": 1,
-  "releaseNotes": "Ornek manifest — gercek sunucu yapilandirmanizla degistirin.",
-  "minSdk": 26
+  "minSdk": 26,
+  "forceUpdate": false,
+  "changelog": "- Kesintiye dayanikli (resume) indirme\n- Ed25519 imza destegi\n- Zorunlu guncelleme bayragi ve changelog alani",
+  "releaseNotes": "Ornek manifest — gercek sunucu yapilandirmanizla degistirin."
 }

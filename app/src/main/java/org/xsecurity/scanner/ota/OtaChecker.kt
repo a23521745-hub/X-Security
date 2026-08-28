@@ -9,10 +9,11 @@ import java.net.URL
  *  1. [OtaConfig] gecerli mi?
  *  2. Manifest (`update.json`) ve ayni adresteki ayrık imza (`update.json.sig`)
  *     yalnizca https + izinli host uzerinden indirilir.
- *  3. Imza, manifestin **ham baytlari** uzerinde RSA-SHA256 ile dogrulanir.
- *     Dogrulama basarisiz ise manifest **hic ayrıştırılmadan** reddedilir.
+ *  3. Imza, manifestin **ham baytlari** uzerinde RSA-SHA256 veya Ed25519 ile
+ *     dogrulanir. Dogrulama basarisiz ise manifest **hic ayrıştırılmadan** reddedilir.
  *  4. Ancak o noktadan sonra [UpdateInfo] ayristirilir ve `apkUrl` politikadan gecer.
- *  5. `versionCode` cihazdakinden yuksek degilse guncelleme yoktur (downgrade engellenir).
+ *  5. Manifestin `minSdk` alani cihazin Android surumunden yuksekse guncelleme reddedilir.
+ *  6. `versionCode` cihazdakinden yuksek degilse guncelleme yoktur (downgrade engellenir).
  *
  * Ag ve ayristirma mantigi ayridir: karar veren saf [evaluate] JVM birim testlerinde
  * ag olmadan calistirilir.
@@ -26,7 +27,11 @@ class OtaChecker(private val config: OtaConfig) {
         data class Error(val message: String) : Outcome()
     }
 
-    fun check(currentVersionCode: Long): Outcome {
+    /**
+     * @param currentVersionCode yuklu surumun versionCode'u.
+     * @param deviceSdk cihazin Build.VERSION.SDK_INT'i (0 = bilinmiyor; minSdk kontrolu atlanir).
+     */
+    fun check(currentVersionCode: Long, deviceSdk: Int = 0): Outcome {
         if (!config.isConfigured) {
             return Outcome.NotConfigured("OTA sunucu adresi yapılandırılmamış; güncelleme kontrolü devre dışı.")
         }
@@ -37,7 +42,7 @@ class OtaChecker(private val config: OtaConfig) {
         }
 
         val publicKey = try {
-            RsaVerifier.loadPublicKey(config.publicKeyPem)
+            SignatureVerifier.loadPublicKey(config.publicKeyPem)
         } catch (error: Throwable) {
             return Outcome.Error("Gömülü doğrulama anahtarı geçersiz: ${error.message}")
         }
@@ -56,7 +61,8 @@ class OtaChecker(private val config: OtaConfig) {
             signatureBytes = signatureBytes,
             publicKey = publicKey,
             currentVersionCode = currentVersionCode,
-            hosts = hosts()
+            hosts = hosts(),
+            deviceSdk = deviceSdk
         )
     }
 
@@ -69,19 +75,22 @@ class OtaChecker(private val config: OtaConfig) {
     companion object {
         /**
          * Saf karar fonksiyonu (ag/Android yok) — birim testleri burayi hedefler.
-         * Once imzayi dogrular, sonra ayristirir; sirala bilinçlidir.
+         * Once imzayi dogrular, sonra ayristirir; siralama bilinçlidir.
+         *
+         * @param deviceSdk cihazin API seviyesi; 0 = bilinmiyor (minSdk kontrolu atlanir).
          */
         fun evaluate(
             manifestBytes: ByteArray,
             signatureBytes: ByteArray,
             publicKey: java.security.PublicKey,
             currentVersionCode: Long,
-            hosts: Set<String>
+            hosts: Set<String>,
+            deviceSdk: Int = 0
         ): Outcome {
             if (manifestBytes.isEmpty()) return Outcome.Error("Manifest boş")
             if (signatureBytes.isEmpty()) return Outcome.Error("Manifest imzası boş")
 
-            val signatureOk = RsaVerifier.verify(publicKey, manifestBytes, signatureBytes)
+            val signatureOk = SignatureVerifier.verify(publicKey, manifestBytes, signatureBytes)
             if (!signatureOk) {
                 return Outcome.Error("Manifest imzası doğrulanamadı — içerik reddedildi")
             }
@@ -98,6 +107,12 @@ class OtaChecker(private val config: OtaConfig) {
             }
             if (info.apkSizeBytes > OtaConfig.MAX_APK_BYTES) {
                 return Outcome.Error("APK, izin verilen boyut sınırını aşıyor")
+            }
+            if (deviceSdk > 0 && info.minSdk > deviceSdk) {
+                return Outcome.Error(
+                    "Güncelleme bu Android sürümünü desteklemiyor (en az API ${info.minSdk} gerekiyor, " +
+                        "cihazda API $deviceSdk var)"
+                )
             }
             if (info.versionCode <= currentVersionCode) {
                 return Outcome.UpToDate

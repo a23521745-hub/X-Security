@@ -69,6 +69,8 @@ class MainActivity : ComponentActivity() {
         ScanStore.restore(this)
         OtaStore.restore(this)
         requestNotificationPermissionIfNeeded()
+        // Gunluk imzali guncelleme kontrolu (yalnizca ag bagliyken; bildirim sessiz).
+        OtaController.schedulePeriodicCheck(this)
         reloadEngine()
 
         setContent {
