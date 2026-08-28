@@ -5,7 +5,8 @@ import kotlin.math.max
 import kotlin.math.min
 
 class BytePatternMatcher(
-    val patterns: List<BytePattern>
+    val patterns: List<BytePattern>,
+    val bufferCapacity: Int = DEFAULT_CHUNK_SIZE
 ) {
     companion object {
         const val DEFAULT_CHUNK_SIZE = 128 * 1024
@@ -46,7 +47,7 @@ class BytePatternMatcher(
     fun scan(
         stream: InputStream,
         maxBytesToScan: Long = DEFAULT_MAX_BYTES_TO_SCAN,
-        chunkSize: Int = DEFAULT_CHUNK_SIZE,
+        chunkSize: Int = bufferCapacity,
         positionFilter: ((BytePattern, Long) -> Boolean)? = null,
         maxPositionsPerId: Int = 1,
         onBytesConsumed: ((Long) -> Unit)? = null
