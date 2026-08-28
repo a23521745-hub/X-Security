@@ -1,141 +1,257 @@
 package org.xsecurity.scanner.matcher
 
+import java.io.File
 import java.io.InputStream
-import kotlin.math.max
-import kotlin.math.min
 
 class BytePatternMatcher(
-    val patterns: List<BytePattern>
+    val patterns: List<BytePattern>,
+    val chunkSize: Int = DEFAULT_CHUNK_SIZE
 ) {
     companion object {
-        const val DEFAULT_CHUNK_SIZE = 128 * 1024
-        const val DEFAULT_MAX_BYTES_TO_SCAN = 100 * 1024 * 1024L
+        const val DEFAULT_CHUNK_SIZE: Int = 128 * 1024
+        const val DEFAULT_MAX_BYTES_TO_SCAN: Long = 100L * 1024 * 1024
     }
 
-    val patternCount: Int = patterns.size
-    val unusablePatternCount: Int = patterns.count { !it.isValid }
+    val patternCount: Int get() = patterns.size
+    val unusablePatternCount: Int
+    val usablePatternCount: Int
+    val isEmpty: Boolean get() = usablePatternCount == 0
+    val isNotEmpty: Boolean get() = !isEmpty
 
-    private val literalCandidatesByAnchor = HashMap<Byte, MutableList<BytePattern>>()
-    private val foldedCandidatesByAnchor = HashMap<Byte, MutableList<BytePattern>>()
+    private class Candidate(
+        val pattern: BytePattern,
+        val anchorIndex: Int,
+        val anchorless: Boolean,
+        val effLen: Int
+    ) {
+        var consumed: kotlin.Boolean = false
+    }
+
+    private val buckets: Array<MutableList<Candidate>?> = arrayOfNulls(256)
+    private val anchorlessCandidates = ArrayList<Candidate>()
     private val maxPatternLength: Int
 
     init {
-        var maxLen = 0
+        var unusable = 0
+        var usable = 0
+        var maxLength = 0
+
         for (p in patterns) {
-            if (!p.isValid) continue
-            maxLen = max(maxLen, p.length)
-            val anchorByte = p.anchorByte
-            if (p.isPureLiteral) {
-                literalCandidatesByAnchor.getOrPut(anchorByte) { ArrayList() }.add(p)
+            if (!p.isValid) {
+                unusable++
+                continue
+            }
+            usable++
+            val len = p.matchLength
+            if (len > maxLength) maxLength = len
+
+            val ancIdx = p.anchorIndex
+            if (ancIdx < 0) {
+                anchorlessCandidates.add(Candidate(p, ancIdx, true, len))
             } else {
-                foldedCandidatesByAnchor.getOrPut(anchorByte) { ArrayList() }.add(p)
+                val ancByte = p.anchorByte.toInt() and 0xFF
+                val cand = Candidate(p, ancIdx, false, len)
+                
+                if (p.ignoreCase && BytePattern.isAsciiLetter(ancByte)) {
+                    val lower = BytePattern.lowerAsciiInt(ancByte)
+                    val upper = BytePattern.upperAsciiInt(ancByte)
+                    addBucket(lower, cand)
+                    addBucket(upper, cand)
+                } else {
+                    addBucket(ancByte, cand)
+                }
             }
         }
-        maxPatternLength = maxLen
+        unusablePatternCount = unusable
+        usablePatternCount = usable
+        maxPatternLength = maxLength
+    }
+
+    private fun addBucket(key: Int, cand: Candidate) {
+        var list = buckets[key]
+        if (list == null) {
+            list = ArrayList()
+            buckets[key] = list
+        }
+        list.add(cand)
     }
 
     class Result(
-        val matchedIds: Set<String>,
-        val positions: Map<String, List<Long>>,
+        val matchedIds: Set<Any>,
+        val positions: Map<Any, List<Long>>,
         val bytesScanned: Long,
         val truncated: Boolean,
-        val patternCount: Int,
-        val unusablePatternCount: Int
-    )
+        val patternCount: Int = 0,
+        val unusablePatternCount: Int = 0
+    ) {
+        val hasMatches: Boolean get() = matchedIds.isNotEmpty()
+    }
 
     fun scan(
-        stream: InputStream,
+        file: File,
         maxBytesToScan: Long = DEFAULT_MAX_BYTES_TO_SCAN,
-        chunkSize: Int = DEFAULT_CHUNK_SIZE,
+        chunkSize: Int = this.chunkSize,
         positionFilter: ((BytePattern, Long) -> Boolean)? = null,
         maxPositionsPerId: Int = 1,
         onBytesConsumed: ((Long) -> Unit)? = null
     ): Result {
-        val matchedIds = HashSet<String>()
-        val positions = HashMap<String, MutableList<Long>>()
+        return file.inputStream().buffered().use { stream ->
+            scan(stream, maxBytesToScan, chunkSize, positionFilter, maxPositionsPerId, onBytesConsumed)
+        }
+    }
 
-        val overlap = max(0, maxPatternLength - 1)
-        val carry = ByteArray(overlap)
+    fun scan(
+        data: ByteArray,
+        maxBytesToScan: Long = DEFAULT_MAX_BYTES_TO_SCAN,
+        chunkSize: Int = this.chunkSize,
+        positionFilter: ((BytePattern, Long) -> Boolean)? = null,
+        maxPositionsPerId: Int = 1,
+        onBytesConsumed: ((Long) -> Unit)? = null
+    ): Result {
+        return java.io.ByteArrayInputStream(data).use { stream ->
+            scan(stream, maxBytesToScan, chunkSize, positionFilter, maxPositionsPerId, onBytesConsumed)
+        }
+    }
+
+    fun scan(
+        stream: InputStream,
+        maxBytesToScan: Long = DEFAULT_MAX_BYTES_TO_SCAN,
+        chunkSize: Int = this.chunkSize,
+        positionFilter: ((BytePattern, Long) -> Boolean)? = null,
+        maxPositionsPerId: Int = 1,
+        onBytesConsumed: ((Long) -> Unit)? = null
+    ): Result {
+        val matchedIds = mutableSetOf<Any>()
+        val positionsMap = mutableMapOf<Any, MutableList<Long>>()
+
+        if (isEmpty) {
+            return Result(matchedIds, positionsMap, 0L, false, patternCount, unusablePatternCount)
+        }
+
+        val overlap = (maxPatternLength - 1).coerceAtLeast(0)
+        val window = ByteArray(overlap + chunkSize)
         var carryLen = 0
-        var totalRead = 0L
-        var truncated = false
+        var total = 0L
+        var eof = false
+        var truncatedByLimit = false
 
-        val buffer = ByteArray(chunkSize)
-
-        while (true) {
-            val bytesToRead = if (maxBytesToScan > 0) {
-                min(buffer.size.toLong(), maxBytesToScan - totalRead).toInt()
+        while (!eof) {
+            var chunkLen = 0
+            val limit = if (maxBytesToScan > 0) {
+                minOf(chunkSize.toLong(), maxBytesToScan - total).toInt()
             } else {
-                buffer.size
+                chunkSize
             }
 
-            if (bytesToRead <= 0) {
-                if (maxBytesToScan > 0 && totalRead >= maxBytesToScan) {
-                    truncated = true
-                }
+            if (limit <= 0) {
+                truncatedByLimit = true
                 break
             }
 
-            val bytesRead = stream.read(buffer, 0, bytesToRead)
-            if (bytesRead <= 0) break
-
-            val windowSize = carryLen + bytesRead
-            val data = ByteArray(windowSize)
-            System.arraycopy(carry, 0, data, 0, carryLen)
-            System.arraycopy(buffer, 0, data, carryLen, bytesRead)
-
-            val dataStart = totalRead - carryLen
-
-            for (i in 0 until windowSize) {
-                val b = data[i]
-                val literalCandidates = literalCandidatesByAnchor[b]
-                if (literalCandidates != null) {
-                    for (candidate in literalCandidates) {
-                        val start = i - candidate.anchorIndex
-                        if (candidate.touchesNewBytes(start, carryLen) && candidate.matchesAt(data, start)) {
-                            record(candidate, dataStart + start, matchedIds, positions, positionFilter, maxPositionsPerId)
-                        }
-                    }
+            while (chunkLen < limit) {
+                val r = stream.read(window, carryLen + chunkLen, limit - chunkLen)
+                if (r < 0) {
+                    eof = true
+                    break
                 }
-                val foldedCandidates = foldedCandidatesByAnchor[b]
-                if (foldedCandidates != null) {
-                    for (candidate in foldedCandidates) {
-                        val start = i - candidate.anchorIndex
-                        if (candidate.touchesNewBytes(start, carryLen) && candidate.matchesAt(data, start)) {
-                            record(candidate, dataStart + start, matchedIds, positions, positionFilter, maxPositionsPerId)
-                        }
-                    }
-                }
+                if (r == 0) continue
+                chunkLen += r
             }
 
-            totalRead += bytesRead
-            onBytesConsumed?.invoke(totalRead)
+            if (chunkLen == 0 && carryLen == 0) break
 
-            val newCarryLen = min(overlap, windowSize)
-            val newCarryStart = windowSize - newCarryLen
-            System.arraycopy(data, newCarryStart, carry, 0, newCarryLen)
-            carryLen = newCarryLen
+            val windowSize = carryLen + chunkLen
+            val dataStart = total - carryLen
+
+            scanWindow(
+                window, windowSize, carryLen, dataStart,
+                matchedIds, positionsMap, positionFilter, maxPositionsPerId
+            )
+
+            total += chunkLen
+            onBytesConsumed?.invoke(total)
+
+            val newCarry = minOf(overlap, windowSize)
+            if (newCarry > 0 && windowSize >= newCarry) {
+                System.arraycopy(window, windowSize - newCarry, window, 0, newCarry)
+            }
+            carryLen = newCarry
+
+            if (eof) break
         }
 
-        return Result(matchedIds, positions, totalRead, truncated, patternCount, unusablePatternCount)
+        val truncated = truncatedByLimit || (maxBytesToScan > 0 && total >= maxBytesToScan && stream.read() != -1)
+
+        return Result(
+            matchedIds = matchedIds,
+            positions = positionsMap,
+            bytesScanned = total,
+            truncated = truncated,
+            patternCount = patternCount,
+            unusablePatternCount = unusablePatternCount
+        )
     }
 
-    private fun BytePattern.touchesNewBytes(start: Int, carrySize: Int): Boolean =
-        start >= 0 && start + length > carrySize
-
-    private fun record(
-        pattern: BytePattern,
-        absoluteStart: Long,
-        matchedIds: MutableSet<String>,
-        positions: MutableMap<String, MutableList<Long>>,
+    private fun scanWindow(
+        window: ByteArray,
+        windowSize: Int,
+        carryLen: Int,
+        dataStart: Long,
+        matchedIds: MutableSet<Any>,
+        positionsMap: MutableMap<Any, MutableList<Long>>,
         positionFilter: ((BytePattern, Long) -> Boolean)?,
         maxPositionsPerId: Int
     ) {
-        if (positionFilter != null && !positionFilter(pattern, absoluteStart)) return
-        matchedIds.add(pattern.id)
-        val list = positions.getOrPut(pattern.id) { ArrayList() }
-        if (list.size < maxPositionsPerId) {
-            list.add(absoluteStart)
+        for (i in 0 until windowSize) {
+            val b = window[i].toInt() and 0xFF
+
+            val bucket = buckets[b]
+            if (bucket != null) {
+                for (cand in bucket) {
+                    if (cand.consumed) continue
+                    evaluateCandidate(cand, i, window, windowSize, carryLen, dataStart, matchedIds, positionsMap, positionFilter, maxPositionsPerId)
+                }
+            }
+
+            if (anchorlessCandidates.isNotEmpty()) {
+                for (cand in anchorlessCandidates) {
+                    if (cand.consumed) continue
+                    evaluateCandidate(cand, i, window, windowSize, carryLen, dataStart, matchedIds, positionsMap, positionFilter, maxPositionsPerId)
+                }
+            }
+        }
+    }
+
+    private fun evaluateCandidate(
+        cand: Candidate,
+        currentIndex: Int,
+        window: ByteArray,
+        windowSize: Int,
+        carryLen: Int,
+        dataStart: Long,
+        matchedIds: MutableSet<Any>,
+        positionsMap: MutableMap<Any, MutableList<Long>>,
+        positionFilter: ((BytePattern, Long) -> Boolean)?,
+        maxPositionsPerId: Int
+    ) {
+        val start = if (cand.anchorless) currentIndex else currentIndex - cand.anchorIndex
+        if (start < 0) return
+        if (start + cand.effLen > windowSize) return
+        if (start + cand.effLen <= carryLen) return
+
+        if (cand.pattern.matchesAt(window, start)) {
+            val absolutePos = dataStart + start
+            cand.consumed = true
+
+            val shouldRecord = positionFilter == null || positionFilter(cand.pattern, absolutePos)
+            if (shouldRecord) {
+                val id = cand.pattern.id
+                matchedIds.add(id)
+                val list = positionsMap.getOrPut(id) { ArrayList() }
+                if (list.size < maxPositionsPerId) {
+                    list.add(absolutePos)
+                }
+            }
         }
     }
 }
