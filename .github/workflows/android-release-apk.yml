@@ -96,6 +96,9 @@ jobs:
           XSEC_KEYSTORE_PASSWORD: ${{ secrets.XSEC_KEYSTORE_PASSWORD }}
           XSEC_KEY_ALIAS: ${{ secrets.XSEC_KEY_ALIAS }}
           XSEC_KEY_PASSWORD: ${{ secrets.XSEC_KEY_PASSWORD }}
+          XSEC_OTA_MANIFEST_URL: "https://github.com/a23521745-hub/X-Security/releases/latest/download/update.json"
+          XSEC_OTA_PUBLIC_KEY_PEM: ${{ secrets.XSEC_OTA_PUBLIC_KEY_PEM }}
+          XSEC_OTA_ALLOWED_HOSTS: "github.com,objects.githubusercontent.com,release-assets.githubusercontent.com"
         run: ./gradlew --no-daemon :app:assembleRelease
 
       - name: Prepare Artifacts & Generate + Sign update.json
