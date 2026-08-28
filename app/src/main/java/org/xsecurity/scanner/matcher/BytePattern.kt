@@ -17,10 +17,39 @@ class BytePattern(
     val looksUnsupported: Boolean = false,
     val variants: List<ByteArray> = bytes?.let { listOf(it) } ?: emptyList(),
     val isPureLiteral: Boolean = bytes != null && mask == null && !ignoreCase,
-    val isValid: Boolean = isStructurallyValid(bytes, mask, looksUnsupported)
+    val isValid: Boolean = isStructurallyValid(bytes, mask, looksUnsupported),
+    // Eski ayrıştırıcıların (YaraRuleParser vb.) kullandığı ek alanlar
+    val value: String? = null,
+    val isText: Boolean = false
 ) {
     val matchLength: Int = computeMatchLength(bytes, variants)
     val idAsString: String get() = id.toString()
+
+    // Eski constructor çağrıları (named arguments desteği için)
+    constructor(
+        id: Any,
+        bytes: ByteArray?,
+        mask: ByteArray? = null,
+        ignoreCase: Boolean = false,
+        isText: Boolean = false,
+        value: String? = null,
+        looksUnsupported: Boolean = false
+    ) : this(
+        id = id,
+        bytes = bytes,
+        mask = mask,
+        ignoreCase = ignoreCase,
+        rawPattern = describe(bytes, mask, ignoreCase),
+        length = bytes?.size ?: 0,
+        anchorIndex = findAnchorIndex(bytes, mask),
+        anchorByte = pickAnchorByte(bytes, findAnchorIndex(bytes, mask)),
+        looksUnsupported = looksUnsupported,
+        variants = bytes?.let { listOf(it) } ?: emptyList(),
+        isPureLiteral = bytes != null && mask == null && !ignoreCase,
+        isValid = isStructurallyValid(bytes, mask, looksUnsupported),
+        value = value,
+        isText = isText
+    )
 
     fun matchesAt(data: ByteArray, start: Int): Boolean {
         val primary = bytes ?: return false
@@ -107,7 +136,7 @@ class BytePattern(
 
         fun ascii(id: Any, text: String, ignoreCase: Boolean = false, wide: Boolean = false): BytePattern {
             val base = text.toByteArray(Charsets.US_ASCII)
-            return BytePattern(id = id, bytes = if (wide) widen(base) else base, ignoreCase = ignoreCase)
+            return BytePattern(id = id, bytes = if (wide) widen(base) else base, ignoreCase = ignoreCase, isText = true, value = text)
         }
 
         internal fun toLowerAscii(b: Byte): Byte {
