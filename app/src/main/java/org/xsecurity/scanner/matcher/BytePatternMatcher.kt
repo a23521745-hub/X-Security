@@ -5,10 +5,14 @@ import kotlin.math.max
 import kotlin.math.min
 
 class BytePatternMatcher(
-    val patterns: List<BytePattern>,
-    val bufferCapacity: Int = 128 * 1024
+    val patterns: List<BytePattern>
 ) {
-    val totalPatterns: Int = patterns.size
+    companion object {
+        const val DEFAULT_CHUNK_SIZE = 128 * 1024
+        const val DEFAULT_MAX_BYTES_TO_SCAN = 100 * 1024 * 1024L
+    }
+
+    val patternCount: Int = patterns.size
     val unusablePatternCount: Int = patterns.count { !it.isValid }
 
     private val literalCandidatesByAnchor = HashMap<Byte, MutableList<BytePattern>>()
@@ -41,7 +45,8 @@ class BytePatternMatcher(
 
     fun scan(
         stream: InputStream,
-        fileSizeHint: Long = -1L,
+        maxBytesToScan: Long = DEFAULT_MAX_BYTES_TO_SCAN,
+        chunkSize: Int = DEFAULT_CHUNK_SIZE,
         positionFilter: ((BytePattern, Long) -> Boolean)? = null,
         maxPositionsPerId: Int = 1,
         onBytesConsumed: ((Long) -> Unit)? = null
@@ -53,12 +58,25 @@ class BytePatternMatcher(
         val carry = ByteArray(overlap)
         var carryLen = 0
         var totalRead = 0L
+        var truncated = false
 
-        val chunkSize = bufferCapacity
         val buffer = ByteArray(chunkSize)
 
         while (true) {
-            val bytesRead = stream.read(buffer, 0, chunkSize)
+            val bytesToRead = if (maxBytesToScan > 0) {
+                min(buffer.size.toLong(), maxBytesToScan - totalRead).toInt()
+            } else {
+                buffer.size
+            }
+
+            if (bytesToRead <= 0) {
+                if (maxBytesToScan > 0 && totalRead >= maxBytesToScan) {
+                    truncated = true
+                }
+                break
+            }
+
+            val bytesRead = stream.read(buffer, 0, bytesToRead)
             if (bytesRead <= 0) break
 
             val windowSize = carryLen + bytesRead
@@ -99,7 +117,7 @@ class BytePatternMatcher(
             carryLen = newCarryLen
         }
 
-        return Result(matchedIds, positions, totalRead, false, totalPatterns, unusablePatternCount)
+        return Result(matchedIds, positions, totalRead, truncated, patternCount, unusablePatternCount)
     }
 
     private fun BytePattern.touchesNewBytes(start: Int, carrySize: Int): Boolean =
