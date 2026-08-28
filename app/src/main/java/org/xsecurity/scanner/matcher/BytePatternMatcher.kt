@@ -4,14 +4,12 @@ import java.io.InputStream
 import kotlin.math.max
 import kotlin.math.min
 
-/**
- * Coklu bayt dizisini (Aho-Corasick benzeri anchor + linear match) tek bir akista (stream) arar.
- */
 class BytePatternMatcher(
-    patterns: List<BytePattern>,
+    val patterns: List<BytePattern>,
     val bufferCapacity: Int = 128 * 1024
 ) {
     val totalPatterns: Int = patterns.size
+    val unusablePatternCount: Int = patterns.count { !it.isValid }
 
     private val literalCandidatesByAnchor = HashMap<Byte, MutableList<BytePattern>>()
     private val foldedCandidatesByAnchor = HashMap<Byte, MutableList<BytePattern>>()
@@ -20,11 +18,10 @@ class BytePatternMatcher(
     init {
         var maxLen = 0
         for (p in patterns) {
+            if (!p.isValid) continue
             maxLen = max(maxLen, p.length)
             val anchorByte = p.anchorByte
-            val isLiteral = p.isPureLiteral
-
-            if (isLiteral) {
+            if (p.isPureLiteral) {
                 literalCandidatesByAnchor.getOrPut(anchorByte) { ArrayList() }.add(p)
             } else {
                 foldedCandidatesByAnchor.getOrPut(anchorByte) { ArrayList() }.add(p)
@@ -34,10 +31,12 @@ class BytePatternMatcher(
     }
 
     class Result(
-        val matchedPatterns: Set<BytePattern>,
+        val matchedIds: Set<String>,
         val positions: Map<String, List<Long>>,
-        val totalBytesProcessed: Long,
-        val isTruncated: Boolean
+        val bytesScanned: Long,
+        val truncated: Boolean,
+        val patternCount: Int,
+        val unusablePatternCount: Int
     )
 
     fun scan(
@@ -45,9 +44,9 @@ class BytePatternMatcher(
         fileSizeHint: Long = -1L,
         positionFilter: ((BytePattern, Long) -> Boolean)? = null,
         maxPositionsPerId: Int = 1,
-        progressCallback: ((Float) -> Unit)? = null
+        onBytesConsumed: ((Long) -> Unit)? = null
     ): Result {
-        val matched = HashSet<BytePattern>()
+        val matchedIds = HashSet<String>()
         val positions = HashMap<String, MutableList<Long>>()
 
         val overlap = max(0, maxPatternLength - 1)
@@ -76,7 +75,7 @@ class BytePatternMatcher(
                     for (candidate in literalCandidates) {
                         val start = i - candidate.anchorIndex
                         if (candidate.touchesNewBytes(start, carryLen) && candidate.matchesAt(data, start)) {
-                            record(candidate, dataStart + start, matched, positions, positionFilter, maxPositionsPerId)
+                            record(candidate, dataStart + start, matchedIds, positions, positionFilter, maxPositionsPerId)
                         }
                     }
                 }
@@ -85,17 +84,14 @@ class BytePatternMatcher(
                     for (candidate in foldedCandidates) {
                         val start = i - candidate.anchorIndex
                         if (candidate.touchesNewBytes(start, carryLen) && candidate.matchesAt(data, start)) {
-                            record(candidate, dataStart + start, matched, positions, positionFilter, maxPositionsPerId)
+                            record(candidate, dataStart + start, matchedIds, positions, positionFilter, maxPositionsPerId)
                         }
                     }
                 }
             }
 
             totalRead += bytesRead
-            if (fileSizeHint > 0L && progressCallback != null) {
-                val p = min(1.0f, totalRead.toFloat() / fileSizeHint.toFloat())
-                progressCallback(p)
-            }
+            onBytesConsumed?.invoke(totalRead)
 
             val newCarryLen = min(overlap, windowSize)
             val newCarryStart = windowSize - newCarryLen
@@ -103,8 +99,7 @@ class BytePatternMatcher(
             carryLen = newCarryLen
         }
 
-        progressCallback?.invoke(1.0f)
-        return Result(matched, positions, totalRead, false)
+        return Result(matchedIds, positions, totalRead, false, totalPatterns, unusablePatternCount)
     }
 
     private fun BytePattern.touchesNewBytes(start: Int, carrySize: Int): Boolean =
@@ -113,13 +108,13 @@ class BytePatternMatcher(
     private fun record(
         pattern: BytePattern,
         absoluteStart: Long,
-        matched: MutableSet<BytePattern>,
+        matchedIds: MutableSet<String>,
         positions: MutableMap<String, MutableList<Long>>,
         positionFilter: ((BytePattern, Long) -> Boolean)?,
         maxPositionsPerId: Int
     ) {
         if (positionFilter != null && !positionFilter(pattern, absoluteStart)) return
-        matched.add(pattern)
+        matchedIds.add(pattern.id)
         val list = positions.getOrPut(pattern.id) { ArrayList() }
         if (list.size < maxPositionsPerId) {
             list.add(absoluteStart)
