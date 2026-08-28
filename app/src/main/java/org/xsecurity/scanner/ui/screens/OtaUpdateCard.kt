@@ -1,4 +1,5 @@
 package org.xsecurity.scanner.ui.screens
+import androidx.compose.material.icons.filled.Download
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
