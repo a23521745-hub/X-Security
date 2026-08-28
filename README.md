@@ -2,7 +2,13 @@
 
 A small, fully on-device Android APK scanner: it parses YARA rules and ClamAV `.ndb`
 signature files locally and scans files with a memory-bounded streaming matcher.
-No network permission is requested at all.
+
+**Network use:** all scanning and signature matching happens on-device. The only
+network feature is an **optional, user-driven, cryptographically verified in-app
+updater** (`org.xsecurity.scanner.ota`): it contacts an allowlisted HTTPS host, only
+accepts a manifest signed by the embedded RSA key, verifies the downloaded APK's
+SHA-256, and never installs anything without the user's explicit confirmation via the
+system installer. See [Over-the-air updates](#over-the-air-updates).
 
 ## What the engine actually does
 
@@ -53,7 +59,39 @@ private storage, so no storage permission is required under scoped storage.
 - 512 MiB per-file scan guard, surfaced as a warning in the result.
 - Staged copies live in `cacheDir/scans/`, are deduplicated by SHA-256 and deleted after
   a successful scan; stale copies are purged.
-- `WorkManager` with `ExistingWorkPolicy.KEEP`, no `INTERNET`, no foreground service.
+- `WorkManager` with `ExistingWorkPolicy.KEEP`, no foreground service. Network access
+  exists **only** for the signed updater described below; the scanner itself is offline.
+
+## Over-the-air updates
+
+The updater lives in `app/src/main/java/org/xsecurity/scanner/ota/`
+(`UrlPolicy`, `OtaChecker`, `ApkDownloader`/`ApkVerifier`, `RsaVerifier`, `UpdateInfo`,
+plus an `OtaDownloadWorker`, installer and UI card). It is deliberately conservative:
+
+- **HTTPS-only + host allowlist** (`UrlPolicy`): manifest and APK URLs must be
+  `https://` on a compile-time allowlisted host; redirects are followed manually and
+  each hop is re-checked; cleartext is also blocked by `@xml/network_security_config`.
+- **Signature before parse** (`OtaChecker` + `RsaVerifier`): the raw `update.json`
+  bytes must verify against the embedded RSA-2048 public key
+  (`SHA256withRSA`). An unsigned or tampered manifest is rejected before it is ever
+  parsed. The signing key is injected at build time (see
+  `tools/ota/README.md`); builds that don't inject one ship with a clearly-labelled
+  **development** key.
+- **APK verification during download** (`ApkVerifier`): the file is streamed to disk
+  while its SHA-256 and length are checked against the manifest, with a hard size cap;
+  any mismatch aborts and deletes the partial file.
+- **Identity & no downgrade** (`OtaInstaller`): package name must equal
+  `org.xsecurity.scanner` and `versionCode` must increase; Android additionally refuses
+  to install an APK that isn't signed with the same release key as the installed app.
+- **No silent install**: after a verified download the user taps **Install**, which
+  opens the standard Android package installer (and routes to the "install unknown
+  apps" settings on Android 8+ if needed). Nothing installs in the background.
+
+Operator key/sign tooling and the manifest format are documented in
+[`tools/ota/README.md`](tools/ota/README.md). The endpoint URL, verification key and
+host list are supplied at build time via `xsecOtaManifestUrl` /
+`xsecOtaPublicKeyPem` / `xsecOtaAllowedHosts` (or the `XSEC_OTA_*` env vars); an empty
+manifest URL disables the feature and the UI reports "not configured".
 
 ## Building
 
@@ -106,8 +144,10 @@ failure. The workflow currently still under `.github/workflows/` is the old, bro
   **API 35**; moving to 36 needs an AGP upgrade (8.6+ for API 35, 8.9+ for API 36) —
   `compileSdk`/`targetSdk` are the only knobs, but remember that API 35+ forces
   edge-to-edge (already handled in `MainActivity` via `enableEdgeToEdge()`).
-- `android:usesCleartextTraffic`/network config is not needed: the app has no network
-  permission.
+- Cleartext traffic is disabled app-wide via `@xml/network_security_config`
+  (`cleartextTrafficPermitted="false"`); the only network caller is the signed
+  updater, which is HTTPS + allowlist-only. (For production, consider pinning the
+  update host's certificate there as well.)
 
 ## Pre-release status
 

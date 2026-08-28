@@ -1,9 +1,9 @@
 <resources>
     <string name="app_name">X-Security</string>
-    <string name="app_version">0.91.0-pre-release</string>
+    <string name="app_version">0.92.0</string>
 
     <string name="dashboard_subtitle">YARA + ClamAV imza motoruyla yerel APK taraması</string>
-    <string name="dashboard_footnote">X-Security %1$s · analizler cihazınızda yapılır, ağ izni yoktur</string>
+    <string name="dashboard_footnote">X-Security %1$s · tüm taramalar cihazınızda yapılır; ağ yalnızca imzalı güncellemeler için kullanılır</string>
 
     <string name="status_idle">Tarama bekleniyor</string>
     <string name="status_idle_hint">Başlamak için bir APK dosyası seçin.</string>
@@ -62,4 +62,26 @@
     <string name="notif_threats_title">%1$d tehdit bulundu</string>
     <string name="notif_failed_title">Tarama tamamlanamadı</string>
     <string name="notif_failed_body">Motor veya dosya hatası; ayrıntılar için uygulamayı açın.</string>
+
+    <!-- OTA (internet üzerinden) güncelleyici. ağ YALNIZCA imzalı güncellemeler için kullanılır. -->
+    <string name="ota_card_title">Güncellemeler</string>
+    <string name="ota_idle_hint">Uygulama içi güncellemeler kuruludan önce RSA ile imzalanır ve doğrulanır; onayınız olmadan hiçbir şey kurulmaz.</string>
+    <string name="ota_check">Güncellemeleri kontrol et</string>
+    <string name="ota_checking">Güncellemeler kontrol ediliyor…</string>
+    <string name="ota_up_to_date">En güncel sürümü kullanıyorsunuz.</string>
+    <string name="ota_update_available">Güncelleme hazır: %1$s (sürüm %2$d)</string>
+    <string name="ota_download">Güncellemeyi indir</string>
+    <string name="ota_downloading">Güncelleme indiriliyor… %1$d%%</string>
+    <string name="ota_install">Güncellemeyi kur</string>
+    <string name="ota_install_permission">Sistem ayarlarından bu uygulamaya kurulum izni verin, sonra Kur’a tekrar dokunun.</string>
+    <string name="ota_error">Güncelleme başarısız: %1$s</string>
+    <string name="ota_not_configured">Bu derlemede uygulama içi güncelleme yapılandırılmamış.</string>
+    <string name="ota_release_notes">Sürüm notları: %1$s</string>
+    <string name="ota_installed_version">Yüklü sürüm kodu: %1$d</string>
+    <string name="ota_notif_channel_name">Güncelleme durumu</string>
+    <string name="ota_notif_channel_description">İmzalı uygulama güncellemelerinin ilerlemesi ve hazır olması</string>
+    <string name="ota_notif_downloading_title">Güncelleme indiriliyor</string>
+    <string name="ota_notif_ready_title">Güncelleme kuruluma hazır</string>
+    <string name="ota_notif_ready_body">Sürüm %1$s indirildi ve doğrulandı. Uygulamayı açıp Kur’a dokunun.</string>
+    <string name="ota_notif_error_title">Güncelleme başarısız</string>
 </resources>

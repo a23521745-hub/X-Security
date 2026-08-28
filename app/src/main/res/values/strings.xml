@@ -1,9 +1,9 @@
 <resources>
     <string name="app_name">X-Security</string>
-    <string name="app_version">0.91.0-pre-release</string>
+    <string name="app_version">0.92.0</string>
 
     <string name="dashboard_subtitle">Local APK scanning with YARA rules and ClamAV signatures</string>
-    <string name="dashboard_footnote">X-Security %1$s · all analysis happens on-device; the app has no network permission</string>
+    <string name="dashboard_footnote">X-Security %1$s · all scanning happens on-device; network is used only for signed updates</string>
 
     <string name="status_idle">Waiting for a scan</string>
     <string name="status_idle_hint">Pick an APK file to start.</string>
@@ -62,4 +62,26 @@
     <string name="notif_threats_title">%1$d threat(s) found</string>
     <string name="notif_failed_title">Scan did not complete</string>
     <string name="notif_failed_body">Engine or file error; open the app for details.</string>
+
+    <!-- OTA (over-the-air) updater. Network is used ONLY for signed updates. -->
+    <string name="ota_card_title">Updates</string>
+    <string name="ota_idle_hint">In-app updates are RSA-signed and verified before installation; nothing installs without your confirmation.</string>
+    <string name="ota_check">Check for updates</string>
+    <string name="ota_checking">Checking for updates…</string>
+    <string name="ota_up_to_date">You are running the latest version.</string>
+    <string name="ota_update_available">Update available: %1$s (version %2$d)</string>
+    <string name="ota_download">Download update</string>
+    <string name="ota_downloading">Downloading update… %1$d%%</string>
+    <string name="ota_install">Install update</string>
+    <string name="ota_install_permission">Allow installing from this app in the system settings, then tap Install again.</string>
+    <string name="ota_error">Update failed: %1$s</string>
+    <string name="ota_not_configured">In-app updates are not configured on this build.</string>
+    <string name="ota_release_notes">Release notes: %1$s</string>
+    <string name="ota_installed_version">Installed version code: %1$d</string>
+    <string name="ota_notif_channel_name">Update status</string>
+    <string name="ota_notif_channel_description">Progress and readiness of signed app updates</string>
+    <string name="ota_notif_downloading_title">Downloading update</string>
+    <string name="ota_notif_ready_title">Update ready to install</string>
+    <string name="ota_notif_ready_body">Version %1$s was downloaded and verified. Open the app and tap Install.</string>
+    <string name="ota_notif_error_title">Update failed</string>
 </resources>

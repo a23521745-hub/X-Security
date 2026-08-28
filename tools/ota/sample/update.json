@@ -1,0 +1,9 @@
+{
+  "versionCode": 5,
+  "versionName": "0.92.1",
+  "apkUrl": "https://updates.example.com/x-security/app-release.apk",
+  "apkSha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "apkSizeBytes": 1,
+  "releaseNotes": "Ornek manifest — gercek sunucu yapilandirmanizla degistirin.",
+  "minSdk": 26
+}

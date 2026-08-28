@@ -45,6 +45,7 @@ import org.xsecurity.scanner.engine.ThreatMatch
 import org.xsecurity.scanner.data.EngineInfo
 import org.xsecurity.scanner.data.ScanPhase
 import org.xsecurity.scanner.data.ScanUiState
+import org.xsecurity.scanner.ota.OtaState
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -60,11 +61,16 @@ import java.util.Locale
 @Composable
 fun DashboardScreen(
     state: ScanUiState,
+    otaState: OtaState,
+    installedVersionCode: Long,
     onScanApk: () -> Unit,
     onPickYaraRules: () -> Unit,
     onPickClamDatabase: () -> Unit,
     onReloadEngine: () -> Unit,
-    onCancelScan: () -> Unit
+    onCancelScan: () -> Unit,
+    onCheckUpdate: () -> Unit,
+    onDownloadUpdate: () -> Unit,
+    onInstallUpdate: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -80,6 +86,13 @@ fun DashboardScreen(
         LastScanCard(state = state)
         ThreatsCard(result = state.lastResult)
         EngineCard(engine = state.engine, onPickYara = onPickYaraRules, onPickClam = onPickClamDatabase, onReload = onReloadEngine)
+        OtaUpdateCard(
+            state = otaState,
+            installedVersionCode = installedVersionCode,
+            onCheck = onCheckUpdate,
+            onDownload = onDownloadUpdate,
+            onInstall = onInstallUpdate
+        )
         ScanActionButton(enabled = !state.isBusy, onScanApk = onScanApk)
         Footnote()
     }
