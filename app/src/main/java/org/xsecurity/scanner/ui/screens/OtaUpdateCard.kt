@@ -1,7 +1,6 @@
 package org.xsecurity.scanner.ui.screens
 
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Refresh
