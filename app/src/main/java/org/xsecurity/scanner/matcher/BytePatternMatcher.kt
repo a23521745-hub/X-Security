@@ -18,6 +18,9 @@ class BytePatternMatcher(
     val isEmpty: Boolean get() = usablePatternCount == 0
     val isNotEmpty: Boolean get() = !isEmpty
 
+    // Eski tarayıcıların tek parametreli veya farklı imzalı çağrılarına uyumluluk için ek constructor
+    constructor(patterns: List<BytePattern>) : this(patterns, DEFAULT_CHUNK_SIZE)
+
     private class Candidate(
         val pattern: BytePattern,
         val anchorIndex: Int,
