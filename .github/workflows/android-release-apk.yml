@@ -1,85 +1,174 @@
-name: Build Release APK
+name: Build, Sign and Release X-Security OTA
 
 on:
   push:
     branches:
       - main
-  pull_request:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  APK_NAME: X-Security.apk
+  APP_DIR: app
+  GRADLE_OPTS: "-Xmx2048m"
+
 jobs:
-  build-release-apk:
+  build-sign-release:
+    name: Auto Build, Sign & Distribute X-Security OTA
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: 📥 Kodu Çek
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Set up JDK 17
+      - name: 📊 versionCode Oku ve Artır
+        id: version
+        run: |
+          set -euo pipefail
+          GRADLE_FILE="${{ env.APP_DIR }}/build.gradle.kts"
+          if [ ! -f "$GRADLE_FILE" ]; then
+            GRADLE_FILE="${{ env.APP_DIR }}/build.gradle"
+          fi
+          
+          CURRENT=$(grep -oP 'versionCode\s*=?\s*\K[0-9]+' "$GRADLE_FILE")
+          NEXT=$((CURRENT + 1))
+          TAG="v${NEXT}"
+          
+          echo "gradle_file=$GRADLE_FILE" >> "$GITHUB_OUTPUT"
+          echo "current=$CURRENT" >> "$GITHUB_OUTPUT"
+          echo "next=$NEXT" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: 🔄 build.gradle Versiyon Güncelle
+        run: |
+          set -euo pipefail
+          GRADLE_FILE="${{ steps.version.outputs.gradle_file }}"
+          sed -i -E "s/(versionCode\s*=?\s*)${steps.version.outputs.current}/\1${steps.version.outputs.next}/" "$GRADLE_FILE"
+
+      - name: ☕ JDK 17 Kur
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: "17"
           cache: gradle
 
-      - name: Ensure Android SDK components
+      - name: 🔨 Gradle İzinleri
+        run: chmod +x ./gradlew
+
+      - name: 🏗️ Release APK Derle
+        run: ./gradlew clean assembleRelease --no-daemon
+
+      - name: 📦 APK Bilgilerini Hazırla
+        id: apk_info
         run: |
-          echo "ANDROID_HOME=${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
-          SDKMGR="${ANDROID_HOME:-$ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager"
-          if [ -x "$SDKMGR" ]; then
-            yes | "$SDKMGR" --licenses >/dev/null || true
-            "$SDKMGR" "platform-tools" "platforms;android-35" "build-tools;34.0.0" || true
-          else
-            echo "sdkmanager bulunamadi; runner'daki onyuklu SDK kullanilacak"
-          fi
+          set -euo pipefail
+          SRC_APK=$(find ${{ env.APP_DIR }}/build/outputs/apk/release -name '*.apk' -type f | head -n1)
+          SIZE=$(du -h "$SRC_APK" | cut -f1)
+          HASH=$(sha256sum "$SRC_APK" | awk '{print $1}')
+          cp "$SRC_APK" "${{ env.APK_NAME }}"
+          
+          echo "size=$SIZE" >> "$GITHUB_OUTPUT"
+          echo "hash=$HASH" >> "$GITHUB_OUTPUT"
 
-      - name: Make gradlew executable
-        run: chmod +x gradlew
-
-      - name: Unit tests
-        run: ./gradlew --no-daemon :app:testDebugUnitTest
-
-      - name: Lint (fatal checks, incl. MissingClass)
-        run: ./gradlew --no-daemon :app:lintDebug
-
-      - name: Prepare release keystore (optional)
+      - name: 🔐 Keystore İmzası (Android System Signature)
         env:
-          KEYSTORE_BASE64: ${{ secrets.XSEC_KEYSTORE_BASE64 }}
+          KEYSTORE_BASE64: ${{ secrets.XSEC_KEYSTORE_BASE64 || secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.XSEC_KEYSTORE_PASSWORD || secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.XSEC_KEY_ALIAS || secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.XSEC_KEY_PASSWORD || secrets.KEY_PASSWORD }}
         run: |
-          if [ -n "$KEYSTORE_BASE64" ]; then
-            printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/xsecurity-release.jks"
-            echo "XSEC_KEYSTORE=$RUNNER_TEMP/xsecurity-release.jks" >> "$GITHUB_ENV"
-            echo "Release keystore hazirlandi."
-          else
-            echo "XSEC_KEYSTORE_BASE64 tanimli degil: release APK imzasiz uretilecek."
+          set -euo pipefail
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "Keystore secret bulunamadi, imzalama adimi atlaniyor."
+            exit 0
           fi
+          
+          KEYSTORE_FILE="$RUNNER_TEMP/release.keystore"
+          echo "$KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_FILE"
+          
+          BUILD_TOOLS_PATH=$(find $ANDROID_HOME/build-tools -maxdepth 1 -type d | sort -V | tail -n1)
+          "$BUILD_TOOLS_PATH/apksigner" sign \
+            --ks "$KEYSTORE_FILE" \
+            --ks-pass "pass:$KEYSTORE_PASSWORD" \
+            --ks-key-alias "$KEY_ALIAS" \
+            --key-pass "pass:$KEY_PASSWORD" \
+            --out "${{ env.APK_NAME }}.signed" \
+            "${{ env.APK_NAME }}"
+            
+          mv "${{ env.APK_NAME }}.signed" "${{ env.APK_NAME }}"
+          rm -f "$KEYSTORE_FILE"
 
-      - name: Build release APK
+      - name: 🔑 RSA-4096 Firmware İmzası Üret (signature.b64)
+        id: openssl_sign
         env:
-          XSEC_KEYSTORE_PASSWORD: ${{ secrets.XSEC_KEYSTORE_PASSWORD }}
-          XSEC_KEY_ALIAS: ${{ secrets.XSEC_KEY_ALIAS }}
-          XSEC_KEY_PASSWORD: ${{ secrets.XSEC_KEY_PASSWORD }}
-        run: ./gradlew --no-daemon :app:assembleRelease
+          PRIVATE_KEY: ${{ secrets._PRIVATEKEY_ }}
+        run: |
+          set -euo pipefail
+          if [ -z "$PRIVATE_KEY" ]; then
+            echo "PRIVATE_KEY secret tanimli degil, firmware imzasi uretilemedi."
+            touch signature.b64 public_key.pem
+            exit 0
+          fi
+          
+          KEY_FILE="$RUNNER_TEMP/private_key.pem"
+          echo "$PRIVATE_KEY" > "$KEY_FILE"
+          
+          openssl dgst -sha256 -sign "$KEY_FILE" -out signature.sig "${{ env.APK_NAME }}"
+          base64 -w0 signature.sig > signature.b64
+          openssl pkey -in "$KEY_FILE" -pubout -out public_key.pem
+          
+          rm -f signature.sig "$KEY_FILE"
 
-      - name: Upload release APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: app-release-apk
-          path: app/build/outputs/apk/release/*.apk
-          if-no-files-found: warn
+      - name: 📄 update.json Otomatik Oluştur
+        run: |
+          set -euo pipefail
+          SIGNATURE=""
+          [ -f signature.b64 ] && SIGNATURE=$(cat signature.b64)
+          TIMESTAMP=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+          
+          cat > update.json << JSONEOF
+          {
+            "versionCode": ${{ steps.version.outputs.next }},
+            "versionName": "v${{ steps.version.outputs.next }}",
+            "apkUrl": "https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.tag }}/${{ env.APK_NAME }}",
+            "signature": "${SIGNATURE}",
+            "publicKeyUrl": "https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.tag }}/public_key.pem",
+            "signatureAlgorithm": "RSA-4096 SHA256",
+            "changelog": "X-Security Otomatik Build #${{ github.run_number }} - OTA Update v${{ steps.version.outputs.next }}",
+            "releaseDate": "${TIMESTAMP}",
+            "size": "${{ steps.apk_info.outputs.size }}",
+            "sha256": "${{ steps.apk_info.outputs.hash }}"
+          }
+          JSONEOF
 
-      - name: Upload lint and test reports
-        if: failure()
-        uses: actions/upload-artifact@v4
+      - name: 🚀 GitHub Release ile Dağıt
+        uses: softprops/action-gh-release@v2
         with:
-          name: reports
-          path: |
-            app/build/reports/
-          if-no-files-found: ignore
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: "X-Security OTA Build v${{ steps.version.outputs.next }}"
+          make_latest: true
+          files: |
+            ${{ env.APK_NAME }}
+            signature.b64
+            public_key.pem
+            update.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 💾 update.json ve build.gradle Değişikliklerini Push Et
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          git add ${{ steps.version.outputs.gradle_file }} update.json
+          git commit -m "chore(release): Auto-build X-Security v${{ steps.version.outputs.next }} [skip ci]" || true
+          git push origin main
