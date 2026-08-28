@@ -88,7 +88,7 @@ class ApkScannerEngineTest {
         )
         val engine = ApkScannerEngine.load(yara, File("absent.ndb")).getOrThrow()
         val content = ByteArray(10_000) { 'q'.code.toByte() } + "zzzTAIL".encodeToByteArray()
-        val target = fileWith(".apk", content.decodeToString(Charsets.ISO_8859_1))
+        val target = fileWith(".apk", String(content, Charsets.ISO_8859_1))
 
         val seen = ArrayList<Float>()
         engine.scan(target) { seen += it }
