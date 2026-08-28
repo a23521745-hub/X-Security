@@ -12,7 +12,7 @@ import kotlinx.coroutines.withContext
 import org.xsecurity.scanner.BuildConfig
 import java.io.File
 import java.net.URL
-
+import org.xsecurity.scanner.worker.OtaDownloadWorker
 /**
  * UI'in OTA'ya tek temas noktasi: kontrol et, indir, kur.
  *
