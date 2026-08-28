@@ -19,59 +19,74 @@ import org.xsecurity.scanner.ui.MainActivity
  */
 object OtaNotifications {
 
-    private const val CHANNEL_ID = "ota_updates"
-    private const val NOTIFICATION_ID = 40
+    private const val CHANNEL_ID = "xsec_ota_status"
+    private const val NOTIFICATION_ID = 4211
 
     fun ensureChannel(context: Context) {
         val manager = context.getSystemService(NotificationManager::class.java) ?: return
+        if (manager.getNotificationChannel(CHANNEL_ID) != null) return
         val channel = NotificationChannel(
             CHANNEL_ID,
-            context.getString(R.string.ota_channel_name),
-            NotificationManager.IMPORTANCE_LOW
+            context.getString(R.string.ota_notif_channel_name),
+            NotificationManager.IMPORTANCE_DEFAULT
         ).apply {
-            description = context.getString(R.string.ota_channel_desc)
+            description = context.getString(R.string.ota_notif_channel_description)
             setShowBadge(false)
         }
         manager.createNotificationChannel(channel)
     }
 
-    fun showUpdateAvailable(context: Context, versionName: String) {
-        val notification = baseBuilder(context)
-            .setContentTitle(context.getString(R.string.ota_notif_new_title))
-            .setContentText(
-                context.getString(R.string.ota_notif_new_text, versionName)
-            )
-            .setAutoCancel(true)
-            .build()
-        notify(context, notification)
-    }
-
-    fun showDownloadProgress(context: Context, percent: Int) {
-        val notification = baseBuilder(context)
-            .setContentTitle(context.getString(R.string.ota_notif_download_title))
-            .setContentText(context.getString(R.string.ota_notif_download_text, percent))
-            .setProgress(100, percent.coerceIn(0, 100), false)
+    fun showDownloading(context: Context, fraction: Float) {
+        val percent = (fraction.coerceIn(0f, 1f) * 100f).toInt()
+        val notification = base(context)
+            .setContentTitle(context.getString(R.string.ota_notif_downloading_title))
+            .setContentText(context.getString(R.string.ota_downloading, percent))
+            .setSmallIcon(R.drawable.ic_stat_shield)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
+            .setSilent(true)
+            .setProgress(100, percent, false)
             .build()
         notify(context, notification)
     }
 
-    fun showReadyToInstall(context: Context, versionName: String) {
-        val notification = baseBuilder(context)
+    /**
+     * Periyodik kontrolun "yeni surum var" sonucu icin sessiz, dusuk oncelikli
+     * bildirim. Uygulamayi acar; indirme/kurulum karari yine kullanicinindir.
+     */
+    fun showUpdateAvailable(context: Context, info: UpdateInfo) {
+        val notification = base(context)
+            .setContentTitle(context.getString(R.string.ota_notif_available_title))
+            .setContentText(context.getString(R.string.ota_notif_available_body, info.versionName))
+            .setSmallIcon(R.drawable.ic_stat_shield)
+            .setOngoing(false)
+            .setAutoCancel(true)
+            .setSilent(true)
+            .build()
+        notify(context, notification)
+    }
+
+    fun showReadyToInstall(context: Context, info: UpdateInfo) {
+        val notification = base(context)
             .setContentTitle(context.getString(R.string.ota_notif_ready_title))
-            .setContentText(
-                context.getString(R.string.ota_notif_ready_text, versionName)
-            )
+            .setContentText(context.getString(R.string.ota_notif_ready_body, info.versionName))
+            .setStyle(NotificationCompat.BigTextStyle().bigText(
+                context.getString(R.string.ota_notif_ready_body, info.versionName)
+            ))
+            .setSmallIcon(R.drawable.ic_stat_shield)
+            .setOngoing(false)
             .setAutoCancel(true)
             .build()
         notify(context, notification)
     }
 
-    fun showDownloadFailed(context: Context) {
-        val notification = baseBuilder(context)
+    fun showError(context: Context, message: String) {
+        val notification = base(context)
             .setContentTitle(context.getString(R.string.ota_notif_error_title))
-            .setContentText(context.getString(R.string.ota_notif_error_text))
+            .setContentText(message)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(message))
+            .setSmallIcon(R.drawable.ic_stat_shield)
+            .setOngoing(false)
             .setAutoCancel(true)
             .build()
         notify(context, notification)
@@ -81,11 +96,11 @@ object OtaNotifications {
         NotificationManagerCompat.from(context).cancel(NOTIFICATION_ID)
     }
 
-    private fun baseBuilder(context: Context): NotificationCompat.Builder =
+    private fun base(context: Context): NotificationCompat.Builder =
         NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_stat_scanner)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setContentIntent(openAppIntent(context))
+            .setWhen(System.currentTimeMillis())
 
     private fun openAppIntent(context: Context): PendingIntent {
         val launch = Intent(context, MainActivity::class.java).apply {
@@ -106,7 +121,8 @@ object OtaNotifications {
             manager.notify(NOTIFICATION_ID, notification)
         } catch (security: SecurityException) {
             // Android 13+ (API 33): bildirim izni istenmemis/reddedilmis olabilir.
-            // Bildirim kritik olmadigindan sessizce atlanir.
+            // Lint (MissingPermission) acik SecurityException ele alinmasini istiyor;
+            // bildirim kritik olmadigindan sessizce atlanir.
         } catch (error: RuntimeException) {
             // Beklenmedik bildirim hatasi: uygulamayi bozmamak icin yut.
         }
