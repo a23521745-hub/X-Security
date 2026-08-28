@@ -46,3 +46,4 @@ object HexPatternCodec {
         else -> null
     }
 }
+
