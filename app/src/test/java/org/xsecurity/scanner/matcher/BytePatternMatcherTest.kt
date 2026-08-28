@@ -56,7 +56,7 @@ class BytePatternMatcherTest {
     fun shortReadsDoNotTruncateTheScan() {
         // 4 KiB'lik bir dosya, koca bir tamponla tek `read` cagrisinda okunamaz hale
         // gelse bile tum baytlar taranmali: toplam taranan bayt = dosya boyutu.
-        val data = ByteArray(4096) { (it % 251).code.toByte() } + "NEEDLE".encodeToByteArray()
+        val data = ByteArray(4096) { (it % 251).toByte() } + "NEEDLE".encodeToByteArray()
         val matcher = BytePatternMatcher(listOf(pattern("NEEDLE")), chunkSize = 4096)
         val result = matcher.scan(tempFile(data))
 
