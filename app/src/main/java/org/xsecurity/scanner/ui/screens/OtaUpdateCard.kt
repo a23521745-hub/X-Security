@@ -198,7 +198,7 @@ private fun Actions(
         when (state.status) {
             OtaStatus.UPDATE_AVAILABLE -> {
                 Button(onClick = onDownload) {
-                    Icon(imageVector = Icons.Filled.Download, contentDescription = null, modifier = Modifier.width(18.dp))
+                    Icon(imageVector = DownloadIcon, contentDescription = null, modifier = Modifier.width(18.dp))
                     Spacer(Modifier.width(8.dp))
                     Text(stringResource(R.string.ota_download))
                 }
