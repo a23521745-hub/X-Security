@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - main
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
@@ -49,13 +52,12 @@ jobs:
         run: |
           set -euo pipefail
           GRADLE_FILE="app/build.gradle.kts"
-          
-          # build.gradle.kts icinden versionCode ve versionName okuma
+
           CURRENT_CODE=$(grep -E 'versionCode\s*=' "$GRADLE_FILE" | grep -oE '[0-9]+' || echo "1")
-          CURRENT_NAME=$(grep -E 'versionName\s*=' "$GRADLE_FILE" | sed -E 's/.*"([^"]+)".*/\1/' || echo "1.0.0")
-          
+          CURRENT_NAME=$(grep -E 'versionName\s*=' "$GRADLE_FILE" | sed -E 's/.*\"([^\"]+)\".*/\1/' || echo "1.0.0")
+
           NEXT_CODE=$((CURRENT_CODE + 1))
-          
+
           echo "current=$CURRENT_CODE" >> "$GITHUB_OUTPUT"
           echo "next=$NEXT_CODE" >> "$GITHUB_OUTPUT"
           echo "tag=v${NEXT_CODE}" >> "$GITHUB_OUTPUT"
@@ -101,17 +103,14 @@ jobs:
           NEXT_VER: ${{ steps.version.outputs.next }}
           VER_NAME: ${{ steps.version.outputs.version_name }}
           TAG_NAME: ${{ steps.version.outputs.tag }}
-          # OTA manifestini imzalamak icin kullanilan RSA-2048 PRIVATE anahtari
-          # (base64 kodlu PEM). Uygulama imzasiz manifesti KABUL ETMEZ; bu secret
-          # yoksa yayinlanan update.json yalnizca bilgilendirme amaclidir.
           OTA_SIGNING_KEY_B64: ${{ secrets.XSEC_OTA_SIGNING_KEY }}
         run: |
           set -euo pipefail
           APK_PATH=$(find app/build/outputs/apk/release/ -name "*.apk" | head -n 1)
           cp "$APK_PATH" X-Security.apk
-          
+
           SHA256=$(sha256sum X-Security.apk | awk '{print $1}')
-          
+
           cat << EOF > update.json
           {
             "versionCode": ${NEXT_VER},
@@ -125,7 +124,7 @@ jobs:
             "releaseNotes": "X-Security Otomatik OTA Güncellemesi (v${NEXT_VER})"
           }
           EOF
-          
+
           if [ -n "$OTA_SIGNING_KEY_B64" ]; then
             printf '%s' "$OTA_SIGNING_KEY_B64" | base64 -d > "$RUNNER_TEMP/ota-signing-private.pem"
             openssl dgst -sha256 -sign "$RUNNER_TEMP/ota-signing-private.pem" \
@@ -138,6 +137,7 @@ jobs:
           fi
 
       - name: 🚀 Publish GitHub Release
+        if: github.event_name == 'push'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.tag }}
@@ -151,6 +151,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: 💾 Commit and Push Updated Files (build.gradle.kts & update.json)
+        if: github.event_name == 'push'
         env:
           GRADLE_FILE: ${{ steps.version.outputs.gradle_file }}
           NEXT_VER: ${{ steps.version.outputs.next }}
@@ -158,7 +159,7 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          
+
           git add "$GRADLE_FILE" update.json
           git commit -m "chore(release): Auto-build X-Security v$NEXT_VER [skip ci]" || echo "No changes to commit"
           git push origin main
