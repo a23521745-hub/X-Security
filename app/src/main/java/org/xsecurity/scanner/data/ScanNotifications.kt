@@ -21,70 +21,88 @@ import org.xsecurity.scanner.engine.ScanStatus
  */
 object ScanNotifications {
 
-    private const val CHANNEL_ID = "scan_progress"
-    private const val NOTIFICATION_ID = 10
+    private const val CHANNEL_ID = "xsec_scan_status"
+    private const val NOTIFICATION_ID = 4201
 
     fun ensureChannel(context: Context) {
         val manager = context.getSystemService(NotificationManager::class.java) ?: return
+        if (manager.getNotificationChannel(CHANNEL_ID) != null) return
         val channel = NotificationChannel(
             CHANNEL_ID,
-            context.getString(R.string.scan_channel_name),
+            context.getString(R.string.notif_channel_name),
             NotificationManager.IMPORTANCE_LOW
         ).apply {
-            description = context.getString(R.string.scan_channel_desc)
+            description = context.getString(R.string.notif_channel_description)
             setShowBadge(false)
         }
         manager.createNotificationChannel(channel)
     }
 
-    fun showScanStarted(context: Context, targetName: String) {
-        val notification = builder(context)
-            .setContentTitle(context.getString(R.string.scan_notif_started_title))
-            .setContentText(context.getString(R.string.scan_notif_started_text, targetName))
+    fun showProgress(context: Context, fileName: String, fraction: Float) {
+        val percent = (fraction.coerceIn(0f, 1f) * 100f).toInt()
+        val notification = base(context)
+            .setContentTitle(context.getString(R.string.notif_scanning_title))
+            .setContentText(fileName)
+            .setSmallIcon(R.drawable.ic_stat_shield)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
+            .setSilent(true)
+            .setProgress(100, percent, percent <= 0)
             .build()
         notify(context, notification)
     }
 
-    fun showScanProgress(context: Context, percent: Int) {
-        val notification = builder(context)
-            .setContentTitle(context.getString(R.string.scan_notif_progress_title))
-            .setContentText(context.getString(R.string.scan_notif_progress_text, percent))
-            .setProgress(100, percent.coerceIn(0, 100), false)
-            .setOngoing(true)
-            .setOnlyAlertOnce(true)
-            .build()
-        notify(context, notification)
-    }
-
-    fun showScanResult(context: Context, summary: String) {
-        val notification = builder(context)
-            .setContentTitle(context.getString(R.string.scan_notif_done_title))
-            .setContentText(summary)
+    fun showResult(context: Context, result: ScanResult) {
+        val title: String
+        val body: String
+        val importance: Int
+        when {
+            result.status == ScanStatus.FAILED -> {
+                title = context.getString(R.string.notif_failed_title)
+                body = result.errorMessage ?: context.getString(R.string.notif_failed_body)
+                importance = NotificationManager.IMPORTANCE_DEFAULT
+            }
+            result.isInfected -> {
+                title = context.getString(R.string.notif_threats_title, result.threats.size)
+                body = result.threats.take(3).joinToString(", ") { it.name }
+                importance = NotificationManager.IMPORTANCE_HIGH
+            }
+            else -> {
+                title = context.getString(R.string.notif_clean_title)
+                body = context.getString(R.string.notif_clean_body, result.fileName)
+                importance = NotificationManager.IMPORTANCE_LOW
+            }
+        }
+        val builder = base(context)
+            .setContentTitle(title)
+            .setContentText(body)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+            .setOngoing(false)
+            .setOnlyAlertOnce(false)
             .setAutoCancel(true)
-            .build()
-        notify(context, notification)
+            .setSmallIcon(R.drawable.ic_stat_shield)
+        if (importance >= NotificationManager.IMPORTANCE_HIGH) {
+            builder.setPriority(NotificationCompat.PRIORITY_HIGH)
+        }
+        notify(context, builder.build())
     }
 
     fun cancel(context: Context) {
         NotificationManagerCompat.from(context).cancel(NOTIFICATION_ID)
     }
 
-    private fun builder(context: Context): NotificationCompat.Builder =
+    private fun base(context: Context): NotificationCompat.Builder =
         NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_stat_scanner)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setContentIntent(openAppIntent(context))
+            .setWhen(System.currentTimeMillis())
 
-    private fun openAppIntent(context: Context): PendingIntent {
-        val launch = Intent(context, org.xsecurity.scanner.ui.MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-        }
+    private fun openAppIntent(context: Context): PendingIntent? {
+        val launch = context.packageManager.getLaunchIntentForPackage(context.packageName) ?: return null
         return PendingIntent.getActivity(
             context,
             0,
-            launch,
+            launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
     }
@@ -97,7 +115,8 @@ object ScanNotifications {
             manager.notify(NOTIFICATION_ID, notification)
         } catch (security: SecurityException) {
             // Android 13+ (API 33): bildirim izni istenmemis/reddedilmis olabilir.
-            // Bildirim kritik olmadigindan sessizce atlanir.
+            // Lint (MissingPermission) acik SecurityException ele alinmasini istiyor;
+            // bildirim kritik olmadigindan sessizce atlanir.
         } catch (error: RuntimeException) {
             // Beklenmedik bildirim hatasi: uygulamayi bozmamak icin yut.
         }
