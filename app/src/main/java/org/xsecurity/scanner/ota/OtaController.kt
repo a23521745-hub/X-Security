@@ -75,7 +75,7 @@ object OtaController {
         val request = OneTimeWorkRequestBuilder<OtaDownloadWorker>()
             .setInputData(
                 Data.Builder()
-                    .putString(OtaDownloadWorker."info_json", info.toJson())
+                    .putString(OtaDownloadWorker, info.toJson())
                     .build()
             )
             .build()
