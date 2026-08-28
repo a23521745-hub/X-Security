@@ -8,13 +8,33 @@ class UpdateInfoTest {
 
     private val sha = "a".repeat(64)
 
+    /**
+     * Degerleri JSON kurallarina gore escape eder: string icinde ham kontrol
+     * karakteri (orn. satir sonu) gecerli degildir ve gercek org.json bunu
+     * "Unterminated string" JSONException ile reddeder.
+     */
+    private fun jsonString(value: String): String = buildString {
+        append('"')
+        for (ch in value) when (ch) {
+            '"' -> append("\\\"")
+            '\\' -> append("\\\\")
+            '\n' -> append("\\n")
+            '\r' -> append("\\r")
+            '\t' -> append("\\t")
+            '\b' -> append("\\b")
+            '\u000C' -> append("\\f")
+            else -> if (ch.code < 0x20) append("\\u%04x".format(ch.code)) else append(ch)
+        }
+        append('"')
+    }
+
     private fun manifest(
         versionCode: String = "5",
         versionName: String = "0.92.1",
         apkUrl: String = "https://updates.example.com/x-security/app-release.apk",
         apkSha256: String = sha,
         apkSize: String = "1234567",
-        forceUpdate: String? = null,
+        forceUpdate: Boolean? = null,
         changelog: String? = null
     ): String = """
         {
@@ -24,7 +44,7 @@ class UpdateInfoTest {
           "apkSha256": "$apkSha256",
           "apkSizeBytes": $apkSize,
           "releaseNotes": "Duzeltmeler.",
-          "minSdk": 26${if (forceUpdate != null) ",\n          \"forceUpdate\": $forceUpdate" else ""}${if (changelog != null) ",\n          \"changelog\": $changelog" else ""}
+          "minSdk": 26${if (forceUpdate != null) ",\n          \"forceUpdate\": $forceUpdate" else ""}${if (changelog != null) ",\n          \"changelog\": ${jsonString(changelog)}" else ""}
         }
     """.trimIndent()
 
@@ -48,7 +68,7 @@ class UpdateInfoTest {
     @Test
     fun parsesForceUpdateAndChangelog() {
         val info = UpdateInfo.parse(
-            manifest(forceUpdate = "true", changelog = "\"- resume destegi\n- Ed25519\"").toByteArray()
+            manifest(forceUpdate = true, changelog = "- resume destegi\n- Ed25519").toByteArray()
         )
         assertEquals(true, info.forceUpdate)
         assertEquals("- resume destegi\n- Ed25519", info.changelog)
@@ -67,9 +87,21 @@ class UpdateInfoTest {
     @Test
     fun extendedManifestRoundTripsThroughJson() {
         val info = UpdateInfo.parse(
-            manifest(forceUpdate = "true", changelog = "\"- a\n- b\"").toByteArray()
+            manifest(forceUpdate = true, changelog = "- a\n- b").toByteArray()
         )
         assertEquals(info, UpdateInfo.fromJson(info.toJson()))
+    }
+
+    @Test
+    fun rejectsRawNewlineInsideStringValue() {
+        // RFC 8259: string icindeki kontrol karakterleri escape edilmek zorunda.
+        // Gercek org.json ham '\n' gordugunde "Unterminated string" JSONException
+        // firlatir; uygulama da bozuk manifesti kabul etmemelidir (fail-closed).
+        val invalid = manifest(changelog = "- ham\nsatir sonu")
+            .replace("- ham\\nsatir sonu", "- ham\nsatir sonu")
+        assertThrows(org.json.JSONException::class.java) {
+            UpdateInfo.parse(invalid.toByteArray())
+        }
     }
 
     @Test
