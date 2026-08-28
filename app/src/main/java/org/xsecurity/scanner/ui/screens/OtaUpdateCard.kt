@@ -1,10 +1,5 @@
 package org.xsecurity.scanner.ui.screens
 
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -12,6 +7,11 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -23,6 +23,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -30,6 +34,41 @@ import org.xsecurity.scanner.R
 import org.xsecurity.scanner.ota.OtaState
 import org.xsecurity.scanner.ota.OtaStatus
 
+/**
+ * "Indir" (download) glifi.
+ *
+ * `androidx.compose.material.icons.filled.Download` **yalnizca `material-icons-extended`**
+ * modulunde dagitilir; bu uygulama ikon ayak izini kucuk tutmak icin bilincli olarak
+ * sadece `material-icons-core` bagimliligini tasir (extended modulu onlarca MB ekler).
+ * Bu yuzden glif, `Icon`'un uyguladigi tint ile calisan 24 dp'lik bir vektor olarak
+ * burada tanimlanir: semantik olarak dogru ikon, ek bagimlilik yok.
+ */
+private val DownloadIcon: ImageVector by lazy {
+    ImageVector.Builder(
+        name = "Download",
+        defaultWidth = 24.dp,
+        defaultHeight = 24.dp,
+        viewportWidth = 24f,
+        viewportHeight = 24f
+    ).path(fill = SolidColor(Color.Black)) {
+        // Ok: asagi dogru ucgen + govde
+        moveTo(19f, 9f)
+        horizontalLineTo(15f)
+        verticalLineTo(3f)
+        horizontalLineTo(9f)
+        verticalLineTo(9f)
+        horizontalLineTo(5f)
+        lineTo(12f, 16f)
+        lineTo(19f, 9f)
+        close()
+        // Tepsi: alt cizgi
+        moveTo(5f, 18f)
+        verticalLineTo(20f)
+        horizontalLineTo(19f)
+        verticalLineTo(18f)
+        close()
+    }.build()
+}
 
 /**
  * Uygulama içi guncelleme karti.
@@ -48,7 +87,7 @@ fun OtaUpdateCard(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Column(
@@ -117,8 +156,11 @@ private fun Body(state: OtaState) {
     }
 
     if (state.status == OtaStatus.DOWNLOADING) {
+        // `progress` degeri dogrudan Float olarak verilir: lambda alan
+        // (`progress: () -> Float`) imza yalnizca yeni Material3 surumlerinde var;
+        // Float imza hem eski hem yeni surumlerde derlenir.
         LinearProgressIndicator(
-            progress = { state.progress.coerceIn(0f, 1f) },
+            progress = state.progress.coerceIn(0f, 1f),
             modifier = Modifier.fillMaxWidth()
         )
     }
@@ -139,7 +181,7 @@ private fun Actions(
         when (state.status) {
             OtaStatus.UPDATE_AVAILABLE -> {
                 Button(onClick = onDownload) {
-                    Icon(imageVector = Icons.Filled.Download, contentDescription = null, modifier = Modifier.width(18.dp))
+                    Icon(imageVector = DownloadIcon, contentDescription = null, modifier = Modifier.width(18.dp))
                     Spacer(Modifier.width(8.dp))
                     Text(stringResource(R.string.ota_download))
                 }

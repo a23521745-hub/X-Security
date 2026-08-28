@@ -10,9 +10,10 @@ import androidx.work.WorkManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.xsecurity.scanner.BuildConfig
+import org.xsecurity.scanner.worker.OtaDownloadWorker
 import java.io.File
 import java.net.URL
-import org.xsecurity.scanner.worker.OtaDownloadWorker
+
 /**
  * UI'in OTA'ya tek temas noktasi: kontrol et, indir, kur.
  *
