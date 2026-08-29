@@ -12,6 +12,7 @@ import org.xsecurity.scanner.data.EngineInfo
 import org.xsecurity.scanner.data.ScanController
 import org.xsecurity.scanner.data.ScanNotifications
 import org.xsecurity.scanner.data.ScanStore
+import org.xsecurity.scanner.community.CommunityStore
 import org.xsecurity.scanner.data.SignatureStore
 import org.xsecurity.scanner.engine.ScanEngines
 import org.xsecurity.scanner.engine.ScanResult
@@ -61,8 +62,11 @@ class ApkScanWorker(
 
         val yaraFile = SignatureStore.fileOrNull(context, SignatureStore.Kind.YARA)
         val clamFile = SignatureStore.fileOrNull(context, SignatureStore.Kind.CLAM_AV)
+        val hashFile = SignatureStore.fileOrNull(context, SignatureStore.Kind.CLAM_HASHES)
+        val communityYara = CommunityStore.enabledYaraFiles(context)
+        val communityHashes = CommunityStore.enabledHashFiles(context)
 
-        val acquired = ScanEngines.acquire(yaraFile, clamFile)
+        val acquired = ScanEngines.acquire(yaraFile, clamFile, hashFile, communityYara, communityHashes)
         if (acquired.isFailure) {
             val reason = acquired.exceptionOrNull()?.message
                 ?: context.getString(R.string.engine_unknown_error)
@@ -71,7 +75,7 @@ class ApkScanWorker(
 
         val engine = acquired.getOrThrow()
         ScanStore.publishEngine(
-            EngineInfo.from(engine, yaraFile?.absolutePath, clamFile?.absolutePath)
+            EngineInfo.from(engine, yaraFile?.absolutePath, clamFile?.absolutePath, hashFile?.absolutePath)
         )
 
         var lastNotifiedPercent = -1

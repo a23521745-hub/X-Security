@@ -22,6 +22,12 @@ object Digest {
 
     fun sha256Hex(file: File): String = file.inputStream().use { sha256Hex(it) }
 
+    fun sha256Hex(bytes: ByteArray): String =
+        java.security.MessageDigest.getInstance("SHA-256").digest(bytes).toHexString()
+
+    /** Bayt dizisinin kucuk harf hex SHA-256 disinda kullanimlar icin (MD5/SHA-1 ozetleri). */
+    fun hex(bytes: ByteArray): String = bytes.toHexString()
+
     fun ByteArray.toHexString(): String {
         val out = StringBuilder(size * 2)
         for (b in this) {

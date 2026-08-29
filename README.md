@@ -1,14 +1,17 @@
 # X-Security 0.93 Pre-Release
 
-A small, fully on-device Android APK scanner: it parses YARA rules and ClamAV `.ndb`
+A small, fully on-device Android APK scanner: it parses YARA rules, ClamAV `.ndb`
+byte signatures and ClamAV `.hsb` file-hash signatures (MD5/SHA-1/SHA-256)
 signature files locally and scans files with a memory-bounded streaming matcher.
 
-**Network use:** all scanning and signature matching happens on-device. The only
-network feature is an **optional, user-driven, cryptographically verified in-app
-updater** (`org.xsecurity.scanner.ota`): it contacts an allowlisted HTTPS host, only
+**Network use:** all scanning and signature matching happens on-device. Network
+features are limited to a **cryptographically verified update channel**
+(`org.xsecurity.scanner.ota`): it contacts an allowlisted HTTPS host, only
 accepts a manifest signed by the embedded RSA key, verifies the downloaded APK's
 SHA-256, and never installs anything without the user's explicit confirmation via the
-system installer. See [Over-the-air updates](#over-the-air-updates).
+system installer. The same signed channel also delivers **signature database
+(definitions) packages**, which are verified and applied automatically
+(`org.xsecurity.scanner.definitions`). See [Over-the-air updates](#over-the-air-updates).
 
 ## What the engine actually does
 
@@ -16,7 +19,7 @@ system installer. See [Over-the-air updates](#over-the-air-updates).
 | --- | --- | --- |
 | YARA | `rule` / `private rule` / `global rule`, tags, `meta:` (`description`), text strings with `ascii`, `wide`, `nocase`, hex strings with `??`/`A?` nibble wildcards, `condition:` subset: `any/all/none of them`, `N of them`, `any/all/none of ($a, $b*)`, `$a and $b`, `$a or $b`, `not $a` | regex strings (`/.../`), `xor()`, `base64/base64wide`, `fullword`, string arrays, and the full YARA grammar (`for`, `at`, `uint16()`, modifiers on hex strings). Unparsable conditions fall back to `any of them` and are flagged as *approximated*. |
 | ClamAV `.ndb` | `Name:TargetType:Offset:Hex[:MinSize,MaxSize]`, `??`/`A?`/`?B` nibble wildcards, numeric offsets (`n`, `n,len`) enforced as real position constraints | variable-length `*` wildcards, `|n-m|` jumps, `(a|b)` alternatives, symbolic offsets (`e`, `x`, `le`, `be`, `"str"#n` — matched anywhere and counted), `TargetType` filtering (all signatures are searched file-wide, counted as possible false positives) |
-| Scanning | whole-file streaming in 64 KiB chunks with an overlap window so patterns that cross a chunk boundary are found; first-byte bucketing; content hashed with SHA-256 for dedup | `condition` features above; a hard `maxBytesToScan` guard (512 MiB default) that reports truncation instead of silently under-scanning |
+| Scanning | whole-file streaming in 64 KiB chunks with an overlap window so patterns that cross a chunk boundary are found; first-byte bucketing; content hashed with SHA-256 for dedup; **APK/ZIP entry scanning** — deflated entries (`classes.dex`, `AndroidManifest.xml`, `assets/`, …) are decompressed within a fixed budget (64 MiB total, 32 MiB per entry, 384 entries) and scanned with the same pattern set, so in-dex evidence like `com/metasploit/...` is not lost to compression | `condition` features above; a hard `maxBytesToScan` guard (512 MiB default) that reports truncation instead of silently under-scanning; entries beyond the ZIP content budget are skipped with a warning |
 
 **This is a pattern scanner, not a libyara/libclamav binding.** It cannot be your only
 protection, and an "engine unavailable" result is reported as a failure — never as
@@ -38,20 +41,51 @@ app/src/main/java/org/xsecurity/scanner/
   yara/                           YaraRuleParser, YaraCondition, YaraScanner
   clamav/                         ClamAvDatabaseParser, ClamAvScanner
   matcher/                        BytePattern, BytePatternMatcher, HexPatternCodec (shared)
+  definitions/                    signed definitions (signature database) OTA channel
   worker/ApkScanWorker.kt         CoroutineWorker: never crashes the app, small output
   worker/OtaCheckWorker.kt        daily signed-manifest check (WorkManager, network-constrained)
   worker/OtaDownloadWorker.kt     resumable, verified APK download (WorkManager + backoff)
-app/src/main/assets/signatures/   sample .yar + .ndb used by tests and first launch
+  worker/DefinitionsUpdateWorker.kt  daily/one-shot definitions check + verified install
+app/src/main/assets/signatures/   curated .yar + .ndb + .hsb (mirrors definitions/), used at first launch
+definitions/                      curated signature package + versioning + content policy
 app/src/test/java/...             JVM unit tests for the parser/matcher/engine
 ```
 
 ## Signature files
 
-On first launch the app copies `assets/signatures/sample-rules.yar` and
-`assets/signatures/sample-signatures.ndb` into `filesDir/signatures/`. Use the
-"Pick .yar" / "Pick .ndb" buttons in the app to install your own rule set (for example a
-real ClamAV `daily.ndb`, filtered to the supported syntax). Copies are made into app
-private storage, so no storage permission is required under scoped storage.
+On first launch the app copies the curated package `assets/signatures/rules.yar`,
+`assets/signatures/signatures.ndb` and `assets/signatures/hashes.hsb`
+(mirroring the repo's `definitions/` directory) into `filesDir/signatures/`.
+Use the "Pick .yar" / "Pick .ndb" buttons in the app to install your own rule
+set (a manually imported database is never overwritten by the automatic
+definitions channel). The hash layer (`.hsb`) arrives via the signed
+definitions channel — the OTA feed grows it from the ~30-signature starter
+selection to the full stalkerware set (`tools/definitions/update-hash-db.sh`).
+Signed definition updates are fetched from the same release channel as app
+updates and applied automatically after RSA signature + SHA-256 verification —
+see `definitions/README.md` for the content policy and the CI quality gate.
+
+### Community sources (direct)
+
+Besides the signed channel, the **Check for updates** button also refreshes
+**community sources** directly (toggle per source in the app):
+
+- **Echap stalkerware-indicators** — `samples.csv` (APK SHA-256 digests, ~2000+)
+  converted on-device into ClamAV `.hsb` lines, plus the repo's `rules.yar`
+  YARA rules (the engine's `N of them` condition support loads these as-is).
+  Both CC BY 4.0, attribution shown in the app.
+
+Security model (deliberately different from the RSA channel, stated in the UI):
+the source registry is **baked into the APK** (URLs can only change via the
+signed channel), all downloads go through the HTTPS host allowlist
+(`UrlPolicy`), payloads are size-capped, and **nothing installs without passing
+the engine's own parsers** — CSV→`.hsb` output is re-parsed, YARA files are
+probe-parsed and rejected if zero rules survive. Curated/OTA signatures always
+win over community duplicates. Sources requiring personal API keys
+(MalwareBazaar/ThreatFox since the abuse.ch Auth-Key requirement) are
+deliberately excluded; ClamAV's official `.cvd` container is not
+redistributable and HypatiaDatabases' Guava-serialized bloom blobs are not
+consumed.
 
 ## Resource decisions
 
@@ -121,6 +155,25 @@ Operator key/sign tooling and the manifest format are documented in
 host list are supplied at build time via `xsecOtaManifestUrl` /
 `xsecOtaPublicKeyPem` / `xsecOtaAllowedHosts` (or the `XSEC_OTA_*` env vars); an empty
 manifest URL disables the feature and the UI reports "not configured".
+
+## Definition updates (signature database)
+
+The definitions channel (`org.xsecurity.scanner.definitions`) reuses the OTA trust
+chain **without any extra build configuration**: the manifest URL is derived from the
+OTA manifest URL (`…/update.json` → `…/definitions.json`), the same embedded public
+key verifies `definitions.json.sig`, and the same host allowlist applies. Unlike app
+updates, a **verified** definitions package (`rules.yar` + `signatures.ndb` +
+`hashes.hsb`, each SHA-256-checked) is installed automatically — classic
+freshclam behaviour. A manually imported database (SAF picker) is never
+overwritten.
+
+Definitions content lives in `definitions/` at the repo root, is mirrored into
+`app/src/main/assets/signatures/` for first launch, and is published as release
+assets by CI. `DefinitionsQualityTest` acts as a **CI quality gate**: unparsable
+rules, unsupported string syntax, approximated conditions, malformed `.ndb`/`.hsb`
+lines or
+asset/`definitions/` drift fail the build. Content policy, versioning
+(`db-version.txt`) and provenance/licensing rules: [`definitions/README.md`](definitions/README.md).
 
 ## Building
 

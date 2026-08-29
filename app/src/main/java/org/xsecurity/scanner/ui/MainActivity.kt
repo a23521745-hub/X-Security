@@ -23,6 +23,9 @@ import org.xsecurity.scanner.data.ScanController
 import org.xsecurity.scanner.data.ScanNotifications
 import org.xsecurity.scanner.data.ScanStore
 import org.xsecurity.scanner.data.SignatureStore
+import org.xsecurity.scanner.community.CommunityStore
+import org.xsecurity.scanner.definitions.DefinitionsController
+import org.xsecurity.scanner.definitions.DefinitionsStore
 import org.xsecurity.scanner.engine.ScanEngines
 import org.xsecurity.scanner.ota.OtaController
 import org.xsecurity.scanner.ota.OtaNotifications
@@ -68,18 +71,24 @@ class MainActivity : ComponentActivity() {
         OtaNotifications.ensureChannel(this)
         ScanStore.restore(this)
         OtaStore.restore(this)
+        DefinitionsStore.restore(this)
         requestNotificationPermissionIfNeeded()
         // Gunluk imzali guncelleme kontrolu (yalnizca ag bagliyken; bildirim sessiz).
         OtaController.schedulePeriodicCheck(this)
+        // Gunluk imzali TANIM paketi kontrolu (ayni anahtar/kanal; kurulum otomatik).
+        DefinitionsController.schedulePeriodicCheck(this)
+        CommunityStore.publish(this)
         reloadEngine()
 
         setContent {
             XSecurityTheme {
                 val state by ScanStore.state.collectAsState()
                 val otaState by OtaStore.state.collectAsState()
+                val defState by DefinitionsStore.state.collectAsState()
                 DashboardScreen(
                     state = state,
                     otaState = otaState,
+                    defState = defState,
                     installedVersionCode = OtaController.currentVersionCode(this),
                     onScanApk = { apkPicker.launch(APK_MIME_TYPES) },
                     onPickYaraRules = { yaraPicker.launch(ANY_MIME_TYPES) },
@@ -88,7 +97,8 @@ class MainActivity : ComponentActivity() {
                     onCancelScan = { ScanController.cancelAll(this) },
                     onCheckUpdate = { lifecycleScope.launch { OtaController.check(this@MainActivity) } },
                     onDownloadUpdate = { startDownload() },
-                    onInstallUpdate = { installDownloadedUpdate() }
+                    onInstallUpdate = { installDownloadedUpdate() },
+                    onCheckDefinitions = { DefinitionsController.enqueueManualCheck(this) }
                 )
             }
         }
@@ -99,6 +109,7 @@ class MainActivity : ComponentActivity() {
         // Worker baska bir surecten calissa bile sonucui yenile.
         ScanStore.restore(this)
         OtaStore.restore(this)
+        DefinitionsStore.restore(this)
     }
 
     /** Indirme butonu: yalnizca dogrulanmis bir guncelleme varken Worker'i kuyruklar. */
@@ -162,7 +173,10 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch(Dispatchers.IO) {
             val yaraFile = SignatureStore.fileOrNull(this@MainActivity, SignatureStore.Kind.YARA)
             val clamFile = SignatureStore.fileOrNull(this@MainActivity, SignatureStore.Kind.CLAM_AV)
-            val acquired = ScanEngines.acquire(yaraFile, clamFile, force = false)
+            val hashFile = SignatureStore.fileOrNull(this@MainActivity, SignatureStore.Kind.CLAM_HASHES)
+            val communityYara = CommunityStore.enabledYaraFiles(this@MainActivity)
+            val communityHashes = CommunityStore.enabledHashFiles(this@MainActivity)
+            val acquired = ScanEngines.acquire(yaraFile, clamFile, hashFile, communityYara, communityHashes, force = false)
             withContext(Dispatchers.Main) {
                 val engine = acquired.getOrNull()
                 if (engine == null) {
@@ -176,7 +190,8 @@ class MainActivity : ComponentActivity() {
                         EngineInfo.from(
                             engine = engine,
                             yaraPath = yaraFile?.absolutePath,
-                            clamPath = clamFile?.absolutePath
+                            clamPath = clamFile?.absolutePath,
+                            hashPath = hashFile?.absolutePath
                         )
                     )
                     ScanStore.markEngineReady()

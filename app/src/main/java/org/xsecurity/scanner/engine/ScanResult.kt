@@ -44,10 +44,12 @@ data class ScanResult(
     val isComplete: Boolean get() = status.isComplete && errorMessage == null
     val yaraThreats: List<ThreatMatch> get() = threats.filter { it.engine == ENGINE_YARA }
     val clamAvThreats: List<ThreatMatch> get() = threats.filter { it.engine == ENGINE_CLAMAV }
+    val clamHashThreats: List<ThreatMatch> get() = threats.filter { it.engine == ENGINE_CLAM_HASH }
 
     companion object {
         const val ENGINE_YARA = "YARA"
         const val ENGINE_CLAMAV = "ClamAV"
+        const val ENGINE_CLAM_HASH = "ClamAV-hash"
 
         fun failed(filePath: String, message: String, warnings: List<String> = emptyList()): ScanResult =
             ScanResult(
