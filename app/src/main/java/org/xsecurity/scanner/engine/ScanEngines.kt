@@ -23,9 +23,18 @@ object ScanEngines {
     fun acquire(
         yaraFile: File?,
         clamFile: File?,
+        hashFile: File? = null,
+        communityYaraFiles: List<File> = emptyList(),
+        communityHashFiles: List<File> = emptyList(),
         force: Boolean = false
     ): Result<ApkScannerEngine> {
-        val fingerprint = ApkScannerEngine.fingerprintOf(yaraFile, clamFile)
+        val fingerprint = ApkScannerEngine.fingerprintOf(
+            yaraFile,
+            clamFile,
+            hashFile,
+            *communityYaraFiles.toTypedArray(),
+            *communityHashFiles.toTypedArray()
+        )
         if (!force) {
             cached?.takeIf { it.fingerprint == fingerprint }?.let { return Result.success(it) }
         }
@@ -33,7 +42,7 @@ object ScanEngines {
             if (!force) {
                 cached?.takeIf { it.fingerprint == fingerprint }?.let { return Result.success(it) }
             }
-            val loaded = ApkScannerEngine.load(yaraFile, clamFile)
+            val loaded = ApkScannerEngine.load(yaraFile, clamFile, hashFile, communityYaraFiles, communityHashFiles)
             loaded.onSuccess { cached = it }
             loaded.onFailure { cached = null }
             return loaded

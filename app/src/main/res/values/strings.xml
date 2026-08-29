@@ -41,6 +41,7 @@
     <string name="engine_yara_rules">YARA rules</string>
     <string name="engine_yara_patterns">YARA patterns</string>
     <string name="engine_clam_signatures">ClamAV signatures</string>
+    <string name="engine_hash_signatures">ClamAV hash signatures</string>
     <string name="engine_pick_yara">Pick .yar</string>
     <string name="engine_pick_clam">Pick .ndb</string>
     <string name="engine_reload">Reload engine</string>
@@ -87,4 +88,30 @@
     <string name="ota_notif_available_title">A new version is available</string>
     <string name="ota_notif_available_body">Version %1$s is ready to download and install. Tap to review it.</string>
     <string name="ota_force_update">This update is marked as required by the server.</string>
+
+    <!-- Definitions (signature database) channel -->
+    <string name="def_card_title">Signature database</string>
+    <string name="def_installed">Definitions v%1$d · %2$d YARA rules · %3$d ClamAV signatures · %4$d hash signatures</string>
+    <string name="def_idle_hint">Definition updates use the same RSA-signed channel as app updates; they are verified and applied automatically.</string>
+    <string name="def_check">Check for updates</string>
+    <string name="community_title">Community sources (direct)</string>
+    <string name="community_hint">Fetched directly from public community repositories over HTTPS and validated on-device before install — not RSA-signed like the definitions channel.</string>
+    <string name="community_not_installed">Not downloaded yet — use \"Check for updates\"</string>
+    <string name="community_updating">Updating…</string>
+    <string name="community_entries">%1$d signatures</string>
+    <string name="community_rules">%1$d rules</string>
+    <string name="def_update">Update now</string>
+    <string name="def_checking">Checking for definition updates…</string>
+    <string name="def_up_to_date">Definitions are up to date (v%1$d).</string>
+    <string name="def_update_available">New definitions available: v%1$d (installed: v%2$d).</string>
+    <string name="def_downloading">Downloading definitions… %1$d%%</string>
+    <string name="def_error">Definition update failed: %1$s</string>
+    <string name="def_error_generic">The definition package could not be installed.</string>
+    <string name="def_not_configured">Definition updates are not configured on this build.</string>
+    <string name="def_user_db_protected">A manually imported database is active; automatic definition updates are paused to protect it.</string>
+    <string name="def_notif_channel_name">Definition updates</string>
+    <string name="def_notif_channel_description">Status of signed signature-database updates</string>
+    <string name="def_notif_installed_title">Signature database updated</string>
+    <string name="def_notif_installed_body">Definitions v%1$d installed (%2$d YARA rules, %3$d ClamAV signatures, %4$d hash signatures).</string>
+    <string name="def_notif_error_title">Definition update failed</string>
 </resources>

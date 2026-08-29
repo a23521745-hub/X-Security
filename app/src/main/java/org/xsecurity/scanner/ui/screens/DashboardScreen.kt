@@ -45,6 +45,7 @@ import org.xsecurity.scanner.engine.ThreatMatch
 import org.xsecurity.scanner.data.EngineInfo
 import org.xsecurity.scanner.data.ScanPhase
 import org.xsecurity.scanner.data.ScanUiState
+import org.xsecurity.scanner.definitions.DefinitionsState
 import org.xsecurity.scanner.ota.OtaState
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -62,6 +63,7 @@ import java.util.Locale
 fun DashboardScreen(
     state: ScanUiState,
     otaState: OtaState,
+    defState: DefinitionsState,
     installedVersionCode: Long,
     onScanApk: () -> Unit,
     onPickYaraRules: () -> Unit,
@@ -70,7 +72,8 @@ fun DashboardScreen(
     onCancelScan: () -> Unit,
     onCheckUpdate: () -> Unit,
     onDownloadUpdate: () -> Unit,
-    onInstallUpdate: () -> Unit
+    onInstallUpdate: () -> Unit,
+    onCheckDefinitions: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -92,6 +95,11 @@ fun DashboardScreen(
             onCheck = onCheckUpdate,
             onDownload = onDownloadUpdate,
             onInstall = onInstallUpdate
+        )
+        DefinitionsCard(
+            state = defState,
+            engine = state.engine,
+            onCheck = onCheckDefinitions
         )
         ScanActionButton(enabled = !state.isBusy, onScanApk = onScanApk)
         Footnote()
@@ -349,6 +357,10 @@ private fun EngineCard(
             InfoRow(
                 label = stringResource(R.string.engine_clam_signatures),
                 value = engine.clamSignatures.toString()
+            )
+            InfoRow(
+                label = stringResource(R.string.engine_hash_signatures),
+                value = engine.hashSignatures.toString()
             )
             if (engine.warnings.isNotEmpty()) {
                 WarningsBlock(engine.warnings, MaterialTheme.colorScheme.onSurfaceVariant)
