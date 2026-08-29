@@ -3,7 +3,6 @@ package org.xsecurity.scanner.community
 import org.xsecurity.scanner.clamav.ClamHashDatabaseParser
 import org.xsecurity.scanner.core.SignatureDatabaseException
 import org.xsecurity.scanner.yara.YaraRuleParser
-import java.io.File
 
 /**
  * Ucuncu parti (topluluk) iceriginin ISLENMESI ve DOGRULANMASI — baglamsiz,
@@ -58,25 +57,25 @@ object CommunityValidator {
 
     private fun validateYara(source: CommunitySource, payload: ByteArray): Validated {
         val text = payload.decodeToString()
-        val probe = File.createTempFile("xsec-community-probe-", ".yar")
-        try {
-            probe.writeText(text)
-            val parsed = YaraRuleParser().parse(probe)
-            if (parsed.rules.isEmpty()) {
-                throw SignatureDatabaseException(
-                    "${source.label}: motorun destekledigi sozdiziminde kural cikmadi " +
-                        "(${parsed.unparsableRules} ayristirilamayan, ${parsed.skippedRuleNames.size} atlanan)"
-                )
-            }
-            if (parsed.rules.size > source.maxEntries) {
-                throw SignatureDatabaseException(
-                    "${source.label}: kural sayisi tavani asiyo " +
-                        "(${parsed.rules.size} > ${source.maxEntries})"
-                )
-            }
-            return Validated(content = text, hashEntries = 0, yaraRules = parsed.rules.size)
-        } finally {
-            probe.delete()
+        if (payload.size > YaraRuleParser.DEFAULT_MAX_SOURCE_BYTES) {
+            throw SignatureDatabaseException(
+                "${source.label}: YARA kaynagi boyut sinirini asiyor " +
+                    "(${payload.size} > ${YaraRuleParser.DEFAULT_MAX_SOURCE_BYTES} bayt)"
+            )
         }
+        val parsed = YaraRuleParser().parseSource(text)
+        if (parsed.rules.isEmpty()) {
+            throw SignatureDatabaseException(
+                "${source.label}: motorun destekledigi sozdiziminde kural cikmadi " +
+                    "(${parsed.unparsableRules} ayristirilamayan, ${parsed.skippedRuleNames.size} atlanan)"
+            )
+        }
+        if (parsed.rules.size > source.maxEntries) {
+            throw SignatureDatabaseException(
+                "${source.label}: kural sayisi tavani asiyo " +
+                    "(${parsed.rules.size} > ${source.maxEntries})"
+            )
+        }
+        return Validated(content = text, hashEntries = 0, yaraRules = parsed.rules.size)
     }
 }

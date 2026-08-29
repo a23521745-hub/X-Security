@@ -78,7 +78,7 @@ class ClamHashScannerTest {
         )
         val outcome = scanner.scan(tempFile("temiz icerik".toByteArray()), db)
         assertTrue(outcome.hits.isEmpty())
-        assertEquals(13L, outcome.scannedBytes)
+        assertEquals(12L, outcome.scannedBytes)
     }
 
     @Test

@@ -135,7 +135,7 @@ class ApkScannerEngineTest {
             "rule Community_Test { strings: ${'$'}c = \"communityneedle\" condition: any of them }"
         )
         // Topluluk hash kaynagi: prob dosyasinin SHA-256 ozeti imzalanmis.
-        val probeContent = "community hash layer probe"
+        val probeContent = "community hash layer probe communityneedle"
         val sha256 = java.security.MessageDigest.getInstance("SHA-256")
             .digest(probeContent.toByteArray())
             .joinToString("") { "%02x".format(it) }
