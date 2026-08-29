@@ -1,3 +1,9 @@
+# NOT: Bu dosya SADECE REFERANS kopyasidir (bot .github/workflows/ altina
+# dokunamaz). Remote'teki gercek dosya: .github/workflows/android-release-apk.yml
+# Asagidaki icerik, remote'un guncel hali + "Build & Sign Definitions Package"
+# adimi + release asset listesine eklenen 4 tanim dosyasidir. Uygulamak icin
+# dosyanin TAMAMINI kopyalayip Termux/web UI uzerinden uzerine yazin.
+
 name: Build & Release OTA APK
 
 on:
@@ -54,7 +60,7 @@ jobs:
           GRADLE_FILE="app/build.gradle.kts"
 
           CURRENT_CODE=$(grep -E 'versionCode\s*=' "$GRADLE_FILE" | grep -oE '[0-9]+' || echo "1")
-          CURRENT_NAME=$(grep -E 'versionName\s*=' "$GRADLE_FILE" | sed -E 's/.*\"([^\"]+)\".*/\1/' || echo "1.0.0")
+          CURRENT_NAME=$(grep -E 'versionName\s*=' "$GRADLE_FILE" | sed -E 's/.*"([^"]+)".*/\1/' || echo "1.0.0")
 
           NEXT_CODE=$((CURRENT_CODE + 1))
 
@@ -139,6 +145,65 @@ jobs:
             echo "Uygulama bu manifesti reddeder (imza dogrulamasi basarisi olur)." >&2
           fi
 
+      - name: Build & Sign Definitions Package
+        if: github.event_name == 'push'
+        env:
+          TAG_NAME: ${{ steps.version.outputs.tag }}
+          OTA_SIGNING_KEY_B64: ${{ secrets.XSEC_OTA_SIGNING_KEY }}
+        run: |
+          set -euo pipefail
+          DEF_VERSION=$(tr -d '[:space:]' < definitions/db-version.txt)
+          YAR_SHA=$(sha256sum definitions/rules.yar | awk '{print $1}')
+          NDB_SHA=$(sha256sum definitions/signatures.ndb | awk '{print $1}')
+          HSB_SHA=$(sha256sum definitions/hashes.hsb | awk '{print $1}')
+
+          cat << EOF > definitions.json
+          {
+            "schemaVersion": 1,
+            "defVersion": ${DEF_VERSION},
+            "minAppVersionCode": 8,
+            "generatedAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "files": [
+              {
+                "kind": "YARA",
+                "name": "rules.yar",
+                "url": "https://github.com/${{ github.repository }}/releases/download/${TAG_NAME}/rules.yar",
+                "sha256": "${YAR_SHA}",
+                "sizeBytes": $(stat -c%s definitions/rules.yar)
+              },
+              {
+                "kind": "CLAM_AV",
+                "name": "signatures.ndb",
+                "url": "https://github.com/${{ github.repository }}/releases/download/${TAG_NAME}/signatures.ndb",
+                "sha256": "${NDB_SHA}",
+                "sizeBytes": $(stat -c%s definitions/signatures.ndb)
+              },
+              {
+                "kind": "CLAM_HASHES",
+                "name": "hashes.hsb",
+                "url": "https://github.com/${{ github.repository }}/releases/download/${TAG_NAME}/hashes.hsb",
+                "sha256": "${HSB_SHA}",
+                "sizeBytes": $(stat -c%s definitions/hashes.hsb)
+              }
+            ]
+          }
+          EOF
+
+          if [ -n "$OTA_SIGNING_KEY_B64" ]; then
+            printf '%s' "$OTA_SIGNING_KEY_B64" | base64 -d > "$RUNNER_TEMP/ota-signing-private.pem"
+            openssl dgst -sha256 -sign "$RUNNER_TEMP/ota-signing-private.pem" \
+              -out definitions.json.sig definitions.json
+            rm -f "$RUNNER_TEMP/ota-signing-private.pem"
+            echo "definitions.json imzalandi (definitions.json.sig uretildi)."
+          else
+            echo "UYARI: XSEC_OTA_SIGNING_KEY tanimli degil; definitions.json IMZASIZ." >&2
+            echo "Uygulama tanim paketini reddeder (imza dogrulamasi basarisi olur)." >&2
+          fi
+
+          cp definitions/rules.yar .
+          cp definitions/signatures.ndb .
+          cp definitions/hashes.hsb .
+
       - name: 🚀 Publish GitHub Release
         if: github.event_name == 'push'
         uses: softprops/action-gh-release@v2
@@ -150,6 +215,11 @@ jobs:
             X-Security.apk
             update.json
             update.json.sig
+            rules.yar
+            signatures.ndb
+            hashes.hsb
+            definitions.json
+            definitions.json.sig
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
