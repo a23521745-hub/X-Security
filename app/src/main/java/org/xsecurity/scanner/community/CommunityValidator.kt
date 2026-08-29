@@ -57,7 +57,7 @@ object CommunityValidator {
 
     private fun validateYara(source: CommunitySource, payload: ByteArray): Validated {
         val text = payload.decodeToString()
-        if (payload.size > YaraRuleParser.DEFAULT_MAX_SOURCE_BYTES) {
+        if (payload.size.toLong() > YaraRuleParser.DEFAULT_MAX_SOURCE_BYTES) {
             throw SignatureDatabaseException(
                 "${source.label}: YARA kaynagi boyut sinirini asiyor " +
                     "(${payload.size} > ${YaraRuleParser.DEFAULT_MAX_SOURCE_BYTES} bayt)"
