@@ -31,7 +31,7 @@ class ClamHashScannerTest {
             )
         )
 
-        val outcome = scanner.scan(tempFile(eicar, ".eicar"), db)
+        val outcome = scanner.scan(tempFile(eicar.toByteArray(), ".eicar"), db)
 
         assertEquals(3, outcome.hits.size)
         assertEquals(68L, outcome.scannedBytes)
@@ -50,21 +50,21 @@ class ClamHashScannerTest {
 
     @Test
     fun matchingHashWithWrongFileSizeIsRejected() {
-        val digest = sha256Of(eicar)
+        val digest = sha256Of(eicar.toByteArray())
         val db = ClamHashDatabaseParser().parseLines(
             listOf("$digest:1:Eicar.Test-File") // yanlis boyut: 1 bayt bekleniyor
         )
-        val outcome = scanner.scan(tempFile(eicar, ".eicar"), db)
+        val outcome = scanner.scan(tempFile(eicar.toByteArray(), ".eicar"), db)
         assertTrue("boyut uyusmazliginda eslesme olmamali", outcome.hits.isEmpty())
     }
 
     @Test
     fun unknownSizeMatchesByHashAlone() {
-        val digest = sha256Of(eicar)
+        val digest = sha256Of(eicar.toByteArray())
         val db = ClamHashDatabaseParser().parseLines(
             listOf("$digest:-1:Eicar.Test-File")
         )
-        val outcome = scanner.scan(tempFile(eicar, ".eicar"), db)
+        val outcome = scanner.scan(tempFile(eicar.toByteArray(), ".eicar"), db)
         assertEquals(1, outcome.hits.size)
         assertEquals("Eicar.Test-File", outcome.hits.single().name)
         assertEquals(ClamHashDatabaseParser.Algorithm.SHA_256, outcome.hits.single().algorithm)
@@ -72,7 +72,7 @@ class ClamHashScannerTest {
 
     @Test
     fun cleanFileProducesNoHits() {
-        val digest = sha256Of(eicar)
+        val digest = sha256Of(eicar.toByteArray())
         val db = ClamHashDatabaseParser().parseLines(
             listOf("$digest:-1:Eicar.Test-File")
         )
@@ -84,17 +84,17 @@ class ClamHashScannerTest {
     @Test
     fun emptyDatabaseShortCircuits() {
         val db = ClamHashDatabaseParser().parseLines(emptyList())
-        val outcome = scanner.scan(tempFile(eicar, ".eicar"), db)
+        val outcome = scanner.scan(tempFile(eicar.toByteArray(), ".eicar"), db)
         assertTrue(outcome.hits.isEmpty())
         assertEquals(0L, outcome.scannedBytes)
     }
 
     @Test
     fun progressCallbackTracksBytes() {
-        val digest = sha256Of(eicar)
+        val digest = sha256Of(eicar.toByteArray())
         val db = ClamHashDatabaseParser().parseLines(listOf("$digest:-1:Eicar.Test-File"))
         val seen = ArrayList<Long>()
-        scanner.scan(tempFile(eicar, ".eicar"), db) { bytes -> seen += bytes }
+        scanner.scan(tempFile(eicar.toByteArray(), ".eicar"), db) { bytes -> seen += bytes }
         assertTrue("ilerleme bildirilmeli", seen.isNotEmpty())
         // Son bildirim dosya boyutuna esit olmali (tek okuma gecisi).
         assertEquals(68L, seen.last())
