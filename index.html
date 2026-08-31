@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>X-Security — Telefonunuzu kim izliyor? | Android anti-stalkerware</title>
+  <meta name="description" content="X-Security, Android'deki gizli izleme ve casus uygulamaları 4 katmanlı motorla tespit eden ücretsiz, açık kaynaklı antivirüs. Tarama cihazda, telemetri yok, Android 8.0+, ~6 MB." />
+  <meta name="theme-color" content="#05070d" />
+  <link rel="canonical" href="https://a23521745-hub.github.io/X-Security/" />
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="X-Security" />
+  <meta property="og:locale" content="tr_TR" />
+  <meta property="og:url" content="https://a23521745-hub.github.io/X-Security/" />
+  <meta property="og:title" content="X-Security — Telefonunuzu kim izliyor?" />
+  <meta property="og:description" content="Android'deki gizli izleme (stalkerware) ve casus uygulamaları 4 katmanlı motorla tespit eden ücretsiz, açık kaynaklı antivirüs. Tarama cihazda, telemetri yok." />
+  <meta property="og:image" content="og-image.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+
+  <!-- Twitter -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="X-Security — Telefonunuzu kim izliyor?" />
+  <meta name="twitter:description" content="Android'deki gizli izleme ve casus uygulamaları 4 katmanlı motorla tespit eden ücretsiz, açık kaynaklı antivirüs." />
+  <meta name="twitter:image" content="og-image.png" />
+
+  <!-- Favicon: inline SVG kalkan -->
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2l8 3.6v5.9c0 5.02-3.4 9.74-8 10.5-4.6-.76-8-5.48-8-10.5V5.6L12 2z' fill='none' stroke='%2322d3ee' stroke-width='1.6' stroke-linejoin='round'/%3E%3Cpath d='M8.6 9.4l6.8 6.8M15.4 9.4l-6.8 6.8' stroke='%2334d399' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E" />
+
+  <!-- Fonts: latin-ext (Türkçe: ığüşçöİĞŞÇÖ) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+
+  <!-- JSON-LD -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "X-Security",
+    "description": "Ücretsiz, açık kaynaklı Android anti-stalkerware / antivirüs. 4 katmanlı, tamamen cihaz üstü tarama motoru (YARA, ClamAV .ndb, hash veritabanı, ZIP içerik taraması).",
+    "operatingSystem": "Android 8.0+ (API 26)",
+    "applicationCategory": "SecurityApplication",
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+    "license": "https://www.gnu.org/licenses/gpl-3.0.html",
+    "url": "https://github.com/a23521745-hub/X-Security",
+    "downloadUrl": "https://github.com/a23521745-hub/X-Security/releases/latest"
+  }
+  </script>
+  <script type="module" crossorigin src="./assets/index-BBoimorr.js"></script>
+  <link rel="modulepreload" crossorigin href="./assets/gsap-C8IefbVz.js">
+  <link rel="modulepreload" crossorigin href="./assets/three-Do-DLkSD.js">
+  <link rel="stylesheet" crossorigin href="./assets/index-pavdBhIQ.css">
+</head>
+<body>
+  <a class="skip-link" href="#main" data-i18n="a11y.skip">İçeriğe atla</a>
+
+  <!-- dekoratif arka plan -->
+  <div class="bg-decor" aria-hidden="true">
+    <div class="orb orb-cyan"></div>
+    <div class="orb orb-emerald"></div>
+    <div class="bg-grid"></div>
+  </div>
+
+  <!-- 1) STICKY GLASS NAV -->
+  <header class="site-nav" id="top">
+    <div class="nav-inner">
+      <a class="brand" href="#top" aria-label="X-Security — başa dön">
+        <svg class="brand-ico" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 2l8 3.6v5.9c0 5.02-3.4 9.74-8 10.5-4.6-.76-8-5.48-8-10.5V5.6L12 2z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+          <path d="M8.6 9.4l6.8 6.8M15.4 9.4l-6.8 6.8" stroke="var(--emerald)" stroke-width="1.7" stroke-linecap="round"/>
+        </svg>
+        <span class="brand-name">X-Security</span>
+      </a>
+
+      <button class="menu-btn" id="menu-btn" aria-label="Menü" aria-expanded="false" aria-controls="nav-menu">
+        <span class="menu-line"></span><span class="menu-line"></span>
+      </button>
+
+      <nav class="nav-menu" id="nav-menu" aria-label="Bölümler">
+        <a href="#stalkerware" data-i18n="nav.stalkerware">Stalkerware</a>
+        <a href="#engine" data-i18n="nav.engine">Motor</a>
+        <a href="#updates" data-i18n="nav.updates">Güncelleme</a>
+        <a href="#privacy" data-i18n="nav.privacy">Gizlilik</a>
+        <a href="#roadmap" data-i18n="nav.roadmap">Yol Haritası</a>
+        <a href="#faq" data-i18n="nav.faq">SSS</a>
+      </nav>
+
+      <div class="nav-actions">
+        <button class="lang-toggle" id="lang-toggle" aria-pressed="false" aria-label="Switch to English">EN</button>
+        <a class="btn btn-ghost btn-sm" data-link="repo" target="_blank" rel="noopener">
+          <svg viewBox="0 0 16 16" class="ico" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+          <span data-i18n="nav.github">GitHub</span>
+        </a>
+        <a class="btn btn-primary btn-sm" data-link="dl" target="_blank" rel="noopener"><span data-i18n="nav.download">İndir</span></a>
+      </div>
+    </div>
+  </header>
+
+  <main id="main">
+    <!-- 2) HERO + 3D SAHNE -->
+    <section class="hero" id="hero" aria-label="X-Security tanıtımı">
+      <canvas id="scene3d" aria-hidden="true"></canvas>
+      <div class="hero-fallback" aria-hidden="true">
+        <div class="fb-radar"><div class="fb-sweep"></div><div class="fb-ring"></div><div class="fb-ring r2"></div></div>
+      </div>
+
+      <div class="hero-inner">
+        <p class="kicker hero-kicker" data-reveal data-i18n="hero.kicker">AÇIK KAYNAK • CİHAZ ÜSTÜ • ANDROİD</p>
+        <h1 class="hero-title" data-reveal><span class="mask"><span class="mask-inner" data-i18n="hero.title">Telefonunuzu kim izliyor?</span></span></h1>
+        <p class="hero-sub" data-reveal data-i18n="hero.sub">X-Security, Android'deki gizli izleme (stalkerware) ve casus uygulamaları 4 katmanlı motorla tespit eden ücretsiz, açık kaynaklı bir antivirüstür.</p>
+
+        <div class="hero-ctas" data-reveal>
+          <a class="btn btn-primary btn-xl" data-link="dl" target="_blank" rel="noopener">
+            <svg viewBox="0 0 24 24" class="ico" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M12 3v12m0 0l-4.5-4.5M12 15l4.5-4.5M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>
+            <span data-i18n="hero.cta.dl">İndir</span>
+          </a>
+          <a class="btn btn-ghost btn-xl" data-link="repo" target="_blank" rel="noopener">
+            <svg viewBox="0 0 16 16" class="ico" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+            <span data-i18n="hero.cta.gh">GitHub</span>
+          </a>
+        </div>
+
+        <p class="trust-row" data-reveal data-i18n="hero.trust">Ücretsiz &amp; Açık Kaynak • Android 8.0+ • ~6 MB • Verileriniz cihazınızda</p>
+
+        <div class="hero-stats" data-reveal-group aria-label="Rakamlarla X-Security">
+          <div class="stat">
+            <b class="stat-num" data-count="31">0</b>
+            <span class="stat-label" data-i18n="stat.1.l">küratörlü stalkerware imzası</span>
+          </div>
+          <div class="stat">
+            <b class="stat-num" data-count="2000" data-prefix="~" data-suffix="+">0</b>
+            <span class="stat-label" data-i18n="stat.2.l">topluluk SHA-256 hash'i</span>
+          </div>
+          <div class="stat">
+            <b class="stat-num" data-count="0">0</b>
+            <span class="stat-label" data-i18n="stat.3.l">telemetri • hesap • iz</span>
+          </div>
+          <div class="stat">
+            <b class="stat-num stat-static">~6 MB</b>
+            <span class="stat-label" data-i18n="stat.4.l">APK boyutu</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="scroll-cue" aria-hidden="true"><span></span><span></span></div>
+    </section>
+
+    <!-- 3) STALKERWARE NEDİR -->
+    <section class="section" id="stalkerware" aria-labelledby="stalkerware-title">
+      <div class="container">
+        <div class="sec-head">
+          <p class="kicker" data-reveal data-i18n="sw.kicker">01 — TEHDİT</p>
+          <h2 class="sec-title" id="stalkerware-title" data-reveal><span class="mask"><span class="mask-inner" data-i18n="sw.title">Stalkerware nedir?</span></span></h2>
+          <p class="sec-lead" data-reveal data-i18n="sw.lead">Stalkerware, sizin bilginiz ve onayınız olmadan telefonunuzu izlemek için gizlice kurulan yazılımlardır. Genellikle resmi mağazalarda değil; sahte uygulamalar, ele geçirilmiş hesaplar veya cihazın fiziksel erişimiyle sızar. Kurulduktan sonra kendisini gizler, arka planda sürekli çalışır ve en mahrem verilerinizi dışarı aktarır.</p>
+        </div>
+
+        <div class="cards-3" data-reveal-group>
+          <article class="card card-threat">
+            <div class="card-ico" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" d="M21 11.5a8.5 8.5 0 01-8.5 8.5c-1.6 0-3.1-.4-4.4-1.2L3 20l1.2-5.1A8.5 8.5 0 1121 11.5zM8 10h8M8 13.5h5"/></svg>
+            </div>
+            <h3 data-i18n="sw.c1.t">Mesajlarınız okunur</h3>
+            <p data-i18n="sw.c1.d">SMS, e-posta ve uygulama mesajlarınız gizlice okunup üçüncü kişilerle paylaşılabilir.</p>
+          </article>
+          <article class="card card-threat">
+            <div class="card-ico" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" d="M12 21s7-5.5 7-11a7 7 0 10-14 0c0 5.5 7 11 7 11zM12 12.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5z"/></svg>
+            </div>
+            <h3 data-i18n="sw.c2.t">Konumunuz izlenir</h3>
+            <p data-i18n="sw.c2.d">Nerede olduğunuz ve gittiğiniz her yer, dakika dakika kaydedilip aktarılabilir.</p>
+          </article>
+          <article class="card card-threat">
+            <div class="card-ico" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" d="M12 15a3 3 0 003-3V6a3 3 0 10-6 0v6a3 3 0 003 3zM5 11a7 7 0 0014 0M12 18v3m-3 0h6"/></svg>
+            </div>
+            <h3 data-i18n="sw.c3.t">Mikrofonunuz dinlenir</h3>
+            <p data-i18n="sw.c3.d">Arka planda ses kaydı alınıp cihaz dışına gönderilebilir; sizden kimse haberdar olmaz.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4) 4 KATMANLI MOTOR -->
+    <section class="section" id="engine" aria-labelledby="engine-title">
+      <div class="container">
+        <div class="sec-head">
+          <p class="kicker" data-reveal data-i18n="eng.kicker">02 — MOTOR</p>
+          <h2 class="sec-title" id="engine-title" data-reveal><span class="mask"><span class="mask-inner" data-i18n="eng.title">4 Katmanlı Motor</span></span></h2>
+          <p class="sec-lead" data-reveal data-i18n="eng.lead">Taranan her dosya dört bağımsız katmandan geçer. Bir katman işaret verirse diğerleri de çalışmaya devam eder; desteklenmeyen imza sözdizimi asla sessizce atlanmaz — sayılır ve raporda yer alır.</p>
+        </div>
+
+        <div class="cards-4" data-reveal-group>
+          <article class="layer-card">
+            <span class="layer-num" aria-hidden="true">01</span>
+            <h3 data-i18n="eng.c1.t">YARA Kuralları</h3>
+            <p data-i18n="eng.c1.d">Davranış ve imza desenlerini kural diliyle yakalar: metin (ascii / wide / nocase), hex ve nibble-vahşi desenler, <code>N of them</code> koşulları. Tam çözemediği sözdizimini “approximated” olarak raporlar.</p>
+            <code class="chip">rules.yar</code>
+          </article>
+          <article class="layer-card">
+            <span class="layer-num" aria-hidden="true">02</span>
+            <h3 data-i18n="eng.c2.t">ClamAV .ndb İmzaları</h3>
+            <p data-i18n="eng.c2.d">Bayt düzeyinde imzalar: sabit offset'ler gerçek konum kısıtı olarak zorlanır, <code>??</code> nibble vahşileri desteklenir. Hash'ten bağımsız, build'den build'e değişen varyantları yakalar.</p>
+            <code class="chip">Name:Target:Offset:Hex</code>
+          </article>
+          <article class="layer-card">
+            <span class="layer-num" aria-hidden="true">03</span>
+            <h3 data-i18n="eng.c3.t">Hash Veritabanı</h3>
+            <p data-i18n="eng.c3.d">MD5, SHA-1 ve SHA-256 tek dosyada, tek geçişte; algoritma hash uzunluğundan (32/40/64) türetilir. Bilinen ve değiştirilmemiş örnekler neredeyse sıfır yanlış pozitifle yakalanır.</p>
+            <code class="chip">MD5 • SHA-1 • SHA-256</code>
+          </article>
+          <article class="layer-card layer-zip">
+            <span class="layer-num" aria-hidden="true">04</span>
+            <h3 data-i18n="eng.c4.t">ZIP İçerik Tarayıcı</h3>
+            <p class="layer-quote" data-i18n="eng.c4.q">“APK'nın içine bakar.”</p>
+            <p data-i18n="eng.c4.d">classes.dex, AndroidManifest.xml ve assets/ sıkıştırılmış haliyle açılıp aynı desen setiyle taranır — sıkıştırma, kanıtları gizlemez.</p>
+            <code class="chip">APK / ZIP entry taraması</code>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- 5) HER ZAMAN GÜNCEL -->
+    <section class="section" id="updates" aria-labelledby="updates-title">
+      <div class="container">
+        <div class="sec-head">
+          <p class="kicker" data-reveal data-i18n="upd.kicker">03 — GÜNCELLEME</p>
+          <h2 class="sec-title" id="updates-title" data-reveal><span class="mask"><span class="mask-inner" data-i18n="upd.title">Her zaman güncel</span></span></h2>
+          <p class="sec-lead" data-reveal data-i18n="upd.lead">Tehditler değişir; motor iki kanaldan beslenir. Biri şifreyle imzalı ve otomatik, diğeri topluluğun doğrudan kaynakları.</p>
+        </div>
+
+        <div class="channels" data-reveal-group>
+          <article class="channel">
+            <header class="ch-head">
+              <h3 data-i18n="upd.ch1.name">İmzalı Tanım Kanalı</h3>
+              <span class="badge badge-auto" data-i18n="upd.ch1.badge">Otomatik</span>
+            </header>
+            <ol class="ch-steps">
+              <li data-i18n="upd.ch1.s1">RSA (SHA-256) imzalı manifest — <code>definitions.json</code> gömülü public anahtarla doğrulanmadan okunmaz.</li>
+              <li data-i18n="upd.ch1.s2">Dosya başına SHA-256 — <code>rules.yar</code>, <code>signatures.ndb</code> ve <code>hashes.hsb</code> indirilir; her biri kendi hash değeriyle karşılaştırılır.</li>
+              <li data-i18n="upd.ch1.s3">Atomik kurulum — doğrulanan paket tek adımda devreye alınır; yarım güncelleme cihazınıza asla ulaşmaz. Manuel içe aktardığınız veritabanı asla ezilmez.</li>
+            </ol>
+          </article>
+
+          <article class="channel">
+            <header class="ch-head">
+              <h3 data-i18n="upd.ch2.name">Topluluk Kaynakları</h3>
+              <span class="badge badge-direct" data-i18n="upd.ch2.badge">Doğrudan</span>
+            </header>
+            <ol class="ch-steps">
+              <li data-i18n="upd.ch2.s1">Echap stalkerware-indicators — ~2.000+ bilinen stalkerware APK'sinin SHA-256 özeti ve topluluk YARA kuralları.</li>
+              <li data-i18n="upd.ch2.s2">Cihaz üzerinde dönüşüm — <code>samples.csv</code>, cihazda doğrudan ClamAV <code>.hsb</code> satırlarına çevrilir; çıktı motorun kendi parser'ından yeniden geçer.</li>
+              <li data-i18n="upd.ch2.s3">Kaynak başına aç/kapa — her kaynak ayrı ayrı etkinleştirilebilir; kayıtlar APK'ya gömülüdür, indirimler yalnızca HTTPS izin listesi üzerinden.</li>
+            </ol>
+          </article>
+        </div>
+
+        <p class="attribution" data-reveal-extra>
+          <span data-i18n="upd.attr">Topluluk verisi:</span>
+          <a href="https://github.com/AssoEchap/stalkerware-indicators" target="_blank" rel="noopener">AssoEchap stalkerware-indicators</a>
+          <span data-i18n="upd.attr2">— CC BY 4.0</span>
+        </p>
+      </div>
+    </section>
+
+    <!-- 6) GİZLİLİK İLKESİ -->
+    <section class="section" id="privacy" aria-labelledby="privacy-title">
+      <div class="container">
+        <div class="sec-head">
+          <p class="kicker" data-reveal data-i18n="priv.kicker">04 — GİZLİLİK</p>
+          <h2 class="sec-title" id="privacy-title" data-reveal><span class="mask"><span class="mask-inner" data-i18n="priv.title">Gizlilik ilkesi</span></span></h2>
+          <p class="sec-lead" data-reveal data-i18n="priv.lead">Bir stalkerware avcısı, önce kendisi izlememeli. X-Security'i var eden sınır budur.</p>
+        </div>
+
+        <div class="principle-grid" data-reveal-group>
+          <article class="principle">
+            <div class="p-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" d="M12 2l8 3.6v5.9c0 5.02-3.4 9.74-8 10.5-4.6-.76-8-5.48-8-10.5V5.6L12 2z"/><path fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" d="M9.2 12.2l2 2 3.8-4"/></svg></div>
+            <h3 data-i18n="priv.c1.t">Tarama cihazda</h3>
+            <p data-i18n="priv.c1.d">Tüm desen eşleştirme cihazınızda çalışır. Taranan dosyalar hiçbir yere gönderilmez; geçici kopyalar tarama sonrası silinir.</p>
+          </article>
+          <article class="principle">
+            <div class="p-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM4.5 20a7.5 7.5 0 0115 0"/><path stroke="currentColor" stroke-width="1.7" stroke-linecap="round" d="M3 3l18 18"/></svg></div>
+            <h3 data-i18n="priv.c2.t">Hesap yok</h3>
+            <p data-i18n="priv.c2.d">Giriş, profil, abonelik, cihaz kimliği yok. Uygulama kim olduğunuzu bilmez — bilmek için de gerek duymaz.</p>
+          </article>
+          <article class="principle">
+            <div class="p-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" d="M4.9 4.9a10 10 0 0114.2 14.2M8.5 8.5a5 5 0 017 7M12 12h.01M3 3l18 18"/></svg></div>
+            <h3 data-i18n="priv.c3.t">Telemetri yok</h3>
+            <p data-i18n="priv.c3.d">Kullanım verisi, hata raporu, reklam ölçümü gönderilmez. Ağ kullanımı yalnızca imzalı güncelleme kanalı içindir.</p>
+          </article>
+          <article class="principle">
+            <div class="p-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" d="M8 9l-4 3 4 3M16 9l4 3-4 3M13 5l-2.5 14"/></svg></div>
+            <h3 data-i18n="priv.c4.t">Açık kaynak</h3>
+            <p data-i18n="priv.c4.d">Motor, kurallar ve güncelleyici tamamen kamuya açık (GPL-3.0). Her satırı denetleyebilir, kendi kurallarınızı ekleyebilirsiniz.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- 7) YOL HARİTASI -->
+    <section class="section" id="roadmap" aria-labelledby="roadmap-title">
+      <div class="container">
+        <div class="sec-head">
+          <p class="kicker" data-reveal data-i18n="rm.kicker">05 — YOL HARİTASI</p>
+          <h2 class="sec-title" id="roadmap-title" data-reveal><span class="mask"><span class="mask-inner" data-i18n="rm.title">Yol haritası</span></span></h2>
+          <p class="sec-lead" data-reveal data-i18n="rm.lead">Sıradaki kilometre taşları. Bugün henüz yok; hepsi aynı motorun üzerine inşa edilecek.</p>
+        </div>
+
+        <div class="timeline">
+          <div class="tl-line" aria-hidden="true"></div>
+          <div class="tl-item" data-reveal>
+            <span class="tl-dot" aria-hidden="true"></span>
+            <article class="tl-card">
+              <span class="badge badge-soon" data-i18n="rm.badge">Yakında</span>
+              <h3 data-i18n="rm.c1.t">Kurulu uygulama taraması</h3>
+              <p data-i18n="rm.c1.d">Cihazdaki uygulamalar paket paket taranır; kurulu stalkerware doğrudan raporlanır.</p>
+            </article>
+          </div>
+          <div class="tl-item" data-reveal>
+            <span class="tl-dot" aria-hidden="true"></span>
+            <article class="tl-card">
+              <span class="badge badge-soon" data-i18n="rm.badge">Yakında</span>
+              <h3 data-i18n="rm.c2.t">Kurulum anı kalkanı</h3>
+              <p data-i18n="rm.c2.d">Bir APK kurulurken anında taranır; tehlikeli kurulumlar onay isteminden önce işaretlenir.</p>
+            </article>
+          </div>
+          <div class="tl-item" data-reveal>
+            <span class="tl-dot" aria-hidden="true"></span>
+            <article class="tl-card">
+              <span class="badge badge-soon" data-i18n="rm.badge">Yakında</span>
+              <h3 data-i18n="rm.c3.t">Gerçek zamanlı indirme koruması</h3>
+              <p data-i18n="rm.c3.d">İndirme tamamlanmadan ön tarama; tehlikeli dosyalar diske inmeden durdurulur.</p>
+            </article>
+          </div>
+          <div class="tl-item" data-reveal>
+            <span class="tl-dot" aria-hidden="true"></span>
+            <article class="tl-card">
+              <span class="badge badge-soon" data-i18n="rm.badge">Yakında</span>
+              <h3 data-i18n="rm.c4.t">Hariç tutma &amp; karantina</h3>
+              <p data-i18n="rm.c4.d">Güvenilir uygulamaları beyaz listeye alın; tespit edilen zararlılar çalıştırılamaz hale gelsin.</p>
+            </article>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 8) SSS -->
+    <section class="section" id="faq" aria-labelledby="faq-title">
+      <div class="container container-narrow">
+        <div class="sec-head">
+          <p class="kicker" data-reveal data-i18n="faq.kicker">06 — SSS</p>
+          <h2 class="sec-title" id="faq-title" data-reveal><span class="mask"><span class="mask-inner" data-i18n="faq.title">Sık sorulan sorular</span></span></h2>
+          <p class="sec-lead" data-reveal data-i18n="faq.lead">Kısa, dürüst cevaplar.</p>
+        </div>
+
+        <div class="faq-list" data-reveal-group>
+          <div class="faq-item">
+            <h3 class="faq-h">
+              <button class="faq-q" aria-expanded="false" aria-controls="faq-a1" id="faq-q1"><span data-i18n="faq.q1">Gerçekten ücretsiz mi?</span><span class="faq-ico" aria-hidden="true"></span></button>
+            </h3>
+            <div class="faq-a" id="faq-a1" role="region" aria-labelledby="faq-q1"><div class="faq-a-inner"><p data-i18n="faq.a1">Evet. X-Security tamamen ücretsiz ve açık kaynaklıdır (GPL-3.0). Premium katmanı, reklam, abonelik ya da gizli ödeme duvarı yoktur; kod depoda, dilediğiniz gibi denetleyebilirsiniz.</p></div></div>
+          </div>
+          <div class="faq-item">
+            <h3 class="faq-h">
+              <button class="faq-q" aria-expanded="false" aria-controls="faq-a2" id="faq-q2"><span data-i18n="faq.q2">APK nasıl kurulur?</span><span class="faq-ico" aria-hidden="true"></span></button>
+            </h3>
+            <div class="faq-a" id="faq-a2" role="region" aria-labelledby="faq-q2"><div class="faq-a-inner"><p data-i18n="faq.a2">GitHub Releases'tan en son APK'yı indirin. Android, bilinmeyen kaynaklardan kurulum için tek seferlik izin ister (“Bu kaynaktan uygulamaları kur”). Kurulumda gizli izin alınmaz; tarama dahil her işlem cihazda kalır.</p></div></div>
+          </div>
+          <div class="faq-item">
+            <h3 class="faq-h">
+              <button class="faq-q" aria-expanded="false" aria-controls="faq-a3" id="faq-q3"><span data-i18n="faq.q3">Hangi Android sürümleriyle uyumlu?</span><span class="faq-ico" aria-hidden="true"></span></button>
+            </h3>
+            <div class="faq-a" id="faq-a3" role="region" aria-labelledby="faq-q3"><div class="faq-a-inner"><p data-i18n="faq.a3">Android 8.0 (API 26) ve üzeri. APK boyutu ~6 MB; güncellemeler imzalı kanal üzerinden, sistem kurucusu onayıyla gelir.</p></div></div>
+          </div>
+          <div class="faq-item">
+            <h3 class="faq-h">
+              <button class="faq-q" aria-expanded="false" aria-controls="faq-a4" id="faq-q4"><span data-i18n="faq.q4">Verilerim cihazımdan dışarı mı gidiyor?</span><span class="faq-ico" aria-hidden="true"></span></button>
+            </h3>
+            <div class="faq-a" id="faq-a4" role="region" aria-labelledby="faq-q4"><div class="faq-a-inner"><p data-i18n="faq.a4">Hayır. Tüm tarama ve desen eşleştirme cihazda çalışır; taranan dosyalar asla dışarı gönderilmez. Ağ bağlantısı yalnızca imzalı güncelleme kanalı içindir — hesap, telemetri ya da hata raporu yoktur.</p></div></div>
+          </div>
+          <div class="faq-item">
+            <h3 class="faq-h">
+              <button class="faq-q" aria-expanded="false" aria-controls="faq-a5" id="faq-q5"><span data-i18n="faq.q5">Güncellemeler nasıl doğrulanır?</span><span class="faq-ico" aria-hidden="true"></span></button>
+            </h3>
+            <div class="faq-a" id="faq-a5" role="region" aria-labelledby="faq-q5"><div class="faq-a-inner"><p data-i18n="faq.a5">Üç kat: yalnızca HTTPS + izinli host; manifest ve tanımlar gömülü RSA public anahtarıyla (SHA-256) doğrulanır; her dosya kendi SHA-256 değeriyle karşılaştırılır. Doğrulanmış bir APK bile sessizce kurulmaz — sistem kurucusu devreye girer, sürüm gerilemesi engellenir.</p></div></div>
+          </div>
+          <div class="faq-item">
+            <h3 class="faq-h">
+              <button class="faq-q" aria-expanded="false" aria-controls="faq-a6" id="faq-q6"><span data-i18n="faq.q6">Tespit ettikten sonra siliyor mu?</span><span class="faq-ico" aria-hidden="true"></span></button>
+            </h3>
+            <div class="faq-a" id="faq-a6" role="region" aria-labelledby="faq-q6"><div class="faq-a-inner"><p data-i18n="faq.a6">Şimdilik hayır: 0.93 sürümü tespiti raporlar ve dosyayı işaretler; karantina ile kalıcı hariç tutma yol haritasındadır. Tehdit görüyorsanız uygulamayı derhal kaldırın, parolalarınızı sıfırlayın — şüphe varsa fabrika ayarlarını değerlendirin.</p></div></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 9) İNDİRME -->
+    <section class="section" id="download" aria-labelledby="download-title">
+      <div class="container">
+        <div class="dl-grid">
+          <div class="dl-copy" data-reveal>
+            <p class="kicker" data-i18n="dl.kicker">07 — İNDİRME</p>
+            <h2 class="sec-title" id="download-title"><span class="mask"><span class="mask-inner" data-i18n="dl.title">Telefonunuza indirin</span></span></h2>
+            <p class="sec-lead" data-i18n="dl.lead">En son sürüm, imzalı güncelleme kanalı ve SHA-256 değeriyle birlikte GitHub Releases'ta. Her sürüm imzalı; doğrulama zinciri açık kaynak.</p>
+            <a class="btn btn-primary btn-xl btn-dl-main" data-link="dl" target="_blank" rel="noopener">
+              <svg viewBox="0 0 24 24" class="ico" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M12 3v12m0 0l-4.5-4.5M12 15l4.5-4.5M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>
+              <span data-i18n="dl.cta">APK'yi İndir</span>
+            </a>
+            <p class="dl-note" data-i18n="dl.note">İlk kurulumda Android'den “Bilinmeyen kaynaklardan uygulamalar” iznini vermeniz gerekir.</p>
+          </div>
+
+          <div class="qr-card" data-reveal>
+            <div class="qr-box" id="qr" aria-describedby="qr-sub"></div>
+            <h3 class="qr-title" data-i18n="dl.qr.title">QR kod</h3>
+            <p class="qr-sub" id="qr-sub" data-i18n="dl.qr.sub">Telefonunuzla okutun — doğrudan indirme sayfasına gider.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- 10) FOOTER -->
+  <footer class="site-footer">
+    <div class="container">
+      <div class="foot-top">
+        <div class="foot-brand">
+          <svg class="brand-ico" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 2l8 3.6v5.9c0 5.02-3.4 9.74-8 10.5-4.6-.76-8-5.48-8-10.5V5.6L12 2z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+            <path d="M8.6 9.4l6.8 6.8M15.4 9.4l-6.8 6.8" stroke="var(--emerald)" stroke-width="1.7" stroke-linecap="round"/>
+          </svg>
+          <div>
+            <p class="foot-name">X-Security</p>
+            <p class="foot-tag" data-i18n="foot.tag">Ücretsiz, sonsuza dek.</p>
+          </div>
+        </div>
+        <nav class="foot-links" aria-label="Bağlantılar">
+          <a data-link="repo" target="_blank" rel="noopener" data-i18n="foot.repo">Kaynak kod</a>
+          <a data-link="dl" target="_blank" rel="noopener" data-i18n="foot.release">Sürümler</a>
+          <a href="https://github.com/AssoEchap/stalkerware-indicators" target="_blank" rel="noopener" data-i18n="foot.echap">AssoEchap / stalkerware-indicators</a>
+        </nav>
+      </div>
+      <p class="foot-community" data-i18n="foot.community">Topluluk verisi: AssoEchap stalkerware-indicators — CC BY 4.0</p>
+      <p class="foot-disclaimer" data-i18n="foot.disclaimer">Hiçbir antivirüs %100 koruma garanti edemez. X-Security bir desen tarama motorudur; onu tek koruma katmanınız olarak düşünmeyin.</p>
+      <p class="foot-meta">X-Security v0.93 (pre-release) • GPL-3.0 • a23521745-hub</p>
+    </div>
+  </footer>
+
+</body>
+</html>
