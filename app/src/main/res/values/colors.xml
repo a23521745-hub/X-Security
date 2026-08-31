@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Pencere arka planları: Compose ilk kare çizilmeden önceki beyaz/siyah flaşı azaltır. -->
+    <color name="window_background">#FFFBFCFF</color>
+    <color name="window_background_night">#FF1A1B1F</color>
+    <color name="launcher_background">#FF00273C</color>
+</resources>

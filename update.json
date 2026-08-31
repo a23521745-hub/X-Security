@@ -1,0 +1,11 @@
+{
+  "versionCode": 10,
+  "versionName": "0.93.0",
+  "apkUrl": "https://github.com/a23521745-hub/X-Security/releases/download/v10/X-Security.apk",
+  "apkSha256": "36d9ce436a21f07e1475ffc7b554d204e5370f093f11984f0495f7cbe9794ba4",
+  "apkSizeBytes": 6411360,
+  "minSdk": 26,
+  "forceUpdate": false,
+  "changelog": "X-Security otomatik OTA güncellemesi (v10)",
+  "releaseNotes": "X-Security Otomatik OTA Güncellemesi (v10)"
+}

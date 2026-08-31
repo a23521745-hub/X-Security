@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      Eskiden Manifest'de android:theme hiç tanımlı değildi: Activity action bar'lı sistem
+      temasını kullanıyor ve Compose içeriği action bar ile çakışıyordu. NoActionBar +
+      edge-to-edge için sistem çubuklari transparente ayarlanıyor (ikonlerin koyu/açık
+      görünümünü enableEdgeToEdge() seciyor).
+    -->
+    <style name="Theme.XSecurity" parent="@android:style/Theme.DeviceDefault.Light.NoActionBar">
+        <item name="android:windowBackground">@color/window_background</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
+</resources>

@@ -1,0 +1,117 @@
+<resources>
+    <string name="app_name">X-Security</string>
+    <string name="app_version">0.93.0</string>
+
+    <string name="dashboard_subtitle">Local APK scanning with YARA rules and ClamAV signatures</string>
+    <string name="dashboard_footnote">X-Security %1$s · all scanning happens on-device; network is used only for signed updates</string>
+
+    <string name="status_idle">Waiting for a scan</string>
+    <string name="status_idle_hint">Pick an APK file to start.</string>
+    <string name="status_queued">Scan queued…</string>
+    <string name="status_scanning">Scanning</string>
+    <string name="status_scanning_percent">%1$d%% of the file scanned</string>
+    <string name="status_clean">No threats found</string>
+    <string name="status_threats">%1$d threat(s) found</string>
+    <string name="status_failed">Scan did not complete</string>
+    <string name="status_result_summary">%1$s scanned · %2$d ms</string>
+
+    <string name="action_scan">Pick an APK and scan</string>
+    <string name="action_scan_busy">Scan in progress…</string>
+    <string name="action_cancel">Cancel</string>
+
+    <string name="lastscan_title">Last scan</string>
+    <string name="lastscan_finished">Finished at</string>
+    <string name="lastscan_count">Files scanned</string>
+    <string name="lastscan_file">File</string>
+    <string name="lastscan_size">Size</string>
+    <string name="lastscan_hash">SHA-256 (first 16)</string>
+    <string name="lastscan_duration">Duration</string>
+    <string name="duration_ms">%1$d ms</string>
+    <string name="value_none">—</string>
+
+    <string name="threats_title">Findings</string>
+    <string name="threats_none">No signature matched</string>
+    <string name="threats_none_hint">Neither the loaded rules nor the signatures matched this file.</string>
+    <string name="threats_found">%1$d finding(s)</string>
+    <string name="threats_unknown">Unknown: the scan did not complete.</string>
+    <string name="threats_more">and %1$d more finding(s)…</string>
+
+    <string name="engine_title">Engine and signatures</string>
+    <string name="engine_not_loaded">No signature database was loaded. Pick a rules or database file below.</string>
+    <string name="engine_yara_rules">YARA rules</string>
+    <string name="engine_yara_patterns">YARA patterns</string>
+    <string name="engine_clam_signatures">ClamAV signatures</string>
+    <string name="engine_hash_signatures">ClamAV hash signatures</string>
+    <string name="engine_pick_yara">Pick .yar</string>
+    <string name="engine_pick_clam">Pick .ndb</string>
+    <string name="engine_reload">Reload engine</string>
+    <string name="engine_hint">Signature files are copied into app storage; scanning never uses the network.</string>
+    <string name="engine_warnings_title">Engine warnings (%1$d)</string>
+    <string name="engine_warnings_more">and %1$d more warning(s)…</string>
+    <string name="engine_unavailable">Engine unavailable: %1$s</string>
+    <string name="engine_unknown_error">unknown error</string>
+
+    <string name="stage_preparing">Copying and hashing the file…</string>
+    <string name="stage_failed">The file could not be prepared</string>
+    <string name="signature_install_failed">The signature file could not be installed</string>
+
+    <string name="notif_channel_name">Scan status</string>
+    <string name="notif_channel_description">Progress and results of APK scans</string>
+    <string name="notif_scanning_title">Scan in progress</string>
+    <string name="notif_clean_title">No threats found</string>
+    <string name="notif_clean_body">%1$s was scanned; no signature matched.</string>
+    <string name="notif_threats_title">%1$d threat(s) found</string>
+    <string name="notif_failed_title">Scan did not complete</string>
+    <string name="notif_failed_body">Engine or file error; open the app for details.</string>
+
+    <!-- OTA (over-the-air) updater. Network is used ONLY for signed updates. -->
+    <string name="ota_card_title">Updates</string>
+    <string name="ota_idle_hint">In-app updates are RSA-signed and verified before installation; nothing installs without your confirmation.</string>
+    <string name="ota_check">Check for updates</string>
+    <string name="ota_checking">Checking for updates…</string>
+    <string name="ota_up_to_date">You are running the latest version.</string>
+    <string name="ota_update_available">Update available: %1$s (version %2$d)</string>
+    <string name="ota_download">Download update</string>
+    <string name="ota_downloading">Downloading update… %1$d%%</string>
+    <string name="ota_install">Install update</string>
+    <string name="ota_install_permission">Allow installing from this app in the system settings, then tap Install again.</string>
+    <string name="ota_error">Update failed: %1$s</string>
+    <string name="ota_not_configured">In-app updates are not configured on this build.</string>
+    <string name="ota_release_notes">Release notes: %1$s</string>
+    <string name="ota_installed_version">Installed version code: %1$d</string>
+    <string name="ota_notif_channel_name">Update status</string>
+    <string name="ota_notif_channel_description">Progress and readiness of signed app updates</string>
+    <string name="ota_notif_downloading_title">Downloading update</string>
+    <string name="ota_notif_ready_title">Update ready to install</string>
+    <string name="ota_notif_ready_body">Version %1$s was downloaded and verified. Open the app and tap Install.</string>
+    <string name="ota_notif_error_title">Update failed</string>
+    <string name="ota_notif_available_title">A new version is available</string>
+    <string name="ota_notif_available_body">Version %1$s is ready to download and install. Tap to review it.</string>
+    <string name="ota_force_update">This update is marked as required by the server.</string>
+
+    <!-- Definitions (signature database) channel -->
+    <string name="def_card_title">Signature database</string>
+    <string name="def_installed">Definitions v%1$d · %2$d YARA rules · %3$d ClamAV signatures · %4$d hash signatures</string>
+    <string name="def_idle_hint">Definition updates use the same RSA-signed channel as app updates; they are verified and applied automatically.</string>
+    <string name="def_check">Check for updates</string>
+    <string name="community_title">Community sources (direct)</string>
+    <string name="community_hint">Fetched directly from public community repositories over HTTPS and validated on-device before install — not RSA-signed like the definitions channel.</string>
+    <string name="community_not_installed">Not downloaded yet — use \"Check for updates\"</string>
+    <string name="community_updating">Updating…</string>
+    <string name="community_entries">%1$d signatures</string>
+    <string name="community_rules">%1$d rules</string>
+    <string name="def_update">Update now</string>
+    <string name="def_checking">Checking for definition updates…</string>
+    <string name="def_up_to_date">Definitions are up to date (v%1$d).</string>
+    <string name="def_update_available">New definitions available: v%1$d (installed: v%2$d).</string>
+    <string name="def_downloading">Downloading definitions… %1$d%%</string>
+    <string name="def_error">Definition update failed: %1$s</string>
+    <string name="def_error_generic">The definition package could not be installed.</string>
+    <string name="def_not_configured">Definition updates are not configured on this build.</string>
+    <string name="def_user_db_protected">A manually imported database is active; automatic definition updates are paused to protect it.</string>
+    <string name="def_notif_channel_name">Definition updates</string>
+    <string name="def_notif_channel_description">Status of signed signature-database updates</string>
+    <string name="def_notif_installed_title">Signature database updated</string>
+    <string name="def_notif_installed_body">Definitions v%1$d installed (%2$d YARA rules, %3$d ClamAV signatures, %4$d hash signatures).</string>
+    <string name="def_notif_error_title">Definition update failed</string>
+</resources>
