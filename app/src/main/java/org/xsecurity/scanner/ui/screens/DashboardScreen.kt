@@ -46,6 +46,9 @@ import org.xsecurity.scanner.data.EngineInfo
 import org.xsecurity.scanner.data.ScanPhase
 import org.xsecurity.scanner.data.ScanUiState
 import org.xsecurity.scanner.definitions.DefinitionsState
+import org.xsecurity.scanner.device.DeviceScanState
+import org.xsecurity.scanner.device.ProtectionMode
+import org.xsecurity.scanner.device.ProtectionState
 import org.xsecurity.scanner.ota.OtaState
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -64,8 +67,17 @@ fun DashboardScreen(
     state: ScanUiState,
     otaState: OtaState,
     defState: DefinitionsState,
+    deviceState: DeviceScanState,
+    protectionState: ProtectionState,
     installedVersionCode: Long,
     onScanApk: () -> Unit,
+    onScanDevice: (includeSystemApps: Boolean) -> Unit,
+    onUninstall: (packageName: String) -> Unit,
+    onProtectionModeChange: (ProtectionMode) -> Unit,
+    onProtectionQuietChange: (Boolean) -> Unit,
+    storageGranted: Boolean,
+    protectionServiceRunning: Boolean,
+    onRequestStorage: () -> Unit,
     onPickYaraRules: () -> Unit,
     onPickClamDatabase: () -> Unit,
     onReloadEngine: () -> Unit,
@@ -88,6 +100,20 @@ fun DashboardScreen(
         StatusCard(state = state, onCancelScan = onCancelScan)
         LastScanCard(state = state)
         ThreatsCard(result = state.lastResult)
+        DeviceScanCard(
+            state = deviceState,
+            scanBusy = state.isBusy || deviceState.isRunning,
+            onScanAll = onScanDevice,
+            onUninstall = onUninstall
+        )
+        ProtectionCard(
+            state = protectionState,
+            onModeChange = onProtectionModeChange,
+            onQuietChange = onProtectionQuietChange,
+            storageGranted = storageGranted,
+            serviceRunning = protectionServiceRunning,
+            onRequestStorage = onRequestStorage
+        )
         EngineCard(engine = state.engine, onPickYara = onPickYaraRules, onPickClam = onPickClamDatabase, onReload = onReloadEngine)
         OtaUpdateCard(
             state = otaState,

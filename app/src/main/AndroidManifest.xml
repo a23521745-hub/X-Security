@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <!--
       Tarama tamamiyla yereldir; ag erisimi yalnizca OTA guncelleme kontrolu/indirmesi
@@ -7,9 +8,29 @@
        - INTERNET: imzali guncelleme bildirimi (manifest) ve APK indirmesi.
        - REQUEST_INSTALL_PACKAGES: kullanici "Kur"a bastiginda sistemin paket kurulum
          ekrani acilir; sessiz/otomatik kurulum yoktur.
-      QUERY_ALL_PACKAGES ve FOREGROUND_SERVICE* bilinçli olarak eklenmedi.
+       - QUERY_ALL_PACKAGES: "Kurulu uygulamalari tara" icin cihazdaki TUM paketlerin
+         APK'sini okumak gerekir; <queries> filtresi bilinmeyen stalkerware'i gizlerdi.
+         Liste cihazdan cikmaz. Kaldirma yalnizca sistem onay ekrani uzerinden yapilir.
+       - FOREGROUND_SERVICE(_DATA_SYNC): "Her zaman acik" koruma modunun kalici bildirimli
+         servisi (Download/ izleyici). Yalnizca kullanici bu modu secerse baslar.
+       - MANAGE_EXTERNAL_STORAGE (API 30+) / READ_EXTERNAL_STORAGE (API <=32): paylasilan
+         Download/ klasorundeki yeni .apk dosyalarini gorebilmek icin; SAF ile secilen
+         tek dosya buna gerek duymaz. Uygulama ici neden-gerekli diyalogu olmadan istenmez.
+       - RECEIVE_BOOT_COMPLETED: "Her zaman acik" secildiyse yeniden baslatmada servisi kurar.
     -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+    <uses-permission
+        android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
+        tools:ignore="ScopedStorage,ProtectedPermissions" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission
+        android:name="android.permission.QUERY_ALL_PACKAGES"
+        tools:ignore="QueryAllPackagesPermission" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
@@ -18,6 +39,7 @@
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:networkSecurityConfig="@xml/network_security_config"
+        android:requestLegacyExternalStorage="true"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.XSecurity">
@@ -33,6 +55,34 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Kurulum ani kalkani. Manifest kaydi: sistem paket yayinini arka plandaki
+             uygulamalara iletirse (OEM/eski surum) calisir; API 26+ kisitlamasi icin ayni
+             alici surec ayaktayken dinamik olarak da kaydedilir (InstallShieldReceiver.register).
+             exported=true zorunlu: yayin sistemden gelir. -->
+        <receiver
+            android:name="org.xsecurity.scanner.device.InstallShieldReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.PACKAGE_ADDED" />
+                <action android:name="android.intent.action.PACKAGE_REPLACED" />
+                <data android:scheme="package" />
+            </intent-filter>
+        </receiver>
+
+        <!-- "Her zaman acik" koruma: Download/ izleyen on plan servisi (Android 14+: dataSync). -->
+        <service
+            android:name="org.xsecurity.scanner.device.RealtimeProtectionService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
+        <receiver
+            android:name="org.xsecurity.scanner.device.ProtectionBootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
 
         <!-- Indirilen guncelleme APK'sini sistem kurulum ekranina tek-okuma content URI
              olarak vermek icin. Yalnizca uygulamanin ota onbellek dizinini paylasir. -->

@@ -63,6 +63,60 @@
     <string name="notif_threats_title">%1$d threat(s) found</string>
     <string name="notif_failed_title">Scan did not complete</string>
     <string name="notif_failed_body">Engine or file error; open the app for details.</string>
+    <string name="notif_device_clean_title">Installed apps: no threats found</string>
+    <string name="notif_device_clean_body">%1$d app(s) scanned; %2$d could not be read. No signature matched.</string>
+    <string name="notif_device_threats_title">%1$d installed app(s) flagged</string>
+    <string name="action_uninstall">Uninstall</string>
+
+    <!-- Installed-app ("scan all") scan -->
+    <string name="device_scan_title">Installed apps</string>
+    <string name="device_scan_hint">Every installed app’s APK is scanned on-device with the same YARA, ClamAV and hash layers. Known stalkerware is matched directly by community hashes.</string>
+    <string name="device_scan_idle">Not scanned yet.</string>
+    <string name="device_scan_action">Scan all installed apps</string>
+    <string name="device_scan_queued">Preparing the installed-app scan…</string>
+    <string name="device_scan_progress">%1$d / %2$d · %3$s</string>
+    <string name="device_scan_summary">%1$d apps scanned · %2$d flagged · %3$d unreadable · %4$s</string>
+    <string name="device_scan_result_name">Installed apps (%1$d)</string>
+    <string name="device_scan_include_system">Include system apps (slower)</string>
+    <string name="device_scan_show_all">Show all %1$d apps</string>
+    <string name="device_scan_hide_all">Hide the list (%1$d apps)</string>
+    <string name="device_scan_entry_clean">clean</string>
+    <string name="device_scan_entry_failed">not scanned</string>
+    <string name="device_scan_advice">Uninstall opens the system confirmation screen; the app is never removed silently. If you suspect stalkerware, change your passwords from another device.</string>
+    <string name="device_scan_rationale_title">Why does X-Security read your app list?</string>
+    <string name="device_scan_rationale_body">To scan installed apps, X-Security lists every package on this device (QUERY_ALL_PACKAGES) and reads its APK file. The list and results stay on this device; nothing is uploaded. Stalkerware hides under innocent names, so the scan cannot rely on a fixed list of packages.</string>
+    <string name="notif_shield_threat_title">Threat in newly installed app: %1$s</string>
+    <string name="notif_shield_threat_body">%1$s (%2$s) matched: %3$s. Uninstall it now.</string>
+    <string name="notif_shield_password_advice">If you did not install this app yourself or suspect stalkerware, change your important passwords from another device and review account sessions.</string>
+    <string name="notif_shield_clean_title">New app scanned</string>
+    <string name="notif_shield_clean_body">%1$s (%2$s) was scanned right after installation; no signature matched.</string>
+    <string name="notif_shield_failed_title">New app could not be scanned</string>
+    <string name="notif_shield_failed_body">%1$s: %2$s</string>
+    <string name="shield_result_name">Install shield: %1$s</string>
+
+    <!-- Protection settings -->
+    <string name="protection_title">Protection</string>
+    <string name="protection_hint">Choose how X-Security watches the device. Nothing leaves the device in any mode.</string>
+    <string name="protection_mode_always">Always on</string>
+    <string name="protection_mode_always_desc">Persistent service: watches the Download folder for new APKs and scans every installation.</string>
+    <string name="protection_mode_install_only">Install-time only</string>
+    <string name="protection_mode_install_only_desc">Scans apps the moment they are installed or updated. No persistent notification; battery friendly.</string>
+    <string name="protection_mode_off">Off</string>
+    <string name="protection_mode_off_desc">No automatic scans; you scan manually.</string>
+    <string name="protection_notif_channel_name">Real-time protection</string>
+    <string name="protection_notif_channel_description">Persistent status of the always-on download guard</string>
+    <string name="protection_notif_title">Protection active</string>
+    <string name="protection_notif_body">Watching the Download folder for new APKs and scanning every app installation on-device.</string>
+    <string name="protection_notif_paused_title">Protection paused by the system</string>
+    <string name="protection_notif_paused_body">Android limits how long a background guard may run. Open X-Security to restart it; install-time scanning keeps working.</string>
+    <string name="protection_storage_rationale_title">Why does X-Security need access to all files?</string>
+    <string name="protection_storage_rationale_body">Always-on protection watches the shared Download folder so a freshly downloaded APK is scanned before you install it. Android only allows this through the \"All files access\" setting. X-Security reads nothing but new .apk files in Download, and nothing leaves the device. You can pick \"Install-time only\" instead to avoid this permission.</string>
+    <string name="protection_storage_rationale_ok">Open settings</string>
+    <string name="protection_storage_missing">Always-on needs \"All files access\". Tap to grant it, or choose \"Install-time only\".</string>
+    <string name="protection_status_running">Running · persistent notification shown</string>
+    <string name="protection_status_waiting">Waiting for the storage permission</string>
+    <string name="protection_quiet_clean">Stay silent when a new app is clean</string>
+    <string name="device_scan_rationale_ok">Understood, scan</string>
 
     <!-- OTA (over-the-air) updater. Network is used ONLY for signed updates. -->
     <string name="ota_card_title">Updates</string>
