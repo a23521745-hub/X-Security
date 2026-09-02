@@ -2,16 +2,29 @@ package org.xsecurity.scanner.data
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 import java.io.File
 
 /**
  * [ScanHistoryStore] codec + kalicilik testleri (saf JVM): roundtrip, ust sinir,
  * en-yeniden-once sirasi, bozuk dosya toleransi.
+ *
+ * Izolasyon: store, bellek-ici listeyi surec geneli singleton'da tutar ve her
+ * [ScanHistoryStore.record] o listeyi dosyaya kaldirir. Bu yuzden her testten once
+ * singleton bosaltilir ([ScanHistoryStore.clear]), aksi halde testler arasi
+ * kacinti olurdu.
  */
 class ScanHistoryStoreTest {
 
-    private fun tempFile(): File = File.createTempFile("xsec-history-", ".json").apply { deleteOnExit() }
+    private lateinit var file: File
+
+    @Before
+    fun setUp() {
+        file = File.createTempFile("xsec-history-", ".json").apply { deleteOnExit() }
+        // Singleton'un bellek-ici listesini (ve varsa dosyayi) testten once temizle.
+        ScanHistoryStore.clear(file)
+    }
 
     private fun entry(
         timestamp: Long,
@@ -47,7 +60,6 @@ class ScanHistoryStoreTest {
 
     @Test
     fun roundTripsAllFields() {
-        val file = tempFile()
         val original = entry(1000L, ScanHistoryType.DEVICE)
 
         ScanHistoryStore.record(file, original)
@@ -59,7 +71,6 @@ class ScanHistoryStoreTest {
 
     @Test
     fun newestEntryStaysFirst() {
-        val file = tempFile()
         ScanHistoryStore.record(file, entry(100L, title = "old"))
         ScanHistoryStore.record(file, entry(200L, title = "mid"))
         ScanHistoryStore.record(file, entry(300L, title = "new"))
@@ -70,7 +81,6 @@ class ScanHistoryStoreTest {
 
     @Test
     fun oldestEntriesAreDroppedBeyondCap() {
-        val file = tempFile()
         repeat(ScanHistoryStore.MAX_ENTRIES + 5) { index ->
             ScanHistoryStore.record(file, entry(index.toLong(), title = "scan-$index"))
         }
@@ -91,7 +101,6 @@ class ScanHistoryStoreTest {
                 .map { ScanHistoryFlaggedApp("com.p.$it", "P$it") },
             warnings = (1..ScanHistoryStore.MAX_WARNINGS + 10).map { "w$it" }
         )
-        val file = tempFile()
         ScanHistoryStore.record(file, original)
 
         val loaded = ScanHistoryStore.load(file).single()
@@ -106,14 +115,13 @@ class ScanHistoryStoreTest {
     fun missingOrCorruptFileYieldsEmptyHistory() {
         assertTrue(ScanHistoryStore.load(File("definitely-missing-${System.nanoTime()}.json")).isEmpty())
 
-        val file = tempFile()
-        file.writeText("this is not json at all")
-        assertTrue(ScanHistoryStore.load(file).isEmpty())
+        val corrupt = File.createTempFile("xsec-history-corrupt-", ".json").apply { deleteOnExit() }
+        corrupt.writeText("this is not json at all")
+        assertTrue(ScanHistoryStore.load(corrupt).isEmpty())
     }
 
     @Test
     fun unknownTypeFallsBackToFile() {
-        val file = tempFile()
         file.writeText(
             """
             [{"timestamp":1,"type":"NOPE","trigger":"t","title":"x","status":"CLEAN","duration":5,"bytes":10}]
@@ -125,7 +133,6 @@ class ScanHistoryStoreTest {
 
     @Test
     fun clearRemovesMemoryAndFile() {
-        val file = tempFile()
         ScanHistoryStore.record(file, entry(1L))
         assertTrue(file.isFile)
 
