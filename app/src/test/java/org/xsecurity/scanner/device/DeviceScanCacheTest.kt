@@ -117,13 +117,12 @@ class DeviceScanCacheTest {
     @Test
     fun pruneKeepsOnlyStillInstalledPackages() {
         val apps = listOf(app("com.a"), app("com.b"), app("com.c"))
-        val snapshot = DeviceScanCache.Snapshot(
-            fingerprint = "fp-1",
-            apps = apps.associateBy(
-                keySelector = { it.packageName },
-                valueSelector = { DeviceScanCache.CachedApp(it.versionCode, it.lastUpdateTime, entry(it.packageName)) }
-            )
-        )
+        val cacheMap = LinkedHashMap<String, DeviceScanCache.CachedApp>()
+        for (a in apps) {
+            cacheMap[a.packageName] =
+                DeviceScanCache.CachedApp(a.versionCode, a.lastUpdateTime, entry(a.packageName))
+        }
+        val snapshot = DeviceScanCache.Snapshot(fingerprint = "fp-1", apps = cacheMap)
 
         val pruned = DeviceScanCache.prune(snapshot, setOf("com.a", "com.c"))
 
