@@ -40,6 +40,20 @@
             </intent-filter>
         </activity>
 
+        <!-- Kurulum ani kalkani. Manifest kaydi: sistem paket yayinini arka plandaki
+             uygulamalara iletirse (OEM/eski surum) calisir; API 26+ kisitlamasi icin ayni
+             alici surec ayaktayken dinamik olarak da kaydedilir (InstallShieldReceiver.register).
+             exported=true zorunlu: yayin sistemden gelir. -->
+        <receiver
+            android:name="org.xsecurity.scanner.device.InstallShieldReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.PACKAGE_ADDED" />
+                <action android:name="android.intent.action.PACKAGE_REPLACED" />
+                <data android:scheme="package" />
+            </intent-filter>
+        </receiver>
+
         <!-- Indirilen guncelleme APK'sini sistem kurulum ekranina tek-okuma content URI
              olarak vermek icin. Yalnizca uygulamanin ota onbellek dizinini paylasir. -->
         <provider

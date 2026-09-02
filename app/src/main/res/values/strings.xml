@@ -85,6 +85,25 @@
     <string name="device_scan_advice">Uninstall opens the system confirmation screen; the app is never removed silently. If you suspect stalkerware, change your passwords from another device.</string>
     <string name="device_scan_rationale_title">Why does X-Security read your app list?</string>
     <string name="device_scan_rationale_body">To scan installed apps, X-Security lists every package on this device (QUERY_ALL_PACKAGES) and reads its APK file. The list and results stay on this device; nothing is uploaded. Stalkerware hides under innocent names, so the scan cannot rely on a fixed list of packages.</string>
+    <string name="notif_shield_threat_title">Threat in newly installed app: %1$s</string>
+    <string name="notif_shield_threat_body">%1$s (%2$s) matched: %3$s. Uninstall it now.</string>
+    <string name="notif_shield_password_advice">If you did not install this app yourself or suspect stalkerware, change your important passwords from another device and review account sessions.</string>
+    <string name="notif_shield_clean_title">New app scanned</string>
+    <string name="notif_shield_clean_body">%1$s (%2$s) was scanned right after installation; no signature matched.</string>
+    <string name="notif_shield_failed_title">New app could not be scanned</string>
+    <string name="notif_shield_failed_body">%1$s: %2$s</string>
+    <string name="shield_result_name">Install shield: %1$s</string>
+
+    <!-- Protection settings -->
+    <string name="protection_title">Protection</string>
+    <string name="protection_hint">Choose how X-Security watches the device. Nothing leaves the device in any mode.</string>
+    <string name="protection_mode_always">Always on</string>
+    <string name="protection_mode_always_desc">Persistent service: watches the Download folder for new APKs and scans every installation.</string>
+    <string name="protection_mode_install_only">Install-time only</string>
+    <string name="protection_mode_install_only_desc">Scans apps the moment they are installed or updated. No persistent notification; battery friendly.</string>
+    <string name="protection_mode_off">Off</string>
+    <string name="protection_mode_off_desc">No automatic scans; you scan manually.</string>
+    <string name="protection_quiet_clean">Stay silent when a new app is clean</string>
     <string name="device_scan_rationale_ok">Understood, scan</string>
 
     <!-- OTA (over-the-air) updater. Network is used ONLY for signed updates. -->

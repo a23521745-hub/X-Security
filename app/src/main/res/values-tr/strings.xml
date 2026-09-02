@@ -85,6 +85,25 @@
     <string name="device_scan_advice">Kaldır düğmesi sistemin onay ekranını açar; uygulama asla sessizce silinmez. Stalkerware’den şüpheleniyorsanız parolalarınızı başka bir cihazdan değiştirin.</string>
     <string name="device_scan_rationale_title">X-Security uygulama listenizi neden okur?</string>
     <string name="device_scan_rationale_body">Kurulu uygulamaları taramak için X-Security bu cihazdaki tüm paketleri listeler (QUERY_ALL_PACKAGES) ve APK dosyalarını okur. Liste ve sonuçlar cihazda kalır; hiçbir şey yüklenmez. Stalkerware masum adların arkasına saklandığı için tarama sabit bir paket listesine güvenemez.</string>
+    <string name="notif_shield_threat_title">Yeni kurulan uygulamada tehdit: %1$s</string>
+    <string name="notif_shield_threat_body">%1$s (%2$s) şu imzalarla eşleşti: %3$s. Hemen kaldırın.</string>
+    <string name="notif_shield_password_advice">Bu uygulamayı siz kurmadıysanız veya stalkerware’den şüpheleniyorsanız önemli parolalarınızı başka bir cihazdan değiştirin ve hesap oturumlarınızı gözden geçirin.</string>
+    <string name="notif_shield_clean_title">Yeni uygulama tarandı</string>
+    <string name="notif_shield_clean_body">%1$s (%2$s) kurulumdan hemen sonra tarandı; eşleşen imza yok.</string>
+    <string name="notif_shield_failed_title">Yeni uygulama taranamadı</string>
+    <string name="notif_shield_failed_body">%1$s: %2$s</string>
+    <string name="shield_result_name">Kurulum kalkanı: %1$s</string>
+
+    <!-- Koruma ayarları -->
+    <string name="protection_title">Koruma</string>
+    <string name="protection_hint">X-Security’nin cihazı nasıl izleyeceğini seçin. Hiçbir modda veri cihazdan çıkmaz.</string>
+    <string name="protection_mode_always">Her zaman açık</string>
+    <string name="protection_mode_always_desc">Kalıcı servis: İndirilenler klasörünü yeni APK’lar için izler ve her kurulumu tarar.</string>
+    <string name="protection_mode_install_only">Sadece kurulum anı</string>
+    <string name="protection_mode_install_only_desc">Uygulamaları kurulduğu veya güncellendiği anda tarar. Kalıcı bildirim yok; pil dostu.</string>
+    <string name="protection_mode_off">Kapalı</string>
+    <string name="protection_mode_off_desc">Otomatik tarama yok; elle tararsınız.</string>
+    <string name="protection_quiet_clean">Yeni uygulama temizse sessiz kal</string>
     <string name="device_scan_rationale_ok">Anladım, tara</string>
 
     <!-- OTA (internet üzerinden) güncelleyici. ağ YALNIZCA imzalı güncellemeler için kullanılır. -->

@@ -12,6 +12,7 @@ import kotlinx.coroutines.withContext
 import org.xsecurity.scanner.core.Digest
 import org.xsecurity.scanner.worker.ApkScanWorker
 import org.xsecurity.scanner.worker.DeviceScanWorker
+import org.xsecurity.scanner.worker.PackageScanWorker
 import java.io.File
 import java.io.IOException
 import java.util.concurrent.TimeUnit
@@ -29,6 +30,8 @@ object ScanController {
 
     private const val WORK_PREFIX = "apk_scan_"
     private const val DEVICE_WORK = "device_scan"
+    private const val PACKAGE_WORK_PREFIX = "pkg_scan_"
+    const val SHIELD_TAG = "xsec-shield"
     private const val SCAN_DIR = "scans"
     private const val STALE_AGE_MILLIS = 6L * 60L * 60L * 1000L
 
@@ -105,6 +108,28 @@ object ScanController {
             .build()
         return try {
             WorkManager.getInstance(context).enqueueUniqueWork(DEVICE_WORK, ExistingWorkPolicy.KEEP, request)
+            true
+        } catch (error: Exception) {
+            false
+        }
+    }
+
+    /**
+     * Kurulum ani kalkani: tek paketi kuyruklar. REPLACE: ayni paket icin arka arkaya
+     * gelen ADDED/REPLACED yayinlarinda en son surum taranir. Ayri etiket: kullanicinin
+     * "Iptal" dugmesi kalkan taramasini durdurmaz.
+     */
+    fun enqueuePackageScan(context: Context, packageName: String): Boolean {
+        val request = OneTimeWorkRequestBuilder<PackageScanWorker>()
+            .setInputData(Data.Builder().putString(PackageScanWorker.KEY_PACKAGE, packageName).build())
+            .addTag(SHIELD_TAG)
+            .build()
+        return try {
+            WorkManager.getInstance(context).enqueueUniqueWork(
+                PACKAGE_WORK_PREFIX + packageName,
+                ExistingWorkPolicy.REPLACE,
+                request
+            )
             true
         } catch (error: Exception) {
             false

@@ -113,6 +113,20 @@ object DeviceScanStore {
         )
     }
 
+    /** Kurulum kalkani tespiti: listeye ekle/guncelle (tarama surerken dokunma). */
+    fun upsertEntry(context: Context, entry: AppScanEntry) {
+        val current = _state.value
+        if (current.isRunning) return
+        val merged = current.entries.filterNot { it.packageName == entry.packageName } + entry
+        prefs(context).edit { putString(KEY_ENTRIES_JSON, encodeEntries(merged.take(MAX_PERSISTED))) }
+        _state.value = current.copy(
+            phase = DeviceScanPhase.DONE,
+            entries = merged,
+            total = merged.size,
+            scanned = merged.size
+        )
+    }
+
     /** Kaldirma sonrasi listeden dus (kullanici sistem ekranindan geri dondugunde). */
     fun removePackage(context: Context, packageName: String) {
         val current = _state.value

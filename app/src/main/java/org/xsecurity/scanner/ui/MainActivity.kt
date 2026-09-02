@@ -27,6 +27,8 @@ import org.xsecurity.scanner.community.CommunityStore
 import org.xsecurity.scanner.definitions.DefinitionsController
 import org.xsecurity.scanner.definitions.DefinitionsStore
 import org.xsecurity.scanner.device.DeviceScanStore
+import org.xsecurity.scanner.device.InstallShieldReceiver
+import org.xsecurity.scanner.device.ProtectionSettings
 import org.xsecurity.scanner.engine.ScanEngines
 import org.xsecurity.scanner.ota.OtaController
 import org.xsecurity.scanner.ota.OtaNotifications
@@ -74,6 +76,8 @@ class MainActivity : ComponentActivity() {
         OtaStore.restore(this)
         DefinitionsStore.restore(this)
         DeviceScanStore.restore(this)
+        ProtectionSettings.restore(this)
+        applyProtectionMode()
         requestNotificationPermissionIfNeeded()
         // Gunluk imzali guncelleme kontrolu (yalnizca ag bagliyken; bildirim sessiz).
         OtaController.schedulePeriodicCheck(this)
@@ -88,15 +92,22 @@ class MainActivity : ComponentActivity() {
                 val otaState by OtaStore.state.collectAsState()
                 val defState by DefinitionsStore.state.collectAsState()
                 val deviceState by DeviceScanStore.state.collectAsState()
+                val protectionState by ProtectionSettings.state.collectAsState()
                 DashboardScreen(
                     state = state,
                     otaState = otaState,
                     defState = defState,
                     deviceState = deviceState,
+                    protectionState = protectionState,
                     installedVersionCode = OtaController.currentVersionCode(this),
                     onScanApk = { apkPicker.launch(APK_MIME_TYPES) },
                     onScanDevice = { includeSystem -> queueDeviceScan(includeSystem) },
                     onUninstall = { packageName -> requestUninstall(packageName) },
+                    onProtectionModeChange = { mode ->
+                        ProtectionSettings.setMode(this, mode)
+                        applyProtectionMode()
+                    },
+                    onProtectionQuietChange = { quiet -> ProtectionSettings.setQuietWhenClean(this, quiet) },
                     onPickYaraRules = { yaraPicker.launch(ANY_MIME_TYPES) },
                     onPickClamDatabase = { clamPicker.launch(ANY_MIME_TYPES) },
                     onReloadEngine = { reloadEngine() },
@@ -121,6 +132,15 @@ class MainActivity : ComponentActivity() {
             pendingUninstall = null
             // Kullanici sistem ekranindan dondu: paket gercekten gittiyse listeden dus.
             if (!isPackageInstalled(packageName)) DeviceScanStore.removePackage(this, packageName)
+        }
+    }
+
+    /** Koruma moduna gore kurulum kalkaninin dinamik kaydini ac/kapat. */
+    private fun applyProtectionMode() {
+        if (ProtectionSettings.installShieldEnabled(ProtectionSettings.mode(this))) {
+            InstallShieldReceiver.register(this)
+        } else {
+            InstallShieldReceiver.unregister(this)
         }
     }
 
