@@ -80,13 +80,14 @@ class RealtimeProtectionService : Service() {
 
     private fun startInForeground() {
         val notification = buildNotification()
-        val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
-        } else {
-            0
-        }
         try {
-            ServiceCompat.startForeground(this, NOTIFICATION_ID, notification, type)
+            // Derleme zamani sabiti; ServiceCompat API 29 altinda turu zaten yok sayar.
+            ServiceCompat.startForeground(
+                this,
+                NOTIFICATION_ID,
+                notification,
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+            )
         } catch (error: Exception) {
             // Android 12+ arka plandan baslatma kisiti veya izin eksigi: sessizce kapan,
             // ayar ekraninda mod "Her zaman acik" kalir ve bir sonraki acilista denenir.
