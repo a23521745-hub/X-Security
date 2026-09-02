@@ -5,12 +5,12 @@ import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
-import kotlinx.coroutines.limitedParallelism
 import kotlinx.coroutines.withContext
 import org.xsecurity.scanner.R
 import org.xsecurity.scanner.community.CommunityStore
@@ -83,6 +83,11 @@ class DeviceScanWorker(
         fail(message)
     }
 
+    /**
+     * [CoroutineDispatcher.limitedParallelism] `@ExperimentalCoroutinesApi` oldugu
+     * icin dar hedefli opt-in; koddaki tek experimental API kullanimi budur.
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
     private suspend fun execute(): Result {
         val context = applicationContext
         val includeSystem = inputData.getBoolean(KEY_INCLUDE_SYSTEM, false)
