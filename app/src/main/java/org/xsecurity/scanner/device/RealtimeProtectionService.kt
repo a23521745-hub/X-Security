@@ -100,12 +100,16 @@ class RealtimeProtectionService : Service() {
         if (directory == null || !directory.isDirectory) return
         val handler: (Int, String?) -> Unit = { event, name -> onFileEvent(directory, event, name) }
         observer = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            object : FileObserver(directory, DownloadWatchPolicy.WATCH_MASK) {
+            // Maske acikca FileObserver SDK sabitlerinden kurulmali: lint'in WrongConstant
+            // kontrolu baska siniftan gelen sabit zincirini (WATCH_MASK = 0x88) dogrulayamiyor.
+            // Izlenen olay seti policy ile ayni:
+            // CLOSE_WRITE | MOVED_TO == DownloadWatchPolicy.WATCH_MASK.
+            object : FileObserver(directory, FileObserver.CLOSE_WRITE or FileObserver.MOVED_TO) {
                 override fun onEvent(event: Int, path: String?) = handler(event, path)
             }
         } else {
             @Suppress("DEPRECATION")
-            object : FileObserver(directory.absolutePath, DownloadWatchPolicy.WATCH_MASK) {
+            object : FileObserver(directory.absolutePath, FileObserver.CLOSE_WRITE or FileObserver.MOVED_TO) {
                 override fun onEvent(event: Int, path: String?) = handler(event, path)
             }
         }

@@ -14,6 +14,13 @@ object DownloadWatchPolicy {
     /** `android.os.FileObserver` mask sabitleri (android.jar'a bagimli olmadan test icin). */
     const val EVENT_CLOSE_WRITE = 0x00000008
     const val EVENT_MOVED_TO = 0x00000080
+
+    /**
+     * Izleyicinin abone oldugu olay seti (0x88). NOT: `RealtimeProtectionService` maskeyi
+     * cagri yerinde acikca `FileObserver.CLOSE_WRITE or FileObserver.MOVED_TO` olarak kurar
+     * (lint'in WrongConstant kontrolu baska siniftan sabit zinciri kabul etmiyor); buradaki
+     * degerler SDK sabitleriyle birebir ayni tutulmalidir.
+     */
     const val WATCH_MASK = EVENT_CLOSE_WRITE or EVENT_MOVED_TO
 
     private val APK_SUFFIXES = listOf(".apk", ".apks", ".xapk")
