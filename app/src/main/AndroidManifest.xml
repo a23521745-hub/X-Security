@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <!--
       Tarama tamamiyla yereldir; ag erisimi yalnizca OTA guncelleme kontrolu/indirmesi
@@ -7,9 +8,14 @@
        - INTERNET: imzali guncelleme bildirimi (manifest) ve APK indirmesi.
        - REQUEST_INSTALL_PACKAGES: kullanici "Kur"a bastiginda sistemin paket kurulum
          ekrani acilir; sessiz/otomatik kurulum yoktur.
-      QUERY_ALL_PACKAGES ve FOREGROUND_SERVICE* bilinçli olarak eklenmedi.
+       - QUERY_ALL_PACKAGES: "Kurulu uygulamalari tara" icin cihazdaki TUM paketlerin
+         APK'sini okumak gerekir; <queries> filtresi bilinmeyen stalkerware'i gizlerdi.
+         Liste cihazdan cikmaz. Kaldirma yalnizca sistem onay ekrani uzerinden yapilir.
     -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission
+        android:name="android.permission.QUERY_ALL_PACKAGES"
+        tools:ignore="QueryAllPackagesPermission" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 

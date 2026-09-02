@@ -63,6 +63,29 @@
     <string name="notif_threats_title">%1$d threat(s) found</string>
     <string name="notif_failed_title">Scan did not complete</string>
     <string name="notif_failed_body">Engine or file error; open the app for details.</string>
+    <string name="notif_device_clean_title">Installed apps: no threats found</string>
+    <string name="notif_device_clean_body">%1$d app(s) scanned; %2$d could not be read. No signature matched.</string>
+    <string name="notif_device_threats_title">%1$d installed app(s) flagged</string>
+    <string name="action_uninstall">Uninstall</string>
+
+    <!-- Installed-app ("scan all") scan -->
+    <string name="device_scan_title">Installed apps</string>
+    <string name="device_scan_hint">Every installed app’s APK is scanned on-device with the same YARA, ClamAV and hash layers. Known stalkerware is matched directly by community hashes.</string>
+    <string name="device_scan_idle">Not scanned yet.</string>
+    <string name="device_scan_action">Scan all installed apps</string>
+    <string name="device_scan_queued">Preparing the installed-app scan…</string>
+    <string name="device_scan_progress">%1$d / %2$d · %3$s</string>
+    <string name="device_scan_summary">%1$d apps scanned · %2$d flagged · %3$d unreadable · %4$s</string>
+    <string name="device_scan_result_name">Installed apps (%1$d)</string>
+    <string name="device_scan_include_system">Include system apps (slower)</string>
+    <string name="device_scan_show_all">Show all %1$d apps</string>
+    <string name="device_scan_hide_all">Hide the list (%1$d apps)</string>
+    <string name="device_scan_entry_clean">clean</string>
+    <string name="device_scan_entry_failed">not scanned</string>
+    <string name="device_scan_advice">Uninstall opens the system confirmation screen; the app is never removed silently. If you suspect stalkerware, change your passwords from another device.</string>
+    <string name="device_scan_rationale_title">Why does X-Security read your app list?</string>
+    <string name="device_scan_rationale_body">To scan installed apps, X-Security lists every package on this device (QUERY_ALL_PACKAGES) and reads its APK file. The list and results stay on this device; nothing is uploaded. Stalkerware hides under innocent names, so the scan cannot rely on a fixed list of packages.</string>
+    <string name="device_scan_rationale_ok">Understood, scan</string>
 
     <!-- OTA (over-the-air) updater. Network is used ONLY for signed updates. -->
     <string name="ota_card_title">Updates</string>

@@ -26,6 +26,7 @@ import org.xsecurity.scanner.data.SignatureStore
 import org.xsecurity.scanner.community.CommunityStore
 import org.xsecurity.scanner.definitions.DefinitionsController
 import org.xsecurity.scanner.definitions.DefinitionsStore
+import org.xsecurity.scanner.device.DeviceScanStore
 import org.xsecurity.scanner.engine.ScanEngines
 import org.xsecurity.scanner.ota.OtaController
 import org.xsecurity.scanner.ota.OtaNotifications
@@ -72,6 +73,7 @@ class MainActivity : ComponentActivity() {
         ScanStore.restore(this)
         OtaStore.restore(this)
         DefinitionsStore.restore(this)
+        DeviceScanStore.restore(this)
         requestNotificationPermissionIfNeeded()
         // Gunluk imzali guncelleme kontrolu (yalnizca ag bagliyken; bildirim sessiz).
         OtaController.schedulePeriodicCheck(this)
@@ -85,12 +87,16 @@ class MainActivity : ComponentActivity() {
                 val state by ScanStore.state.collectAsState()
                 val otaState by OtaStore.state.collectAsState()
                 val defState by DefinitionsStore.state.collectAsState()
+                val deviceState by DeviceScanStore.state.collectAsState()
                 DashboardScreen(
                     state = state,
                     otaState = otaState,
                     defState = defState,
+                    deviceState = deviceState,
                     installedVersionCode = OtaController.currentVersionCode(this),
                     onScanApk = { apkPicker.launch(APK_MIME_TYPES) },
+                    onScanDevice = { includeSystem -> queueDeviceScan(includeSystem) },
+                    onUninstall = { packageName -> requestUninstall(packageName) },
                     onPickYaraRules = { yaraPicker.launch(ANY_MIME_TYPES) },
                     onPickClamDatabase = { clamPicker.launch(ANY_MIME_TYPES) },
                     onReloadEngine = { reloadEngine() },
@@ -110,6 +116,44 @@ class MainActivity : ComponentActivity() {
         ScanStore.restore(this)
         OtaStore.restore(this)
         DefinitionsStore.restore(this)
+        DeviceScanStore.restore(this)
+        pendingUninstall?.let { packageName ->
+            pendingUninstall = null
+            // Kullanici sistem ekranindan dondu: paket gercekten gittiyse listeden dus.
+            if (!isPackageInstalled(packageName)) DeviceScanStore.removePackage(this, packageName)
+        }
+    }
+
+    /** Sistem kaldirma ekranina donusu izlemek icin (sessiz kaldirma yok). */
+    private var pendingUninstall: String? = null
+
+    private fun queueDeviceScan(includeSystemApps: Boolean) {
+        DeviceScanStore.acceptRationale(this)
+        ScanStore.markQueued(this, getString(R.string.device_scan_queued))
+        if (!ScanController.enqueueDeviceScan(this, includeSystemApps)) {
+            ScanStore.markFailed(this, getString(R.string.stage_failed))
+        }
+    }
+
+    /** Sistemin kaldirma onay ekranini acar; son karar kullanicinindir. */
+    private fun requestUninstall(packageName: String) {
+        pendingUninstall = packageName
+        runCatching { startActivity(ScanController.uninstallIntent(packageName)) }
+            .onFailure { pendingUninstall = null }
+    }
+
+    private fun isPackageInstalled(packageName: String): Boolean = try {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            packageManager.getPackageInfo(packageName, PackageManager.PackageInfoFlags.of(0))
+        } else {
+            @Suppress("DEPRECATION")
+            packageManager.getPackageInfo(packageName, 0)
+        }
+        true
+    } catch (_: PackageManager.NameNotFoundException) {
+        false
+    } catch (_: Exception) {
+        true
     }
 
     /** Indirme butonu: yalnizca dogrulanmis bir guncelleme varken Worker'i kuyruklar. */

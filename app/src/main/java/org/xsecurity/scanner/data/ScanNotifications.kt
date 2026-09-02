@@ -9,6 +9,7 @@ import android.content.Intent
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import org.xsecurity.scanner.R
+import org.xsecurity.scanner.device.AppScanEntry
 import org.xsecurity.scanner.engine.ScanResult
 import org.xsecurity.scanner.engine.ScanStatus
 
@@ -85,6 +86,53 @@ object ScanNotifications {
             builder.setPriority(NotificationCompat.PRIORITY_HIGH)
         }
         notify(context, builder.build())
+    }
+
+    /**
+     * Kurulu uygulama taramasi ozeti. Tehdit varsa yuksek oncelik + ilk enfekte paket
+     * icin sistem kaldirma ekranini acan eylem (sessiz kaldirma yok; kullanici onaylar).
+     */
+    fun showDeviceScanResult(context: Context, entries: List<AppScanEntry>) {
+        val infected = entries.filter { it.isInfected }
+        val failed = entries.count { it.isFailed }
+        val builder = base(context)
+            .setSmallIcon(R.drawable.ic_stat_shield)
+            .setOngoing(false)
+            .setOnlyAlertOnce(false)
+            .setAutoCancel(true)
+        if (infected.isEmpty()) {
+            val body = context.getString(R.string.notif_device_clean_body, entries.size, failed)
+            builder.setContentTitle(context.getString(R.string.notif_device_clean_title))
+                .setContentText(body)
+                .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+        } else {
+            val body = infected.take(4).joinToString("\n") { entry ->
+                "${entry.label} (${entry.packageName}): " + entry.threats.take(2).joinToString(", ") { it.name }
+            }
+            builder.setContentTitle(context.getString(R.string.notif_device_threats_title, infected.size))
+                .setContentText(body)
+                .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setCategory(NotificationCompat.CATEGORY_ALARM)
+            uninstallAction(context, infected.first().packageName)?.let { builder.addAction(it) }
+        }
+        notify(context, builder.build())
+    }
+
+    /** Sistem "uygulamayi kaldir" ekranina goturen eylem; sessiz kaldirma mumkun degildir. */
+    fun uninstallAction(context: Context, packageName: String): NotificationCompat.Action? {
+        val intent = ScanController.uninstallIntent(packageName)
+        val pending = PendingIntent.getActivity(
+            context,
+            packageName.hashCode(),
+            intent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+        return NotificationCompat.Action.Builder(
+            R.drawable.ic_stat_shield,
+            context.getString(R.string.action_uninstall),
+            pending
+        ).build()
     }
 
     fun cancel(context: Context) {

@@ -63,6 +63,29 @@
     <string name="notif_threats_title">%1$d tehdit bulundu</string>
     <string name="notif_failed_title">Tarama tamamlanamadı</string>
     <string name="notif_failed_body">Motor veya dosya hatası; ayrıntılar için uygulamayı açın.</string>
+    <string name="notif_device_clean_title">Kurulu uygulamalar: tehdit bulunmadı</string>
+    <string name="notif_device_clean_body">%1$d uygulama tarandı; %2$d tanesi okunamadı. Eşleşen imza yok.</string>
+    <string name="notif_device_threats_title">%1$d kurulu uygulama işaretlendi</string>
+    <string name="action_uninstall">Kaldır</string>
+
+    <!-- Kurulu uygulama ("tümünü tara") taraması -->
+    <string name="device_scan_title">Kurulu uygulamalar</string>
+    <string name="device_scan_hint">Kurulu her uygulamanın APK’sı aynı YARA, ClamAV ve hash katmanlarıyla cihazda taranır. Bilinen stalkerware topluluk hash’leriyle doğrudan yakalanır.</string>
+    <string name="device_scan_idle">Henüz taranmadı.</string>
+    <string name="device_scan_action">Tüm kurulu uygulamaları tara</string>
+    <string name="device_scan_queued">Kurulu uygulama taraması hazırlanıyor…</string>
+    <string name="device_scan_progress">%1$d / %2$d · %3$s</string>
+    <string name="device_scan_summary">%1$d uygulama tarandı · %2$d işaretli · %3$d okunamadı · %4$s</string>
+    <string name="device_scan_result_name">Kurulu uygulamalar (%1$d)</string>
+    <string name="device_scan_include_system">Sistem uygulamalarını da tara (daha yavaş)</string>
+    <string name="device_scan_show_all">Tüm %1$d uygulamayı göster</string>
+    <string name="device_scan_hide_all">Listeyi gizle (%1$d uygulama)</string>
+    <string name="device_scan_entry_clean">temiz</string>
+    <string name="device_scan_entry_failed">taranamadı</string>
+    <string name="device_scan_advice">Kaldır düğmesi sistemin onay ekranını açar; uygulama asla sessizce silinmez. Stalkerware’den şüpheleniyorsanız parolalarınızı başka bir cihazdan değiştirin.</string>
+    <string name="device_scan_rationale_title">X-Security uygulama listenizi neden okur?</string>
+    <string name="device_scan_rationale_body">Kurulu uygulamaları taramak için X-Security bu cihazdaki tüm paketleri listeler (QUERY_ALL_PACKAGES) ve APK dosyalarını okur. Liste ve sonuçlar cihazda kalır; hiçbir şey yüklenmez. Stalkerware masum adların arkasına saklandığı için tarama sabit bir paket listesine güvenemez.</string>
+    <string name="device_scan_rationale_ok">Anladım, tara</string>
 
     <!-- OTA (internet üzerinden) güncelleyici. ağ YALNIZCA imzalı güncellemeler için kullanılır. -->
     <string name="ota_card_title">Güncellemeler</string>

@@ -1,6 +1,7 @@
 package org.xsecurity.scanner.data
 
 import android.content.Context
+import android.content.Intent
 import android.net.Uri
 import androidx.work.Data
 import androidx.work.ExistingWorkPolicy
@@ -10,6 +11,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.xsecurity.scanner.core.Digest
 import org.xsecurity.scanner.worker.ApkScanWorker
+import org.xsecurity.scanner.worker.DeviceScanWorker
 import java.io.File
 import java.io.IOException
 import java.util.concurrent.TimeUnit
@@ -26,6 +28,7 @@ import java.util.UUID
 object ScanController {
 
     private const val WORK_PREFIX = "apk_scan_"
+    private const val DEVICE_WORK = "device_scan"
     private const val SCAN_DIR = "scans"
     private const val STALE_AGE_MILLIS = 6L * 60L * 60L * 1000L
 
@@ -86,6 +89,37 @@ object ScanController {
             EnqueueResult(false, staged.sha256, error.message ?: "The scan could not be queued.")
         }
     }
+
+    /**
+     * Kurulu uygulama taramasini kuyruklar. KEEP: suren tarama varsa ikinci dokunus
+     * onu oldurmez. Ayni [TAG] kullanilir; "Iptal" butonu her iki turu de durdurur.
+     */
+    fun enqueueDeviceScan(context: Context, includeSystemApps: Boolean = false): Boolean {
+        val request = OneTimeWorkRequestBuilder<DeviceScanWorker>()
+            .setInputData(
+                Data.Builder()
+                    .putBoolean(DeviceScanWorker.KEY_INCLUDE_SYSTEM, includeSystemApps)
+                    .build()
+            )
+            .addTag(TAG)
+            .build()
+        return try {
+            WorkManager.getInstance(context).enqueueUniqueWork(DEVICE_WORK, ExistingWorkPolicy.KEEP, request)
+            true
+        } catch (error: Exception) {
+            false
+        }
+    }
+
+    /**
+     * Sistemin paket kaldirma ekranini acan intent. Uygulama hicbir zaman sessiz
+     * kaldirma yapmaz (DELETE_PACKAGES normal uygulamalara verilmez ve denenmez);
+     * son karar her zaman sistem diyalogunda kullaniciya aittir.
+     */
+    fun uninstallIntent(packageName: String): Intent =
+        Intent(Intent.ACTION_DELETE, Uri.parse("package:" + packageName)).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
 
     fun cancelAll(context: Context) {
         runCatching { WorkManager.getInstance(context).cancelAllWorkByTag(TAG) }
