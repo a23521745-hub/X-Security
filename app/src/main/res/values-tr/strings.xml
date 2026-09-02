@@ -103,6 +103,18 @@
     <string name="protection_mode_install_only_desc">Uygulamaları kurulduğu veya güncellendiği anda tarar. Kalıcı bildirim yok; pil dostu.</string>
     <string name="protection_mode_off">Kapalı</string>
     <string name="protection_mode_off_desc">Otomatik tarama yok; elle tararsınız.</string>
+    <string name="protection_notif_channel_name">Gerçek zamanlı koruma</string>
+    <string name="protection_notif_channel_description">Her zaman açık indirme korumasının kalıcı durumu</string>
+    <string name="protection_notif_title">Koruma aktif</string>
+    <string name="protection_notif_body">İndirilenler klasörü yeni APK’lar için izleniyor; her uygulama kurulumu cihazda taranıyor.</string>
+    <string name="protection_notif_paused_title">Koruma sistem tarafından duraklatıldı</string>
+    <string name="protection_notif_paused_body">Android arka plan korumasının ne kadar çalışabileceğini sınırlar. Yeniden başlatmak için X-Security’yi açın; kurulum anı taraması çalışmaya devam eder.</string>
+    <string name="protection_storage_rationale_title">X-Security neden tüm dosyalara erişim ister?</string>
+    <string name="protection_storage_rationale_body">Her zaman açık koruma, yeni indirilen bir APK’yı siz kurmadan önce tarayabilmek için paylaşılan İndirilenler klasörünü izler. Android buna yalnızca \"Tüm dosyalara erişim\" ayarıyla izin verir. X-Security İndirilenler’deki yeni .apk dosyaları dışında hiçbir şey okumaz ve hiçbir veri cihazdan çıkmaz. Bu izni istemiyorsanız \"Sadece kurulum anı\" modunu seçebilirsiniz.</string>
+    <string name="protection_storage_rationale_ok">Ayarları aç</string>
+    <string name="protection_storage_missing">Her zaman açık mod için \"Tüm dosyalara erişim\" gerekli. Vermek için dokunun ya da \"Sadece kurulum anı\" seçin.</string>
+    <string name="protection_status_running">Çalışıyor · kalıcı bildirim gösteriliyor</string>
+    <string name="protection_status_waiting">Depolama izni bekleniyor</string>
     <string name="protection_quiet_clean">Yeni uygulama temizse sessiz kal</string>
     <string name="device_scan_rationale_ok">Anladım, tara</string>
 

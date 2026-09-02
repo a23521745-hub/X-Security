@@ -28,7 +28,15 @@ import org.xsecurity.scanner.definitions.DefinitionsController
 import org.xsecurity.scanner.definitions.DefinitionsStore
 import org.xsecurity.scanner.device.DeviceScanStore
 import org.xsecurity.scanner.device.InstallShieldReceiver
+import org.xsecurity.scanner.device.ProtectionMode
 import org.xsecurity.scanner.device.ProtectionSettings
+import org.xsecurity.scanner.device.RealtimeProtectionService
+import org.xsecurity.scanner.device.StorageAccess
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import org.xsecurity.scanner.engine.ScanEngines
 import org.xsecurity.scanner.ota.OtaController
 import org.xsecurity.scanner.ota.OtaNotifications
@@ -62,6 +70,14 @@ class MainActivity : ComponentActivity() {
     private val notificationPermission =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* sonuç önemli degil */ }
 
+    /** API 26-29: klasik depolama izni (API 30+ ayar ekranina gider, bkz. StorageAccess). */
+    private val storagePermission =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { refreshProtection() }
+
+    private var storageGranted by mutableStateOf(false)
+    private var protectionRunning by mutableStateOf(false)
+    private var showStorageRationale by mutableStateOf(false)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // API 35 hedefinde kenar-dan-kenara zorunlu; SystemBarStyle varsayilanlari
@@ -77,7 +93,7 @@ class MainActivity : ComponentActivity() {
         DefinitionsStore.restore(this)
         DeviceScanStore.restore(this)
         ProtectionSettings.restore(this)
-        applyProtectionMode()
+        applyProtectionMode(promptForStorage = false)
         requestNotificationPermissionIfNeeded()
         // Gunluk imzali guncelleme kontrolu (yalnizca ag bagliyken; bildirim sessiz).
         OtaController.schedulePeriodicCheck(this)
@@ -93,6 +109,22 @@ class MainActivity : ComponentActivity() {
                 val defState by DefinitionsStore.state.collectAsState()
                 val deviceState by DeviceScanStore.state.collectAsState()
                 val protectionState by ProtectionSettings.state.collectAsState()
+                if (showStorageRationale) {
+                    AlertDialog(
+                        onDismissRequest = { showStorageRationale = false },
+                        title = { Text(getString(R.string.protection_storage_rationale_title)) },
+                        text = { Text(getString(R.string.protection_storage_rationale_body)) },
+                        confirmButton = {
+                            TextButton(onClick = {
+                                showStorageRationale = false
+                                launchStoragePermission()
+                            }) { Text(getString(R.string.protection_storage_rationale_ok)) }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { showStorageRationale = false }) { Text(getString(R.string.action_cancel)) }
+                        }
+                    )
+                }
                 DashboardScreen(
                     state = state,
                     otaState = otaState,
@@ -105,9 +137,12 @@ class MainActivity : ComponentActivity() {
                     onUninstall = { packageName -> requestUninstall(packageName) },
                     onProtectionModeChange = { mode ->
                         ProtectionSettings.setMode(this, mode)
-                        applyProtectionMode()
+                        applyProtectionMode(promptForStorage = true)
                     },
                     onProtectionQuietChange = { quiet -> ProtectionSettings.setQuietWhenClean(this, quiet) },
+                    storageGranted = storageGranted,
+                    protectionServiceRunning = protectionRunning,
+                    onRequestStorage = { showStorageRationale = true },
                     onPickYaraRules = { yaraPicker.launch(ANY_MIME_TYPES) },
                     onPickClamDatabase = { clamPicker.launch(ANY_MIME_TYPES) },
                     onReloadEngine = { reloadEngine() },
@@ -128,6 +163,8 @@ class MainActivity : ComponentActivity() {
         OtaStore.restore(this)
         DefinitionsStore.restore(this)
         DeviceScanStore.restore(this)
+        // Kullanici "Tum dosyalara erisim" ayarindan donmus olabilir.
+        refreshProtection()
         pendingUninstall?.let { packageName ->
             pendingUninstall = null
             // Kullanici sistem ekranindan dondu: paket gercekten gittiyse listeden dus.
@@ -135,12 +172,50 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    /** Koruma moduna gore kurulum kalkaninin dinamik kaydini ac/kapat. */
-    private fun applyProtectionMode() {
-        if (ProtectionSettings.installShieldEnabled(ProtectionSettings.mode(this))) {
+    /**
+     * Koruma moduna gore: kurulum kalkaninin dinamik kaydi + "Her zaman acik" servisi.
+     * Servis yalnizca depolama izni varsa baslar; yoksa once neden-gerekli diyalogu.
+     */
+    private fun applyProtectionMode(promptForStorage: Boolean) {
+        val mode = ProtectionSettings.mode(this)
+        if (ProtectionSettings.installShieldEnabled(mode)) {
             InstallShieldReceiver.register(this)
         } else {
             InstallShieldReceiver.unregister(this)
+        }
+        storageGranted = StorageAccess.hasAllFilesAccess(this)
+        if (mode == ProtectionMode.ALWAYS) {
+            if (storageGranted) {
+                RealtimeProtectionService.start(this)
+            } else if (promptForStorage) {
+                // Izin istemeden once amac diyalogu; acilista nag yapmaz, kart uyari gosterir.
+                showStorageRationale = true
+            }
+        } else {
+            RealtimeProtectionService.stop(this)
+        }
+        protectionRunning = RealtimeProtectionService.running
+    }
+
+    /** Izin/servis durumunu yeniden oku; izin yeni verildiyse servisi baslat. */
+    private fun refreshProtection() {
+        storageGranted = StorageAccess.hasAllFilesAccess(this)
+        if (ProtectionSettings.mode(this) == ProtectionMode.ALWAYS && storageGranted &&
+            !RealtimeProtectionService.running
+        ) {
+            RealtimeProtectionService.start(this)
+        }
+        protectionRunning = RealtimeProtectionService.running
+    }
+
+    /** Neden-gerekli diyalogu onaylandi: API 30+ sistem ayari, altinda runtime izni. */
+    private fun launchStoragePermission() {
+        if (StorageAccess.usesRuntimePermission) {
+            storagePermission.launch(Manifest.permission.READ_EXTERNAL_STORAGE)
+            return
+        }
+        for (intent in StorageAccess.settingsIntents(this)) {
+            if (runCatching { startActivity(intent) }.isSuccess) return
         }
     }
 

@@ -103,6 +103,18 @@
     <string name="protection_mode_install_only_desc">Scans apps the moment they are installed or updated. No persistent notification; battery friendly.</string>
     <string name="protection_mode_off">Off</string>
     <string name="protection_mode_off_desc">No automatic scans; you scan manually.</string>
+    <string name="protection_notif_channel_name">Real-time protection</string>
+    <string name="protection_notif_channel_description">Persistent status of the always-on download guard</string>
+    <string name="protection_notif_title">Protection active</string>
+    <string name="protection_notif_body">Watching the Download folder for new APKs and scanning every app installation on-device.</string>
+    <string name="protection_notif_paused_title">Protection paused by the system</string>
+    <string name="protection_notif_paused_body">Android limits how long a background guard may run. Open X-Security to restart it; install-time scanning keeps working.</string>
+    <string name="protection_storage_rationale_title">Why does X-Security need access to all files?</string>
+    <string name="protection_storage_rationale_body">Always-on protection watches the shared Download folder so a freshly downloaded APK is scanned before you install it. Android only allows this through the \"All files access\" setting. X-Security reads nothing but new .apk files in Download, and nothing leaves the device. You can pick \"Install-time only\" instead to avoid this permission.</string>
+    <string name="protection_storage_rationale_ok">Open settings</string>
+    <string name="protection_storage_missing">Always-on needs \"All files access\". Tap to grant it, or choose \"Install-time only\".</string>
+    <string name="protection_status_running">Running · persistent notification shown</string>
+    <string name="protection_status_waiting">Waiting for the storage permission</string>
     <string name="protection_quiet_clean">Stay silent when a new app is clean</string>
     <string name="device_scan_rationale_ok">Understood, scan</string>
 

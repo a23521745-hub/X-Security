@@ -32,8 +32,10 @@ fun ProtectionCard(
     state: ProtectionState,
     onModeChange: (ProtectionMode) -> Unit,
     onQuietChange: (Boolean) -> Unit,
-    /** "Her zaman acik" secenegi (on plan servisi) bu derlemede sunuluyor mu? */
-    alwaysOnAvailable: Boolean = false
+    /** "Her zaman acik" icin depolama izni var mi (yoksa uyari satiri + izin dugmesi). */
+    storageGranted: Boolean,
+    serviceRunning: Boolean,
+    onRequestStorage: () -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -56,13 +58,33 @@ fun ProtectionCard(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            if (alwaysOnAvailable) {
-                ModeRow(
-                    selected = state.mode == ProtectionMode.ALWAYS,
-                    title = stringResource(R.string.protection_mode_always),
-                    description = stringResource(R.string.protection_mode_always_desc),
-                    onClick = { onModeChange(ProtectionMode.ALWAYS) }
-                )
+            ModeRow(
+                selected = state.mode == ProtectionMode.ALWAYS,
+                title = stringResource(R.string.protection_mode_always),
+                description = stringResource(R.string.protection_mode_always_desc),
+                onClick = { onModeChange(ProtectionMode.ALWAYS) }
+            )
+            if (state.mode == ProtectionMode.ALWAYS) {
+                if (!storageGranted) {
+                    Text(
+                        text = stringResource(R.string.protection_storage_missing),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(onClick = onRequestStorage)
+                            .padding(start = 12.dp, top = 2.dp, bottom = 2.dp)
+                    )
+                } else {
+                    Text(
+                        text = stringResource(
+                            if (serviceRunning) R.string.protection_status_running else R.string.protection_status_waiting
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(start = 12.dp)
+                    )
+                }
             }
             ModeRow(
                 selected = state.mode == ProtectionMode.INSTALL_ONLY,

@@ -75,6 +75,9 @@ fun DashboardScreen(
     onUninstall: (packageName: String) -> Unit,
     onProtectionModeChange: (ProtectionMode) -> Unit,
     onProtectionQuietChange: (Boolean) -> Unit,
+    storageGranted: Boolean,
+    protectionServiceRunning: Boolean,
+    onRequestStorage: () -> Unit,
     onPickYaraRules: () -> Unit,
     onPickClamDatabase: () -> Unit,
     onReloadEngine: () -> Unit,
@@ -106,7 +109,10 @@ fun DashboardScreen(
         ProtectionCard(
             state = protectionState,
             onModeChange = onProtectionModeChange,
-            onQuietChange = onProtectionQuietChange
+            onQuietChange = onProtectionQuietChange,
+            storageGranted = storageGranted,
+            serviceRunning = protectionServiceRunning,
+            onRequestStorage = onRequestStorage
         )
         EngineCard(engine = state.engine, onPickYara = onPickYaraRules, onPickClam = onPickClamDatabase, onReload = onReloadEngine)
         OtaUpdateCard(
