@@ -59,10 +59,10 @@ class BytePatternMatcherConcurrencyTest {
         val needle = "XSECNEEDLE-CLEAN-E"
         val matcher = BytePatternMatcher(listOf(BytePattern(0, needle.encodeToByteArray())), chunkSize = 512)
 
-        val dirty = ByteArray(64 * 1024) { (it * 31 + 17) % 127 }
+        val dirty = ByteArray(64 * 1024) { ((it * 31 + 17) % 127).toByte() }
         val needleBytes = needle.encodeToByteArray()
         System.arraycopy(needleBytes, 0, dirty, 32 * 1024, needleBytes.size)
-        val clean = ByteArray(64 * 1024) { (it * 41 + 7) % 127 }
+        val clean = ByteArray(64 * 1024) { ((it * 41 + 7) % 127).toByte() }
 
         val failures = Collections.synchronizedList(ArrayList<String>())
         val start = CountDownLatch(1)
@@ -93,7 +93,7 @@ class BytePatternMatcherConcurrencyTest {
      */
     private fun buildBuffer(needles: List<String>): ByteArray {
         val size = 96 * 1024
-        val data = ByteArray(size) { (it * 31 + 17) % 127 }
+        val data = ByteArray(size) { ((it * 31 + 17) % 127).toByte() }
         needles.forEachIndexed { index, needle ->
             val bytes = needle.encodeToByteArray()
             val offsets = listOf(64 + index * 97, 1020 + index * 13, size - bytes.size - 13 - index * 11)

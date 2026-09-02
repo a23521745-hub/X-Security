@@ -119,7 +119,10 @@ class DeviceScanCacheTest {
         val apps = listOf(app("com.a"), app("com.b"), app("com.c"))
         val snapshot = DeviceScanCache.Snapshot(
             fingerprint = "fp-1",
-            apps = apps.associateWith { DeviceScanCache.CachedApp(it.versionCode, it.lastUpdateTime, entry(it.packageName)) }
+            apps = apps.associateBy(
+                keySelector = { it.packageName },
+                valueSelector = { DeviceScanCache.CachedApp(it.versionCode, it.lastUpdateTime, entry(it.packageName)) }
+            )
         )
 
         val pruned = DeviceScanCache.prune(snapshot, setOf("com.a", "com.c"))

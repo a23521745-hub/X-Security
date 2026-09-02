@@ -19,9 +19,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.KeyboardArrowLeft
-import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Share
@@ -119,7 +119,7 @@ fun HistoryScreen(
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) {
                 Icon(
-                    imageVector = Icons.Filled.KeyboardArrowLeft,
+                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
                     contentDescription = stringResource(R.string.history_back),
                     modifier = Modifier.size(28.dp)
                 )
@@ -184,7 +184,7 @@ fun HistoryScreen(
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(
-                        imageVector = Icons.Filled.List,
+                        imageVector = Icons.AutoMirrored.Filled.List,
                         contentDescription = null,
                         modifier = Modifier.size(40.dp),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
@@ -227,7 +227,7 @@ fun HistoryScreen(
 @Composable
 internal fun historyTypeBadge(type: ScanHistoryType): Pair<ImageVector, String> = when (type) {
     ScanHistoryType.DEVICE -> Icons.Filled.Star to stringResource(R.string.history_type_device)
-    ScanHistoryType.FILE -> Icons.Filled.List to stringResource(R.string.history_type_file)
+    ScanHistoryType.FILE -> Icons.AutoMirrored.Filled.List to stringResource(R.string.history_type_file)
     ScanHistoryType.INSTALL_SHIELD -> Icons.Filled.Lock to stringResource(R.string.history_type_install)
     ScanHistoryType.REALTIME -> Icons.Filled.Notifications to stringResource(R.string.history_type_download)
 }
