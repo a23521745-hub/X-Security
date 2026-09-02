@@ -122,7 +122,8 @@ class RealtimeProtectionService : Service() {
         if (!file.isFile || file.length() <= 0L) return
         if (!dedup.accept(file.absolutePath, file.length(), file.lastModified(), System.currentTimeMillis())) return
         scope.launch {
-            runCatching { ScanController.enqueueFromUri(applicationContext, Uri.fromFile(file), file.name) }
+            // fromDownloadWatch=true: tarama gecmisi REALTIME (indirme izlemeden) olarak kaydedilir.
+            runCatching { ScanController.enqueueFromUri(applicationContext, Uri.fromFile(file), file.name, fromDownloadWatch = true) }
         }
     }
 

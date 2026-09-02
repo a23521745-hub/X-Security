@@ -75,7 +75,7 @@
     <string name="device_scan_action">Scan all installed apps</string>
     <string name="device_scan_queued">Preparing the installed-app scan…</string>
     <string name="device_scan_progress">%1$d / %2$d · %3$s</string>
-    <string name="device_scan_summary">%1$d apps scanned · %2$d flagged · %3$d unreadable · %4$s</string>
+    <string name="device_scan_summary">%1$d apps scanned · %2$d flagged · %3$d unreadable · %4$d from cache · %5$s</string>
     <string name="device_scan_result_name">Installed apps (%1$d)</string>
     <string name="device_scan_include_system">Include system apps (slower)</string>
     <string name="device_scan_show_all">Show all %1$d apps</string>
@@ -93,6 +93,49 @@
     <string name="notif_shield_failed_title">New app could not be scanned</string>
     <string name="notif_shield_failed_body">%1$s: %2$s</string>
     <string name="shield_result_name">Install shield: %1$s</string>
+
+    <!-- Scan history -->
+    <string name="history_title">Scan history</string>
+    <string name="history_back">Back</string>
+    <string name="history_empty">No scans recorded yet.</string>
+    <string name="history_empty_hint">Completed device, file and install-shield scans will appear here.</string>
+    <string name="history_share">Share report</string>
+    <string name="history_share_subject">X-Security scan report</string>
+    <string name="history_clear">Clear history</string>
+    <string name="history_clear_title">Clear scan history?</string>
+    <string name="history_clear_body">All %1$d recorded scan(s) will be removed from this device.</string>
+    <string name="history_clear_confirm">Clear</string>
+    <string name="history_filter_all">All</string>
+    <string name="history_filter_device">Device</string>
+    <string name="history_filter_file">File</string>
+    <string name="history_filter_install">Install</string>
+    <string name="history_filter_download">Download</string>
+    <string name="history_type_device">Device scan</string>
+    <string name="history_type_file">File scan</string>
+    <string name="history_type_install">Install shield</string>
+    <string name="history_type_download">Download watch</string>
+    <string name="history_trigger_manual">Manual</string>
+    <string name="history_trigger_file_picker">File picker</string>
+    <string name="history_trigger_download_watch">Download folder</string>
+    <string name="history_trigger_install_shield">Install shield</string>
+    <string name="history_now">just now</string>
+    <string name="history_minutes_ago">%1$d min ago</string>
+    <string name="history_hours_ago">%1$d h ago</string>
+    <string name="history_days_ago">%1$d d ago</string>
+    <string name="history_threats_count">%1$d threat(s)</string>
+    <string name="history_clean">clean</string>
+    <string name="history_failed">failed</string>
+    <string name="history_detail_time">Time</string>
+    <string name="history_detail_type">Type</string>
+    <string name="history_detail_apps">%1$d scanned · %2$d flagged · %3$d from cache</string>
+    <string name="history_detail_bytes">Data scanned</string>
+    <string name="history_threats_title">Threats</string>
+    <string name="history_flagged_apps">Flagged apps</string>
+    <string name="history_engine_counters">Engine at scan time</string>
+    <string name="history_counters_line">YARA %1$d rules · %2$d patterns · ClamAV %3$d · hash %4$d</string>
+    <string name="history_warnings">Warnings</string>
+    <string name="history_report_more">and %1$d older record(s)…</string>
+    <string name="history_count">%1$d record(s)</string>
 
     <!-- Protection settings -->
     <string name="protection_title">Protection</string>

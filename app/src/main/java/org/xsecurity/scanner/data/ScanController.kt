@@ -44,13 +44,22 @@ object ScanController {
     )
 
     /**
-     * Secilen dosyayi uygulama onbellegine kopyalar ve taramayi kuyruga koyar.
+     * Secilen dosyayi uygulama onbellegine kopyalar ve taramayi kuyruğa koyar.
      *
      * SAF/scoped-storage nedeniyle rastgele bir yolu dogrudan okumaya calismak
      * `FileNotFoundException` ile sonuclaniyordu; artik yalnizca kendi kopyamiz
      * taraniyor. Kopyanin adi icerik hash'idir, boylece ayni dosya iki kez taranmaz.
+     *
+     * [fromDownloadWatch] `true` ise (kaynak "her zaman acik" indirme izlemedir)
+     * worker'a REALTIME tetikleyicisi yazilir; tarama gecmisi böylece kullanici
+     * seciminden indirme korumasindan ayirt edilir.
      */
-    suspend fun enqueueFromUri(context: Context, uri: Uri, displayName: String?): EnqueueResult =
+    suspend fun enqueueFromUri(
+        context: Context,
+        uri: Uri,
+        displayName: String?,
+        fromDownloadWatch: Boolean = false
+    ): EnqueueResult =
         withContext(Dispatchers.IO) {
             val staged: Staged? = try {
                 stageFile(context, uri)
@@ -62,17 +71,21 @@ object ScanController {
                 EnqueueResult(false, null, "The selected file could not be copied into app storage.")
             } else {
                 purgeStaleCopies(context)
-                enqueue(context, staged, displayName)
+                enqueue(context, staged, displayName, fromDownloadWatch)
             }
         }
 
-    private fun enqueue(context: Context, staged: Staged, displayName: String?): EnqueueResult {
+    private fun enqueue(context: Context, staged: Staged, displayName: String?, fromDownloadWatch: Boolean): EnqueueResult {
         val request = OneTimeWorkRequestBuilder<ApkScanWorker>()
             .setInputData(
                 Data.Builder()
                     .putString(ApkScanWorker.KEY_APK_PATH, staged.file.absolutePath)
                     .putString(ApkScanWorker.KEY_DISPLAY_NAME, displayName ?: staged.file.name)
                     .putString(ApkScanWorker.KEY_SHA256, staged.sha256)
+                    .putString(
+                        ApkScanWorker.KEY_TRIGGER,
+                        if (fromDownloadWatch) ApkScanWorker.TRIGGER_REALTIME else ApkScanWorker.TRIGGER_FILE_PICKER
+                    )
                     .build()
             )
             .addTag(TAG)
@@ -119,9 +132,18 @@ object ScanController {
      * gelen ADDED/REPLACED yayinlarinda en son surum taranir. Ayri etiket: kullanicinin
      * "Iptal" dugmesi kalkan taramasini durdurmaz.
      */
-    fun enqueuePackageScan(context: Context, packageName: String): Boolean {
+    fun enqueuePackageScan(
+        context: Context,
+        packageName: String,
+        trigger: String = PackageScanWorker.TRIGGER_INSTALL_SHIELD
+    ): Boolean {
         val request = OneTimeWorkRequestBuilder<PackageScanWorker>()
-            .setInputData(Data.Builder().putString(PackageScanWorker.KEY_PACKAGE, packageName).build())
+            .setInputData(
+                Data.Builder()
+                    .putString(PackageScanWorker.KEY_PACKAGE, packageName)
+                    .putString(PackageScanWorker.KEY_TRIGGER, trigger)
+                    .build()
+            )
             .addTag(SHIELD_TAG)
             .build()
         return try {

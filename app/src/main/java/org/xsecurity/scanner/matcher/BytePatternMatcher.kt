@@ -28,15 +28,24 @@ class BytePatternMatcher(
     val isEmpty: Boolean get() = usablePatternCount == 0
     val isNotEmpty: Boolean get() = !isEmpty
 
+    /**
+     * Eslestirme adayi (candidate) **salt okunurdur**; tarama durumunu tasimaz.
+     *
+     * Onceki surumda her adayda `var consumed` vardi ve [scan] onu tarama basinda
+     * sifirliyordu — yani ayni matcher'yi iki thread (orn. paralel cihaz taramasi)
+     * ayni anda kullanirsaydi biri digerinin durumunu ezip bozuk sonuclar uretiyordu.
+     * Simdi "bu kalip bu taramada zaten eslesti" durumu tarama-yerel bir
+     * [BooleanArray] ([slot] indeksi) uzerinde tutulur ve matcher'yi paylasmak guvendir.
+     */
     private class Candidate(
         val pattern: BytePattern,
         val anchorIndex: Int,
         val anchorless: Boolean,
-        val effLen: Int
-    ) {
-        var consumed: Boolean = false
-    }
+        val effLen: Int,
+        val slot: Int
+    )
 
+    private val candidates = ArrayList<Candidate>()
     private val buckets: Array<MutableList<Candidate>?> = arrayOfNulls(256)
     private val anchorlessCandidates = ArrayList<Candidate>()
     private val maxPatternLength: Int
@@ -56,11 +65,12 @@ class BytePatternMatcher(
             if (len > maxLength) maxLength = len
 
             val ancIdx = p.anchorIndex
+            val cand = Candidate(p, ancIdx, ancIdx < 0, len, candidates.size)
+            candidates.add(cand)
             if (ancIdx < 0) {
-                anchorlessCandidates.add(Candidate(p, ancIdx, true, len))
+                anchorlessCandidates.add(cand)
             } else {
                 val ancByte = p.anchorByte.toInt() and 0xFF
-                val cand = Candidate(p, ancIdx, false, len)
 
                 if (p.ignoreCase && BytePattern.isAsciiLetter(ancByte)) {
                     val lower = BytePattern.lowerAsciiInt(ancByte)
@@ -140,8 +150,10 @@ class BytePatternMatcher(
 
         // "consumed" durumu tarama-basi bir optimizasyondur: ayni matcher ile yapilan
         // ikinci bir tarama (kullanicinin ayni kurallarla yeni bir dosya taramasi gibi)
-        // bayat durumdan etkilenmemeli. Her tarama oncesi sifirlanir.
-        resetCandidates()
+        // bayat durumdan etkilenmemeli. Her tarama kendine ozel bir bayrak dizesi acar;
+        // matcher icerisinde kalici degisiklik olmadigindan taramalar paralel
+        // thread'lerden de guvenle yapilabilir.
+        val consumed = BooleanArray(candidates.size)
 
         val overlap = (maxPatternLength - 1).coerceAtLeast(0)
         val window = ByteArray(overlap + chunkSize)
@@ -180,7 +192,7 @@ class BytePatternMatcher(
 
             scanWindow(
                 window, windowSize, carryLen, dataStart,
-                matchedIds, positionsMap, positionFilter, maxPositionsPerId
+                matchedIds, positionsMap, positionFilter, maxPositionsPerId, consumed
             )
 
             total += chunkLen
@@ -207,13 +219,6 @@ class BytePatternMatcher(
         )
     }
 
-    private fun resetCandidates() {
-        for (list in buckets) {
-            list?.forEach { it.consumed = false }
-        }
-        anchorlessCandidates.forEach { it.consumed = false }
-    }
-
     private fun scanWindow(
         window: ByteArray,
         windowSize: Int,
@@ -222,7 +227,8 @@ class BytePatternMatcher(
         matchedIds: MutableSet<Any>,
         positionsMap: MutableMap<Any, MutableList<Long>>,
         positionFilter: ((Any, Long) -> Boolean)?,
-        maxPositionsPerId: Int
+        maxPositionsPerId: Int,
+        consumed: BooleanArray
     ) {
         for (i in 0 until windowSize) {
             val b = window[i].toInt() and 0xFF
@@ -230,15 +236,15 @@ class BytePatternMatcher(
             val bucket = buckets[b]
             if (bucket != null) {
                 for (cand in bucket) {
-                    if (cand.consumed) continue
-                    evaluateCandidate(cand, i, window, windowSize, carryLen, dataStart, matchedIds, positionsMap, positionFilter, maxPositionsPerId)
+                    if (consumed[cand.slot]) continue
+                    evaluateCandidate(cand, i, window, windowSize, carryLen, dataStart, matchedIds, positionsMap, positionFilter, maxPositionsPerId, consumed)
                 }
             }
 
             if (anchorlessCandidates.isNotEmpty()) {
                 for (cand in anchorlessCandidates) {
-                    if (cand.consumed) continue
-                    evaluateCandidate(cand, i, window, windowSize, carryLen, dataStart, matchedIds, positionsMap, positionFilter, maxPositionsPerId)
+                    if (consumed[cand.slot]) continue
+                    evaluateCandidate(cand, i, window, windowSize, carryLen, dataStart, matchedIds, positionsMap, positionFilter, maxPositionsPerId, consumed)
                 }
             }
         }
@@ -254,7 +260,8 @@ class BytePatternMatcher(
         matchedIds: MutableSet<Any>,
         positionsMap: MutableMap<Any, MutableList<Long>>,
         positionFilter: ((Any, Long) -> Boolean)?,
-        maxPositionsPerId: Int
+        maxPositionsPerId: Int,
+        consumed: BooleanArray
     ) {
         val start = if (cand.anchorless) currentIndex else currentIndex - cand.anchorIndex
         if (start < 0) return
@@ -263,7 +270,8 @@ class BytePatternMatcher(
 
         if (cand.pattern.matchesAt(window, start)) {
             val absolutePos = dataStart + start
-            cand.consumed = true
+            // Tarama-yerel bayrak: matcher'in paylasilan yapisi degismez.
+            consumed[cand.slot] = true
 
             val shouldRecord = positionFilter == null || positionFilter(cand.pattern.id, absolutePos)
             if (shouldRecord) {

@@ -4,7 +4,12 @@ import org.xsecurity.scanner.engine.ScanResult
 import org.xsecurity.scanner.engine.ScanStatus
 import org.xsecurity.scanner.engine.ThreatMatch
 
-/** Tek bir kurulu uygulamanin tarama sonucu (UI + kalicilama modeli). */
+/**
+ * Tek bir kurulu uygulamanin tarama sonucu (UI + kalicilama modeli).
+ *
+ * [bytesScanned]/[durationMillis] (temel + split APK sonuclarinin toplami) tarama
+ * gecmisi ve onbellek kayitlarina gercek veri tasir.
+ */
 data class AppScanEntry(
     val packageName: String,
     val label: String,
@@ -12,7 +17,9 @@ data class AppScanEntry(
     val threats: List<ThreatMatch> = emptyList(),
     val sha256: String? = null,
     val errorMessage: String? = null,
-    val versionName: String? = null
+    val versionName: String? = null,
+    val bytesScanned: Long = 0L,
+    val durationMillis: Long = 0L
 ) {
     val isInfected: Boolean get() = threats.isNotEmpty()
     val isFailed: Boolean get() = status == ScanStatus.FAILED
@@ -44,7 +51,9 @@ object DeviceScanSummary {
             threats = threats.values.toList(),
             sha256 = results.firstOrNull()?.sha256,
             errorMessage = failed.firstNotNullOfOrNull { it.errorMessage },
-            versionName = app.versionName
+            versionName = app.versionName,
+            bytesScanned = results.sumOf { it.bytesScanned },
+            durationMillis = results.sumOf { it.durationMillis }
         )
     }
 

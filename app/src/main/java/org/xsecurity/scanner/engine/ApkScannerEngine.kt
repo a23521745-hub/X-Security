@@ -49,6 +49,26 @@ class ApkScannerEngine private constructor(
     val hasAnyPattern: Boolean
         get() = yaraPatternCount > 0 || clamAvSignatureCount > 0 || hashSignatureCount > 0
 
+    /**
+     * Derlenmis (pattern-matcher hazir) katmanlar: kural seti kalip agacina cevirmek
+     * pahali oldugundan (binlerce kural/imza) her `scan()` cagrisinda DEGIL, motor
+     * orneginde bir kez yapilir. Motor [ScanEngines] uzerinden parmak izi degisene
+     * kadar paylasildigi icin kural/guncelleme geldiginde derleme otomatik tazelenir.
+     * `by lazy` (senkron) oldugu icin birden fazla thread (paralel cihaz taramasi)
+     * ayni motoru ayni anda tarayabilir.
+     */
+    private val yaraScanner: YaraScanner = YaraScanner()
+    private val yaraCompiled: YaraScanner.Compiled by lazy { yaraScanner.compile(yaraRules) }
+    private val clamScanner: ClamAvScanner = ClamAvScanner()
+    private val clamCompiled: ClamAvScanner.Compiled? by lazy {
+        if (clamAvDatabase != null && clamAvSignatureCount > 0) {
+            clamScanner.compile(clamAvDatabase)
+        } else {
+            null
+        }
+    }
+    private val hashScanner: ClamHashScanner = ClamHashScanner()
+
     fun scan(apkFile: File, onProgress: (fraction: Float) -> Unit = {}): ScanResult {
         val startedAt = System.currentTimeMillis()
         val name = apkFile.name
@@ -74,17 +94,10 @@ class ApkScannerEngine private constructor(
             onProgress(done)
         }
 
-        // Kurallar/imzalar bir kez derlenir; ayni kalip seti hem ham dosyada hem de
-        // ZIP girdilerinde kullanilir (bkz. ApkContentScanner).
-        val yaraScanner = YaraScanner()
-        val yaraCompiled = yaraScanner.compile(yaraRules)
-        val clamScanner = ClamAvScanner()
-        val clamCompiled = if (clamAvDatabase != null && clamAvSignatureCount > 0) {
-            clamScanner.compile(clamAvDatabase)
-        } else {
-            null
-        }
-
+        // Kurallar/imzalar motor seviyesinde bir kez derlenir (bkz. alan tanimlari);
+        // ayni derlenmis kalip seti hem ham dosyada hem ZIP girdilerinde kullanilir
+        // (bkz. ApkContentScanner) ve motorun paylastigi tum taramalar arasinda
+        // yeniden derlenmez.
         var yaraOutcome = YaraScanner.Outcome(
             matches = emptyList(),
             scannedBytes = 0L,
@@ -110,9 +123,11 @@ class ApkScannerEngine private constructor(
                 publish()
             }
 
-            if (clamCompiled != null) {
+            // `by lazy` delegate'inin smart-cast gormemesi icin yerel degiskene alinir.
+            val compiledClam = clamCompiled
+            if (compiledClam != null) {
                 clamOutcome = clamScanner.scanBundle(
-                    compiled = clamCompiled,
+                    compiled = compiledClam,
                     file = apkFile,
                     entrySources = entrySources,
                     entryBudget = ApkContentScanner.MAX_TOTAL_ENTRY_BYTES
@@ -131,7 +146,7 @@ class ApkScannerEngine private constructor(
         if (hashDatabase != null && hashSignatureCount > 0) {
             totalUnits += size
             val preHashScanned = scanned
-            hashOutcome = ClamHashScanner().scan(apkFile, hashDatabase) { consumed ->
+            hashOutcome = hashScanner.scan(apkFile, hashDatabase) { consumed ->
                 scanned = maxOf(scanned, preHashScanned + consumed)
                 publish()
             }
