@@ -96,11 +96,13 @@ class YaraRuleParserTest {
             "rule Nl { strings: ${'$'}a = \"A\\tb\\x90C\" condition: ${'$'}a }"
         )
         val bytes = set.rules.single().strings.single().bytes
-        assertEquals(4, bytes.size)
+        // "A\tb\x90C" -> A, TAB, 'b', 0x90, C (5 bayt; \t ve \xNN kacislari cozulur).
+        assertEquals(5, bytes.size)
         assertEquals('A'.code.toByte(), bytes[0])
         assertEquals('\t'.code.toByte(), bytes[1])
-        assertEquals((-0x70).toByte(), bytes[2]) // 0x90 signed
-        assertEquals('C'.code.toByte(), bytes[3])
+        assertEquals('b'.code.toByte(), bytes[2])
+        assertEquals((-0x70).toByte(), bytes[3]) // 0x90 signed
+        assertEquals('C'.code.toByte(), bytes[4])
     }
 
     @Test

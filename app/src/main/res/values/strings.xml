@@ -1,9 +1,9 @@
 <resources>
     <string name="app_name">X-Security</string>
-    <string name="app_version">0.91.0-pre-release</string>
+    <string name="app_version">0.93.0</string>
 
     <string name="dashboard_subtitle">Local APK scanning with YARA rules and ClamAV signatures</string>
-    <string name="dashboard_footnote">X-Security %1$s · all analysis happens on-device; the app has no network permission</string>
+    <string name="dashboard_footnote">X-Security %1$s · all scanning happens on-device; network is used only for signed updates</string>
 
     <string name="status_idle">Waiting for a scan</string>
     <string name="status_idle_hint">Pick an APK file to start.</string>
@@ -41,6 +41,7 @@
     <string name="engine_yara_rules">YARA rules</string>
     <string name="engine_yara_patterns">YARA patterns</string>
     <string name="engine_clam_signatures">ClamAV signatures</string>
+    <string name="engine_hash_signatures">ClamAV hash signatures</string>
     <string name="engine_pick_yara">Pick .yar</string>
     <string name="engine_pick_clam">Pick .ndb</string>
     <string name="engine_reload">Reload engine</string>
@@ -62,4 +63,152 @@
     <string name="notif_threats_title">%1$d threat(s) found</string>
     <string name="notif_failed_title">Scan did not complete</string>
     <string name="notif_failed_body">Engine or file error; open the app for details.</string>
+    <string name="notif_device_clean_title">Installed apps: no threats found</string>
+    <string name="notif_device_clean_body">%1$d app(s) scanned; %2$d could not be read. No signature matched.</string>
+    <string name="notif_device_threats_title">%1$d installed app(s) flagged</string>
+    <string name="action_uninstall">Uninstall</string>
+
+    <!-- Installed-app ("scan all") scan -->
+    <string name="device_scan_title">Installed apps</string>
+    <string name="device_scan_hint">Every installed app’s APK is scanned on-device with the same YARA, ClamAV and hash layers. Known stalkerware is matched directly by community hashes.</string>
+    <string name="device_scan_idle">Not scanned yet.</string>
+    <string name="device_scan_action">Scan all installed apps</string>
+    <string name="device_scan_queued">Preparing the installed-app scan…</string>
+    <string name="device_scan_progress">%1$d / %2$d · %3$s</string>
+    <string name="device_scan_summary">%1$d apps scanned · %2$d flagged · %3$d unreadable · %4$d from cache · %5$s</string>
+    <string name="device_scan_result_name">Installed apps (%1$d)</string>
+    <string name="device_scan_include_system">Include system apps (slower)</string>
+    <string name="device_scan_show_all">Show all %1$d apps</string>
+    <string name="device_scan_hide_all">Hide the list (%1$d apps)</string>
+    <string name="device_scan_entry_clean">clean</string>
+    <string name="device_scan_entry_failed">not scanned</string>
+    <string name="device_scan_advice">Uninstall opens the system confirmation screen; the app is never removed silently. If you suspect stalkerware, change your passwords from another device.</string>
+    <string name="device_scan_rationale_title">Why does X-Security read your app list?</string>
+    <string name="device_scan_rationale_body">To scan installed apps, X-Security lists every package on this device (QUERY_ALL_PACKAGES) and reads its APK file. The list and results stay on this device; nothing is uploaded. Stalkerware hides under innocent names, so the scan cannot rely on a fixed list of packages.</string>
+    <string name="notif_shield_threat_title">Threat in newly installed app: %1$s</string>
+    <string name="notif_shield_threat_body">%1$s (%2$s) matched: %3$s. Uninstall it now.</string>
+    <string name="notif_shield_password_advice">If you did not install this app yourself or suspect stalkerware, change your important passwords from another device and review account sessions.</string>
+    <string name="notif_shield_clean_title">New app scanned</string>
+    <string name="notif_shield_clean_body">%1$s (%2$s) was scanned right after installation; no signature matched.</string>
+    <string name="notif_shield_failed_title">New app could not be scanned</string>
+    <string name="notif_shield_failed_body">%1$s: %2$s</string>
+    <string name="shield_result_name">Install shield: %1$s</string>
+
+    <!-- Scan history -->
+    <string name="history_title">Scan history</string>
+    <string name="history_back">Back</string>
+    <string name="history_empty">No scans recorded yet.</string>
+    <string name="history_empty_hint">Completed device, file and install-shield scans will appear here.</string>
+    <string name="history_share">Share report</string>
+    <string name="history_share_subject">X-Security scan report</string>
+    <string name="history_clear">Clear history</string>
+    <string name="history_clear_title">Clear scan history?</string>
+    <string name="history_clear_body">All %1$d recorded scan(s) will be removed from this device.</string>
+    <string name="history_clear_confirm">Clear</string>
+    <string name="history_filter_all">All</string>
+    <string name="history_filter_device">Device</string>
+    <string name="history_filter_file">File</string>
+    <string name="history_filter_install">Install</string>
+    <string name="history_filter_download">Download</string>
+    <string name="history_type_device">Device scan</string>
+    <string name="history_type_file">File scan</string>
+    <string name="history_type_install">Install shield</string>
+    <string name="history_type_download">Download watch</string>
+    <string name="history_trigger_manual">Manual</string>
+    <string name="history_trigger_file_picker">File picker</string>
+    <string name="history_trigger_download_watch">Download folder</string>
+    <string name="history_trigger_install_shield">Install shield</string>
+    <string name="history_now">just now</string>
+    <string name="history_minutes_ago">%1$d min ago</string>
+    <string name="history_hours_ago">%1$d h ago</string>
+    <string name="history_days_ago">%1$d d ago</string>
+    <string name="history_threats_count">%1$d threat(s)</string>
+    <string name="history_clean">clean</string>
+    <string name="history_failed">failed</string>
+    <string name="history_detail_time">Time</string>
+    <string name="history_detail_type">Type</string>
+    <string name="history_detail_apps">%1$d scanned · %2$d flagged · %3$d from cache</string>
+    <string name="history_detail_bytes">Data scanned</string>
+    <string name="history_threats_title">Threats</string>
+    <string name="history_flagged_apps">Flagged apps</string>
+    <string name="history_engine_counters">Engine at scan time</string>
+    <string name="history_counters_line">YARA %1$d rules · %2$d patterns · ClamAV %3$d · hash %4$d</string>
+    <string name="history_warnings">Warnings</string>
+    <string name="history_report_more">and %1$d older record(s)…</string>
+    <string name="history_count">%1$d record(s)</string>
+
+    <!-- Protection settings -->
+    <string name="protection_title">Protection</string>
+    <string name="protection_hint">Choose how X-Security watches the device. Nothing leaves the device in any mode.</string>
+    <string name="protection_mode_always">Always on</string>
+    <string name="protection_mode_always_desc">Persistent service: watches the Download folder for new APKs and scans every installation.</string>
+    <string name="protection_mode_install_only">Install-time only</string>
+    <string name="protection_mode_install_only_desc">Scans apps the moment they are installed or updated. No persistent notification; battery friendly.</string>
+    <string name="protection_mode_off">Off</string>
+    <string name="protection_mode_off_desc">No automatic scans; you scan manually.</string>
+    <string name="protection_notif_channel_name">Real-time protection</string>
+    <string name="protection_notif_channel_description">Persistent status of the always-on download guard</string>
+    <string name="protection_notif_title">Protection active</string>
+    <string name="protection_notif_body">Watching the Download folder for new APKs and scanning every app installation on-device.</string>
+    <string name="protection_notif_paused_title">Protection paused by the system</string>
+    <string name="protection_notif_paused_body">Android limits how long a background guard may run. Open X-Security to restart it; install-time scanning keeps working.</string>
+    <string name="protection_storage_rationale_title">Why does X-Security need access to all files?</string>
+    <string name="protection_storage_rationale_body">Always-on protection watches the shared Download folder so a freshly downloaded APK is scanned before you install it. Android only allows this through the \"All files access\" setting. X-Security reads nothing but new .apk files in Download, and nothing leaves the device. You can pick \"Install-time only\" instead to avoid this permission.</string>
+    <string name="protection_storage_rationale_ok">Open settings</string>
+    <string name="protection_storage_missing">Always-on needs \"All files access\". Tap to grant it, or choose \"Install-time only\".</string>
+    <string name="protection_status_running">Running · persistent notification shown</string>
+    <string name="protection_status_waiting">Waiting for the storage permission</string>
+    <string name="protection_quiet_clean">Stay silent when a new app is clean</string>
+    <string name="device_scan_rationale_ok">Understood, scan</string>
+
+    <!-- OTA (over-the-air) updater. Network is used ONLY for signed updates. -->
+    <string name="ota_card_title">Updates</string>
+    <string name="ota_idle_hint">In-app updates are RSA-signed and verified before installation; nothing installs without your confirmation.</string>
+    <string name="ota_check">Check for updates</string>
+    <string name="ota_checking">Checking for updates…</string>
+    <string name="ota_up_to_date">You are running the latest version.</string>
+    <string name="ota_update_available">Update available: %1$s (version %2$d)</string>
+    <string name="ota_download">Download update</string>
+    <string name="ota_downloading">Downloading update… %1$d%%</string>
+    <string name="ota_install">Install update</string>
+    <string name="ota_install_permission">Allow installing from this app in the system settings, then tap Install again.</string>
+    <string name="ota_error">Update failed: %1$s</string>
+    <string name="ota_not_configured">In-app updates are not configured on this build.</string>
+    <string name="ota_release_notes">Release notes: %1$s</string>
+    <string name="ota_installed_version">Installed version code: %1$d</string>
+    <string name="ota_notif_channel_name">Update status</string>
+    <string name="ota_notif_channel_description">Progress and readiness of signed app updates</string>
+    <string name="ota_notif_downloading_title">Downloading update</string>
+    <string name="ota_notif_ready_title">Update ready to install</string>
+    <string name="ota_notif_ready_body">Version %1$s was downloaded and verified. Open the app and tap Install.</string>
+    <string name="ota_notif_error_title">Update failed</string>
+    <string name="ota_notif_available_title">A new version is available</string>
+    <string name="ota_notif_available_body">Version %1$s is ready to download and install. Tap to review it.</string>
+    <string name="ota_force_update">This update is marked as required by the server.</string>
+
+    <!-- Definitions (signature database) channel -->
+    <string name="def_card_title">Signature database</string>
+    <string name="def_installed">Definitions v%1$d · %2$d YARA rules · %3$d ClamAV signatures · %4$d hash signatures</string>
+    <string name="def_idle_hint">Definition updates use the same RSA-signed channel as app updates; they are verified and applied automatically.</string>
+    <string name="def_check">Check for updates</string>
+    <string name="community_title">Community sources (direct)</string>
+    <string name="community_hint">Fetched directly from public community repositories over HTTPS and validated on-device before install — not RSA-signed like the definitions channel.</string>
+    <string name="community_not_installed">Not downloaded yet — use \"Check for updates\"</string>
+    <string name="community_updating">Updating…</string>
+    <string name="community_entries">%1$d signatures</string>
+    <string name="community_rules">%1$d rules</string>
+    <string name="def_update">Update now</string>
+    <string name="def_checking">Checking for definition updates…</string>
+    <string name="def_up_to_date">Definitions are up to date (v%1$d).</string>
+    <string name="def_update_available">New definitions available: v%1$d (installed: v%2$d).</string>
+    <string name="def_downloading">Downloading definitions… %1$d%%</string>
+    <string name="def_error">Definition update failed: %1$s</string>
+    <string name="def_error_generic">The definition package could not be installed.</string>
+    <string name="def_not_configured">Definition updates are not configured on this build.</string>
+    <string name="def_user_db_protected">A manually imported database is active; automatic definition updates are paused to protect it.</string>
+    <string name="def_notif_channel_name">Definition updates</string>
+    <string name="def_notif_channel_description">Status of signed signature-database updates</string>
+    <string name="def_notif_installed_title">Signature database updated</string>
+    <string name="def_notif_installed_body">Definitions v%1$d installed (%2$d YARA rules, %3$d ClamAV signatures, %4$d hash signatures).</string>
+    <string name="def_notif_error_title">Definition update failed</string>
 </resources>

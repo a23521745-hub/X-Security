@@ -11,15 +11,37 @@ import java.io.IOException
  * Uygulama-depolu imza veritabanlari.
  *
  * Repoda hicbir `.yar`/`.ndb` yoktu ve indirme akisi da bulunmadigi icin motor kutudan
- * cikis halinde bos donuyordu. Cozum: (1) `assets/signatures/` altindaki ornek
- * veritabanlari ilk calismada `filesDir/signatures/` kopyalanir, (2) kullanicini
- * SAF ile kendi kural/veritabanini secip atomik olarak kurabilir.
+ * cikis halinde bos donuyordu. Cozum katmanlari:
+ *  (1) `assets/signatures/` altindaki **kuratorluk secilmis** veritabanlari ilk
+ *      calismada `filesDir/signatures/` kopyalanir (kaynak `definitions/`),
+ *  (2) kullanicini SAF ile kendi kural/veritabanini secip atomik olarak kurabilir,
+ *  (3) imzali tanim kanali (`org.xsecurity.scanner.definitions`) guncel paketi
+ *      indirip [installFromDownload] ile ayni hedefe kurar.
  */
 object SignatureStore {
 
     enum class Kind(val fileName: String, val assetName: String, val requiredSuffix: String) {
-        YARA("rules.yar", "signatures/sample-rules.yar", ".yar"),
-        CLAM_AV("signatures.ndb", "signatures/sample-signatures.ndb", ".ndb")
+        YARA("rules.yar", "signatures/rules.yar", ".yar"),
+        CLAM_AV("signatures.ndb", "signatures/signatures.ndb", ".ndb"),
+        CLAM_HASHES("hashes.hsb", "signatures/hashes.hsb", ".hsb")
+    }
+
+    /** Paketle gelen tanim surumu (`assets/signatures/db-version.txt`); yoksa 0. */
+    fun bundledDefVersion(context: Context): Int = try {
+        context.assets.open("signatures/db-version.txt").use { stream ->
+            stream.readBytes().decodeToString().trim().toIntOrNull() ?: 0
+        }
+    } catch (_: Throwable) {
+        0
+    }
+
+    /** Paketle gelen imza dosyasinin kisa SHA-256 ozeti (ilk kurulum karsilastirmasi icin). */
+    fun bundledSha256Short(context: Context, kind: Kind): String? = try {
+        context.assets.open(kind.assetName).use { stream ->
+            Digest.shortHex(Digest.sha256Hex(stream))
+        }
+    } catch (_: Throwable) {
+        null
     }
 
     data class Info(
@@ -97,6 +119,26 @@ object SignatureStore {
             temp.delete()
             throw error
         }
+    }
+
+    /**
+     * OTA tanim kanali icin: indirilip SHA-256 ile dogrulanmis gecici dosyayi
+     * `filesDir/signatures/` altina atomik olarak kurar. Kaynak etiketi
+     * (`"ota-v7"` gibi) prefs'e yazilir; UI ve surum cozumlemesi bunu okur.
+     */
+    fun installFromDownload(context: Context, kind: Kind, temp: File, source: String) {
+        if (!temp.isFile || temp.length() <= 0L) {
+            throw IOException("Downloaded definitions file is empty or missing: ${temp.absolutePath}")
+        }
+        val target = file(context, kind)
+        val sha = Digest.sha256Hex(temp)
+        if (target.isFile) target.delete()
+        if (!temp.renameTo(target)) {
+            temp.delete()
+            throw IOException("Downloaded definitions could not be moved into place: ${target.absolutePath}")
+        }
+        markInstalled(context, kind, source, sha)
+        ScanEngines.invalidate()
     }
 
     fun clear(context: Context, kind: Kind) {

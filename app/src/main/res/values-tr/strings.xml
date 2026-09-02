@@ -1,9 +1,9 @@
 <resources>
     <string name="app_name">X-Security</string>
-    <string name="app_version">0.91.0-pre-release</string>
+    <string name="app_version">0.93.0</string>
 
     <string name="dashboard_subtitle">YARA + ClamAV imza motoruyla yerel APK taraması</string>
-    <string name="dashboard_footnote">X-Security %1$s · analizler cihazınızda yapılır, ağ izni yoktur</string>
+    <string name="dashboard_footnote">X-Security %1$s · tüm taramalar cihazınızda yapılır; ağ yalnızca imzalı güncellemeler için kullanılır</string>
 
     <string name="status_idle">Tarama bekleniyor</string>
     <string name="status_idle_hint">Başlamak için bir APK dosyası seçin.</string>
@@ -41,6 +41,7 @@
     <string name="engine_yara_rules">YARA kuralı</string>
     <string name="engine_yara_patterns">YARA kalıbı</string>
     <string name="engine_clam_signatures">ClamAV imzası</string>
+    <string name="engine_hash_signatures">ClamAV hash imzası</string>
     <string name="engine_pick_yara">.yar seç</string>
     <string name="engine_pick_clam">.ndb seç</string>
     <string name="engine_reload">Yeniden yükle</string>
@@ -62,4 +63,152 @@
     <string name="notif_threats_title">%1$d tehdit bulundu</string>
     <string name="notif_failed_title">Tarama tamamlanamadı</string>
     <string name="notif_failed_body">Motor veya dosya hatası; ayrıntılar için uygulamayı açın.</string>
+    <string name="notif_device_clean_title">Kurulu uygulamalar: tehdit bulunmadı</string>
+    <string name="notif_device_clean_body">%1$d uygulama tarandı; %2$d tanesi okunamadı. Eşleşen imza yok.</string>
+    <string name="notif_device_threats_title">%1$d kurulu uygulama işaretlendi</string>
+    <string name="action_uninstall">Kaldır</string>
+
+    <!-- Kurulu uygulama ("tümünü tara") taraması -->
+    <string name="device_scan_title">Kurulu uygulamalar</string>
+    <string name="device_scan_hint">Kurulu her uygulamanın APK’sı aynı YARA, ClamAV ve hash katmanlarıyla cihazda taranır. Bilinen stalkerware topluluk hash’leriyle doğrudan yakalanır.</string>
+    <string name="device_scan_idle">Henüz taranmadı.</string>
+    <string name="device_scan_action">Tüm kurulu uygulamaları tara</string>
+    <string name="device_scan_queued">Kurulu uygulama taraması hazırlanıyor…</string>
+    <string name="device_scan_progress">%1$d / %2$d · %3$s</string>
+    <string name="device_scan_summary">%1$d uygulama tarandı · %2$d işaretli · %3$d okunamadı · %4$d önbellekten · %5$s</string>
+    <string name="device_scan_result_name">Kurulu uygulamalar (%1$d)</string>
+    <string name="device_scan_include_system">Sistem uygulamalarını da tara (daha yavaş)</string>
+    <string name="device_scan_show_all">Tüm %1$d uygulamayı göster</string>
+    <string name="device_scan_hide_all">Listeyi gizle (%1$d uygulama)</string>
+    <string name="device_scan_entry_clean">temiz</string>
+    <string name="device_scan_entry_failed">taranamadı</string>
+    <string name="device_scan_advice">Kaldır düğmesi sistemin onay ekranını açar; uygulama asla sessizce silinmez. Stalkerware’den şüpheleniyorsanız parolalarınızı başka bir cihazdan değiştirin.</string>
+    <string name="device_scan_rationale_title">X-Security uygulama listenizi neden okur?</string>
+    <string name="device_scan_rationale_body">Kurulu uygulamaları taramak için X-Security bu cihazdaki tüm paketleri listeler (QUERY_ALL_PACKAGES) ve APK dosyalarını okur. Liste ve sonuçlar cihazda kalır; hiçbir şey yüklenmez. Stalkerware masum adların arkasına saklandığı için tarama sabit bir paket listesine güvenemez.</string>
+    <string name="notif_shield_threat_title">Yeni kurulan uygulamada tehdit: %1$s</string>
+    <string name="notif_shield_threat_body">%1$s (%2$s) şu imzalarla eşleşti: %3$s. Hemen kaldırın.</string>
+    <string name="notif_shield_password_advice">Bu uygulamayı siz kurmadıysanız veya stalkerware’den şüpheleniyorsanız önemli parolalarınızı başka bir cihazdan değiştirin ve hesap oturumlarınızı gözden geçirin.</string>
+    <string name="notif_shield_clean_title">Yeni uygulama tarandı</string>
+    <string name="notif_shield_clean_body">%1$s (%2$s) kurulumdan hemen sonra tarandı; eşleşen imza yok.</string>
+    <string name="notif_shield_failed_title">Yeni uygulama taranamadı</string>
+    <string name="notif_shield_failed_body">%1$s: %2$s</string>
+    <string name="shield_result_name">Kurulum kalkanı: %1$s</string>
+
+    <!-- Tarama geçmişi -->
+    <string name="history_title">Tarama geçmişi</string>
+    <string name="history_back">Geri</string>
+    <string name="history_empty">Henüz tarama kaydı yok.</string>
+    <string name="history_empty_hint">Tamamlanan cihaz, dosya ve kurulum kalkanı taramaları burada listelenir.</string>
+    <string name="history_share">Raporu paylaş</string>
+    <string name="history_share_subject">X-Security tarama raporu</string>
+    <string name="history_clear">Geçmişi temizle</string>
+    <string name="history_clear_title">Tarama geçmişi temizlensin mi?</string>
+    <string name="history_clear_body">Bu cihazdaki %1$d tarama kaydının tamamı silinecek.</string>
+    <string name="history_clear_confirm">Temizle</string>
+    <string name="history_filter_all">Tümü</string>
+    <string name="history_filter_device">Cihaz</string>
+    <string name="history_filter_file">Dosya</string>
+    <string name="history_filter_install">Kurulum</string>
+    <string name="history_filter_download">İndirme</string>
+    <string name="history_type_device">Cihaz taraması</string>
+    <string name="history_type_file">Dosya taraması</string>
+    <string name="history_type_install">Kurulum kalkanı</string>
+    <string name="history_type_download">İndirme izleme</string>
+    <string name="history_trigger_manual">Elle</string>
+    <string name="history_trigger_file_picker">Dosya seçici</string>
+    <string name="history_trigger_download_watch">İndirilenler klasörü</string>
+    <string name="history_trigger_install_shield">Kurulum kalkanı</string>
+    <string name="history_now">az önce</string>
+    <string name="history_minutes_ago">%1$d dk önce</string>
+    <string name="history_hours_ago">%1$d sa önce</string>
+    <string name="history_days_ago">%1$d gün önce</string>
+    <string name="history_threats_count">%1$d tehdit</string>
+    <string name="history_clean">temiz</string>
+    <string name="history_failed">hata</string>
+    <string name="history_detail_time">Zaman</string>
+    <string name="history_detail_type">Tür</string>
+    <string name="history_detail_apps">%1$d tarandı · %2$d işaretli · %3$d önbellekten</string>
+    <string name="history_detail_bytes">Taranan veri</string>
+    <string name="history_threats_title">Tehditler</string>
+    <string name="history_flagged_apps">İşaretli uygulamalar</string>
+    <string name="history_engine_counters">Tarama anındaki motor</string>
+    <string name="history_counters_line">YARA %1$d kural · %2$d kalıp · ClamAV %3$d · hash %4$d</string>
+    <string name="history_warnings">Uyarılar</string>
+    <string name="history_report_more">ve %1$d daha eski kayıt…</string>
+    <string name="history_count">%1$d kayıt</string>
+
+    <!-- Koruma ayarları -->
+    <string name="protection_title">Koruma</string>
+    <string name="protection_hint">X-Security’nin cihazı nasıl izleyeceğini seçin. Hiçbir modda veri cihazdan çıkmaz.</string>
+    <string name="protection_mode_always">Her zaman açık</string>
+    <string name="protection_mode_always_desc">Kalıcı servis: İndirilenler klasörünü yeni APK’lar için izler ve her kurulumu tarar.</string>
+    <string name="protection_mode_install_only">Sadece kurulum anı</string>
+    <string name="protection_mode_install_only_desc">Uygulamaları kurulduğu veya güncellendiği anda tarar. Kalıcı bildirim yok; pil dostu.</string>
+    <string name="protection_mode_off">Kapalı</string>
+    <string name="protection_mode_off_desc">Otomatik tarama yok; elle tararsınız.</string>
+    <string name="protection_notif_channel_name">Gerçek zamanlı koruma</string>
+    <string name="protection_notif_channel_description">Her zaman açık indirme korumasının kalıcı durumu</string>
+    <string name="protection_notif_title">Koruma aktif</string>
+    <string name="protection_notif_body">İndirilenler klasörü yeni APK’lar için izleniyor; her uygulama kurulumu cihazda taranıyor.</string>
+    <string name="protection_notif_paused_title">Koruma sistem tarafından duraklatıldı</string>
+    <string name="protection_notif_paused_body">Android arka plan korumasının ne kadar çalışabileceğini sınırlar. Yeniden başlatmak için X-Security’yi açın; kurulum anı taraması çalışmaya devam eder.</string>
+    <string name="protection_storage_rationale_title">X-Security neden tüm dosyalara erişim ister?</string>
+    <string name="protection_storage_rationale_body">Her zaman açık koruma, yeni indirilen bir APK’yı siz kurmadan önce tarayabilmek için paylaşılan İndirilenler klasörünü izler. Android buna yalnızca \"Tüm dosyalara erişim\" ayarıyla izin verir. X-Security İndirilenler’deki yeni .apk dosyaları dışında hiçbir şey okumaz ve hiçbir veri cihazdan çıkmaz. Bu izni istemiyorsanız \"Sadece kurulum anı\" modunu seçebilirsiniz.</string>
+    <string name="protection_storage_rationale_ok">Ayarları aç</string>
+    <string name="protection_storage_missing">Her zaman açık mod için \"Tüm dosyalara erişim\" gerekli. Vermek için dokunun ya da \"Sadece kurulum anı\" seçin.</string>
+    <string name="protection_status_running">Çalışıyor · kalıcı bildirim gösteriliyor</string>
+    <string name="protection_status_waiting">Depolama izni bekleniyor</string>
+    <string name="protection_quiet_clean">Yeni uygulama temizse sessiz kal</string>
+    <string name="device_scan_rationale_ok">Anladım, tara</string>
+
+    <!-- OTA (internet üzerinden) güncelleyici. ağ YALNIZCA imzalı güncellemeler için kullanılır. -->
+    <string name="ota_card_title">Güncellemeler</string>
+    <string name="ota_idle_hint">Uygulama içi güncellemeler kuruludan önce RSA ile imzalanır ve doğrulanır; onayınız olmadan hiçbir şey kurulmaz.</string>
+    <string name="ota_check">Güncellemeleri kontrol et</string>
+    <string name="ota_checking">Güncellemeler kontrol ediliyor…</string>
+    <string name="ota_up_to_date">En güncel sürümü kullanıyorsunuz.</string>
+    <string name="ota_update_available">Güncelleme hazır: %1$s (sürüm %2$d)</string>
+    <string name="ota_download">Güncellemeyi indir</string>
+    <string name="ota_downloading">Güncelleme indiriliyor… %1$d%%</string>
+    <string name="ota_install">Güncellemeyi kur</string>
+    <string name="ota_install_permission">Sistem ayarlarından bu uygulamaya kurulum izni verin, sonra Kur’a tekrar dokunun.</string>
+    <string name="ota_error">Güncelleme başarısız: %1$s</string>
+    <string name="ota_not_configured">Bu derlemede uygulama içi güncelleme yapılandırılmamış.</string>
+    <string name="ota_release_notes">Sürüm notları: %1$s</string>
+    <string name="ota_installed_version">Yüklü sürüm kodu: %1$d</string>
+    <string name="ota_notif_channel_name">Güncelleme durumu</string>
+    <string name="ota_notif_channel_description">İmzalı uygulama güncellemelerinin ilerlemesi ve hazır olması</string>
+    <string name="ota_notif_downloading_title">Güncelleme indiriliyor</string>
+    <string name="ota_notif_ready_title">Güncelleme kuruluma hazır</string>
+    <string name="ota_notif_ready_body">Sürüm %1$s indirildi ve doğrulandı. Uygulamayı açıp Kur’a dokunun.</string>
+    <string name="ota_notif_error_title">Güncelleme başarısız</string>
+    <string name="ota_notif_available_title">Yeni sürüm mevcut</string>
+    <string name="ota_notif_available_body">%1$s sürümü indirilmeye ve kurulmaya hazır. İncelemek için dokunun.</string>
+    <string name="ota_force_update">Bu güncelleme sunucu tarafından zorunlu olarak işaretlendi.</string>
+
+    <!-- Tanım (imza veritabanı) kanalı -->
+    <string name="def_card_title">İmza veritabanı</string>
+    <string name="def_installed">Tanım paketi v%1$d · %2$d YARA kuralı · %3$d ClamAV imzası · %4$d hash imzası</string>
+    <string name="def_idle_hint">Tanım güncellemeleri uygulama güncellemeleriyle aynı RSA imzalı kanalı kullanır; doğrulanır ve otomatik uygulanır.</string>
+    <string name="def_check">Güncellemeleri kontrol et</string>
+    <string name="community_title">Topluluk kaynakları (doğrudan)</string>
+    <string name="community_hint">Herkese açık topluluk depolarından HTTPS ile doğrudan çekilir ve kurulmadan önce cihazda doğrulanır — tanım kanalındaki gibi RSA imzalı değildir.</string>
+    <string name="community_not_installed">Henüz indirilmedi — \"Güncellemeleri kontrol et\" düğmesini kullanın</string>
+    <string name="community_updating">Güncelleniyor…</string>
+    <string name="community_entries">%1$d imza</string>
+    <string name="community_rules">%1$d kural</string>
+    <string name="def_update">Şimdi güncelle</string>
+    <string name="def_checking">Tanım güncellemeleri kontrol ediliyor…</string>
+    <string name="def_up_to_date">Tanım paketi güncel (v%1$d).</string>
+    <string name="def_update_available">Yeni tanım paketi var: v%1$d (kurulu: v%2$d).</string>
+    <string name="def_downloading">Tanım paketi indiriliyor… %%%1$d</string>
+    <string name="def_error">Tanım güncellemesi başarısız: %1$s</string>
+    <string name="def_error_generic">Tanım paketi kurulamadı.</string>
+    <string name="def_not_configured">Tanım güncellemeleri bu derlemede yapılandırılmamış.</string>
+    <string name="def_user_db_protected">Elle içe aktarılmış bir veritabanı etkin; otomatik tanım güncellemeleri onu korumak için duraklatıldı.</string>
+    <string name="def_notif_channel_name">Tanım güncellemeleri</string>
+    <string name="def_notif_channel_description">İmzalı imza veritabanı güncellemelerinin durumu</string>
+    <string name="def_notif_installed_title">İmza veritabanı güncellendi</string>
+    <string name="def_notif_installed_body">Tanım paketi v%1$d kuruldu (%2$d YARA kuralı, %3$d ClamAV imzası, %4$d hash imzası).</string>
+    <string name="def_notif_error_title">Tanım güncellemesi başarısız</string>
 </resources>

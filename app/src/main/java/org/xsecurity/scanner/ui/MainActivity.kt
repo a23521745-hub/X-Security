@@ -1,12 +1,14 @@
 package org.xsecurity.scanner.ui
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.OpenableColumns
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
@@ -20,12 +22,32 @@ import kotlinx.coroutines.withContext
 import org.xsecurity.scanner.R
 import org.xsecurity.scanner.data.EngineInfo
 import org.xsecurity.scanner.data.ScanController
+import org.xsecurity.scanner.data.ScanHistoryStore
 import org.xsecurity.scanner.data.ScanNotifications
 import org.xsecurity.scanner.data.ScanStore
 import org.xsecurity.scanner.data.SignatureStore
+import org.xsecurity.scanner.community.CommunityStore
+import org.xsecurity.scanner.definitions.DefinitionsController
+import org.xsecurity.scanner.definitions.DefinitionsStore
+import org.xsecurity.scanner.device.DeviceScanStore
+import org.xsecurity.scanner.device.InstallShieldReceiver
+import org.xsecurity.scanner.device.ProtectionMode
+import org.xsecurity.scanner.device.ProtectionSettings
+import org.xsecurity.scanner.device.RealtimeProtectionService
+import org.xsecurity.scanner.device.StorageAccess
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import org.xsecurity.scanner.engine.ScanEngines
+import org.xsecurity.scanner.ota.OtaController
+import org.xsecurity.scanner.ota.OtaNotifications
+import org.xsecurity.scanner.ota.OtaStore
 import org.xsecurity.scanner.ui.screens.DashboardScreen
+import org.xsecurity.scanner.ui.screens.HistoryScreen
 import org.xsecurity.scanner.ui.theme.XSecurityTheme
+import java.io.File
 
 /**
  * Uygulamanin tek ekrani.
@@ -52,6 +74,16 @@ class MainActivity : ComponentActivity() {
     private val notificationPermission =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* sonuç önemli degil */ }
 
+    /** API 26-29: klasik depolama izni (API 30+ ayar ekranina gider, bkz. StorageAccess). */
+    private val storagePermission =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { refreshProtection() }
+
+    private var storageGranted by mutableStateOf(false)
+    private var protectionRunning by mutableStateOf(false)
+    private var showStorageRationale by mutableStateOf(false)
+    /** Tarama gecmisi ekraninin acik/kapali oldugunu tutar (yeni activity yok). */
+    private var showHistory by mutableStateOf(false)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // API 35 hedefinde kenar-dan-kenara zorunlu; SystemBarStyle varsayilanlari
@@ -61,21 +93,86 @@ class MainActivity : ComponentActivity() {
 
         SignatureStore.ensureBundledDefaults(this)
         ScanNotifications.ensureChannel(this)
+        OtaNotifications.ensureChannel(this)
         ScanStore.restore(this)
+        OtaStore.restore(this)
+        DefinitionsStore.restore(this)
+        DeviceScanStore.restore(this)
+        ScanHistoryStore.restore(this)
+        ProtectionSettings.restore(this)
+        applyProtectionMode(promptForStorage = false)
         requestNotificationPermissionIfNeeded()
+        // Gunluk imzali guncelleme kontrolu (yalnizca ag bagliyken; bildirim sessiz).
+        OtaController.schedulePeriodicCheck(this)
+        // Gunluk imzali TANIM paketi kontrolu (ayni anahtar/kanal; kurulum otomatik).
+        DefinitionsController.schedulePeriodicCheck(this)
+        CommunityStore.publish(this)
         reloadEngine()
 
         setContent {
             XSecurityTheme {
                 val state by ScanStore.state.collectAsState()
-                DashboardScreen(
-                    state = state,
-                    onScanApk = { apkPicker.launch(APK_MIME_TYPES) },
-                    onPickYaraRules = { yaraPicker.launch(ANY_MIME_TYPES) },
-                    onPickClamDatabase = { clamPicker.launch(ANY_MIME_TYPES) },
-                    onReloadEngine = { reloadEngine() },
-                    onCancelScan = { ScanController.cancelAll(this) }
-                )
+                val otaState by OtaStore.state.collectAsState()
+                val defState by DefinitionsStore.state.collectAsState()
+                val deviceState by DeviceScanStore.state.collectAsState()
+                val protectionState by ProtectionSettings.state.collectAsState()
+                val historyEntries by ScanHistoryStore.entries.collectAsState()
+                // Sistem geri dongusu gecmis ekranindan dashboard'a doner.
+                BackHandler(enabled = showHistory) { showHistory = false }
+                if (showStorageRationale) {
+                    AlertDialog(
+                        onDismissRequest = { showStorageRationale = false },
+                        title = { Text(getString(R.string.protection_storage_rationale_title)) },
+                        text = { Text(getString(R.string.protection_storage_rationale_body)) },
+                        confirmButton = {
+                            TextButton(onClick = {
+                                showStorageRationale = false
+                                launchStoragePermission()
+                            }) { Text(getString(R.string.protection_storage_rationale_ok)) }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { showStorageRationale = false }) { Text(getString(R.string.action_cancel)) }
+                        }
+                    )
+                }
+                if (showHistory) {
+                    HistoryScreen(
+                        entries = historyEntries,
+                        onBack = { showHistory = false },
+                        onShareReport = { report -> shareScanReport(report) },
+                        onClearHistory = { ScanHistoryStore.clear(this) }
+                    )
+                } else {
+                    DashboardScreen(
+                        state = state,
+                        otaState = otaState,
+                        defState = defState,
+                        deviceState = deviceState,
+                        protectionState = protectionState,
+                        installedVersionCode = OtaController.currentVersionCode(this),
+                        historyEntries = historyEntries,
+                        onScanApk = { apkPicker.launch(APK_MIME_TYPES) },
+                        onScanDevice = { includeSystem -> queueDeviceScan(includeSystem) },
+                        onUninstall = { packageName -> requestUninstall(packageName) },
+                        onProtectionModeChange = { mode ->
+                            ProtectionSettings.setMode(this, mode)
+                            applyProtectionMode(promptForStorage = true)
+                        },
+                        onProtectionQuietChange = { quiet -> ProtectionSettings.setQuietWhenClean(this, quiet) },
+                        onOpenHistory = { showHistory = true },
+                        storageGranted = storageGranted,
+                        protectionServiceRunning = protectionRunning,
+                        onRequestStorage = { showStorageRationale = true },
+                        onPickYaraRules = { yaraPicker.launch(ANY_MIME_TYPES) },
+                        onPickClamDatabase = { clamPicker.launch(ANY_MIME_TYPES) },
+                        onReloadEngine = { reloadEngine() },
+                        onCancelScan = { ScanController.cancelAll(this) },
+                        onCheckUpdate = { lifecycleScope.launch { OtaController.check(this@MainActivity) } },
+                        onDownloadUpdate = { startDownload() },
+                        onInstallUpdate = { installDownloadedUpdate() },
+                        onCheckDefinitions = { DefinitionsController.enqueueManualCheck(this) }
+                    )
+                }
             }
         }
     }
@@ -84,6 +181,130 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         // Worker baska bir surecten calissa bile sonucui yenile.
         ScanStore.restore(this)
+        OtaStore.restore(this)
+        DefinitionsStore.restore(this)
+        DeviceScanStore.restore(this)
+        ScanHistoryStore.restore(this)
+        // Kullanici "Tum dosyalara erisim" ayarindan donmus olabilir.
+        refreshProtection()
+        pendingUninstall?.let { packageName ->
+            pendingUninstall = null
+            // Kullanici sistem ekranindan dondu: paket gercekten gittiyse listeden dus.
+            if (!isPackageInstalled(packageName)) DeviceScanStore.removePackage(this, packageName)
+        }
+    }
+
+    /**
+     * Koruma moduna gore: kurulum kalkaninin dinamik kaydi + "Her zaman acik" servisi.
+     * Servis yalnizca depolama izni varsa baslar; yoksa once neden-gerekli diyalogu.
+     */
+    private fun applyProtectionMode(promptForStorage: Boolean) {
+        val mode = ProtectionSettings.mode(this)
+        if (ProtectionSettings.installShieldEnabled(mode)) {
+            InstallShieldReceiver.register(this)
+        } else {
+            InstallShieldReceiver.unregister(this)
+        }
+        storageGranted = StorageAccess.hasAllFilesAccess(this)
+        if (mode == ProtectionMode.ALWAYS) {
+            if (storageGranted) {
+                RealtimeProtectionService.start(this)
+            } else if (promptForStorage) {
+                // Izin istemeden once amac diyalogu; acilista nag yapmaz, kart uyari gosterir.
+                showStorageRationale = true
+            }
+        } else {
+            RealtimeProtectionService.stop(this)
+        }
+        protectionRunning = RealtimeProtectionService.running
+    }
+
+    /** Izin/servis durumunu yeniden oku; izin yeni verildiyse servisi baslat. */
+    private fun refreshProtection() {
+        storageGranted = StorageAccess.hasAllFilesAccess(this)
+        if (ProtectionSettings.mode(this) == ProtectionMode.ALWAYS && storageGranted &&
+            !RealtimeProtectionService.running
+        ) {
+            RealtimeProtectionService.start(this)
+        }
+        protectionRunning = RealtimeProtectionService.running
+    }
+
+    /** Neden-gerekli diyalogu onaylandi: API 30+ sistem ayari, altinda runtime izni. */
+    private fun launchStoragePermission() {
+        if (StorageAccess.usesRuntimePermission) {
+            storagePermission.launch(Manifest.permission.READ_EXTERNAL_STORAGE)
+            return
+        }
+        for (intent in StorageAccess.settingsIntents(this)) {
+            if (runCatching { startActivity(intent) }.isSuccess) return
+        }
+    }
+
+    /** Sistem kaldirma ekranina donusu izlemek icin (sessiz kaldirma yok). */
+    private var pendingUninstall: String? = null
+
+    private fun queueDeviceScan(includeSystemApps: Boolean) {
+        DeviceScanStore.acceptRationale(this)
+        ScanStore.markQueued(this, getString(R.string.device_scan_queued))
+        if (!ScanController.enqueueDeviceScan(this, includeSystemApps)) {
+            ScanStore.markFailed(this, getString(R.string.stage_failed))
+        }
+    }
+
+    /** Sistemin kaldirma onay ekranini acar; son karar kullanicinindir. */
+    private fun requestUninstall(packageName: String) {
+        pendingUninstall = packageName
+        runCatching { startActivity(ScanController.uninstallIntent(packageName)) }
+            .onFailure { pendingUninstall = null }
+    }
+
+    /** Tarama gecmisini metin raporu olarak diger uygulamalara paylasir (ACTION_SEND). */
+    private fun shareScanReport(report: String) {
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_SUBJECT, getString(R.string.history_share_subject))
+            putExtra(Intent.EXTRA_TEXT, report)
+        }
+        runCatching {
+            startActivity(Intent.createChooser(intent, getString(R.string.history_share)))
+        }
+    }
+
+    private fun isPackageInstalled(packageName: String): Boolean = try {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            packageManager.getPackageInfo(packageName, PackageManager.PackageInfoFlags.of(0))
+        } else {
+            @Suppress("DEPRECATION")
+            packageManager.getPackageInfo(packageName, 0)
+        }
+        true
+    } catch (_: PackageManager.NameNotFoundException) {
+        false
+    } catch (_: Exception) {
+        true
+    }
+
+    /** Indirme butonu: yalnizca dogrulanmis bir guncelleme varken Worker'i kuyruklar. */
+    private fun startDownload() {
+        val info = OtaStore.state.value.available ?: return
+        OtaController.enqueueDownload(this, info)
+    }
+
+    /**
+     * Kur butonu: indirilmis + dogrulanmis APK icin sistemin paket kurulum ekranini acar.
+     * Uygulama hicbir zaman sessiz kurmaz; izin yoksa kullanici sistem ayarina yonlendirilir.
+     */
+    private fun installDownloadedUpdate() {
+        val path = OtaStore.state.value.downloadedPath ?: return
+        when (val result = OtaController.install(this, File(path))) {
+            is OtaController.Result.NeedsPermission -> {
+                runCatching { startActivity(result.settingsIntent) }
+                OtaStore.error(getString(R.string.ota_install_permission))
+            }
+            is OtaController.Result.Error -> OtaStore.error(result.message)
+            OtaController.Result.InstallPromptLaunched -> Unit // sistem kurulum ekrani acildi
+        }
     }
 
     private fun queueScan(uri: Uri) {
@@ -125,7 +346,10 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch(Dispatchers.IO) {
             val yaraFile = SignatureStore.fileOrNull(this@MainActivity, SignatureStore.Kind.YARA)
             val clamFile = SignatureStore.fileOrNull(this@MainActivity, SignatureStore.Kind.CLAM_AV)
-            val acquired = ScanEngines.acquire(yaraFile, clamFile, force = false)
+            val hashFile = SignatureStore.fileOrNull(this@MainActivity, SignatureStore.Kind.CLAM_HASHES)
+            val communityYara = CommunityStore.enabledYaraFiles(this@MainActivity)
+            val communityHashes = CommunityStore.enabledHashFiles(this@MainActivity)
+            val acquired = ScanEngines.acquire(yaraFile, clamFile, hashFile, communityYara, communityHashes, force = false)
             withContext(Dispatchers.Main) {
                 val engine = acquired.getOrNull()
                 if (engine == null) {
@@ -139,7 +363,8 @@ class MainActivity : ComponentActivity() {
                         EngineInfo.from(
                             engine = engine,
                             yaraPath = yaraFile?.absolutePath,
-                            clamPath = clamFile?.absolutePath
+                            clamPath = clamFile?.absolutePath,
+                            hashPath = hashFile?.absolutePath
                         )
                     )
                     ScanStore.markEngineReady()

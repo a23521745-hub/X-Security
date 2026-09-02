@@ -1,0 +1,11 @@
+{
+  "versionCode": 14,
+  "versionName": "0.93.0",
+  "apkUrl": "https://github.com/a23521745-hub/X-Security/releases/download/v14/X-Security.apk",
+  "apkSha256": "f8c10d0e0270df60a8aabf5a99975f2cfc894f3bcb0068dca7d60e4a378b9f7d",
+  "apkSizeBytes": 6535168,
+  "minSdk": 26,
+  "forceUpdate": false,
+  "changelog": "X-Security otomatik OTA güncellemesi (v14)",
+  "releaseNotes": "X-Security Otomatik OTA Güncellemesi (v14)"
+}

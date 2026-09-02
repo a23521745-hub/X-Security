@@ -1,429 +1,59 @@
 <!DOCTYPE html>
 <html lang="tr" class="dark scroll-smooth">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="X-Security: YARA kurallari ve ClamAV .ndb imzalarini cihazda calisan hafif bir kalip motoruyla tarayan acik kaynak Android guvenlik araci.">
-  <meta name="theme-color" content="#08090D">
-  <meta property="og:type" content="website">
-  <meta property="og:title" content="X-Security — acik kaynak mobil guvenlik tarayicisi">
-  <meta property="og:description" content="YARA + ClamAV .ndb imzalarini cihazda tarar; ag izni istemez.">
-  <meta property="og:url" content="https://github.com/a23521745-hub/X-Security">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%2308090D'/%3E%3Cpath d='M16 5l8 3v7c0 6-3.6 11-8 12.4C11.6 26 8 21 8 15V8z' fill='none' stroke='%2300F2FE' stroke-width='2'/%3E%3C/svg%3E">
-  <title>X-Security — Open Source Mobile Security</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>X-Security — 3D Cyber Threat Intelligence & Android Anti-Stalkerware</title>
+  
+  <!-- Primary Meta Tags -->
+  <meta name="title" content="X-Security — Android Anti-Stalkerware & 4-Layer Threat Intelligence" />
+  <meta name="description" content="Free, open-source Android anti-stalkerware and security engine. 100% on-device 4-layer scanning (YARA, ClamAV .ndb, Hash DB, ZIP Inspection) with zero telemetry." />
+  <meta name="theme-color" content="#05070d" />
+  
+  <!-- Open Graph / Facebook / LinkedIn -->
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://a23521745-hub.github.io/X-Security/" />
+  <meta property="og:title" content="X-Security — 3D Cyber Threat Intelligence & Android Anti-Stalkerware" />
+  <meta property="og:description" content="Detect hidden spy and stalkerware apps on Android with a 4-layer on-device engine. Free forever, open source, no accounts, no telemetry." />
+  <meta property="og:image" content="og-image.svg" />
+  
+  <!-- Twitter -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:url" content="https://a23521745-hub.github.io/X-Security/" />
+  <meta name="twitter:title" content="X-Security — 3D Cyber Threat Intelligence & Android Anti-Stalkerware" />
+  <meta name="twitter:description" content="Detect hidden spy and stalkerware apps on Android with a 4-layer on-device engine. Free & open source." />
+  <meta name="twitter:image" content="og-image.svg" />
 
-  <!-- Google Fonts: Plus Jakarta Sans & JetBrains Mono -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <!-- Favicon -->
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2322d3ee' stroke='%2305070d' stroke-width='0.5'%3E%3Cpath d='M12 2l8 4v6c0 5.25-3.5 9.74-8 11-4.5-1.26-8-5.75-8-11V6l8-4z'/%3E%3C/svg%3E" />
 
-  <!-- Material Symbols Outlined Icons -->
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" />
+  <!-- Fonts Preconnect -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Space+Grotesk:wght@500;600;700;800&display=swap" rel="stylesheet" />
 
-  <!-- Tailwind CSS CDN: prototip icin pratik, uretimde derlenmis statik CSS tercih edin
-       (CDN calisma aninda JIT derler; ek JS yuku ve ucuncu taraf bagimliligi demek). -->
-  <script src="https://cdn.tailwindcss.com" referrerpolicy="no-referrer"></script>
-  <script>
-    tailwind.config = {
-      darkMode: 'class',
-      theme: {
-        extend: {
-          fontFamily: {
-            sans: ['"Plus Jakarta Sans"', 'sans-serif'],
-            mono: ['"JetBrains Mono"', 'monospace'],
-          },
-          colors: {
-            cyber: {
-              black: '#08090D',
-              surface: '#0E1117',
-              container: '#151922',
-              border: '#212735',
-              accent: '#00F2FE'
-            }
-          }
-        }
-      }
-    }
+  <!-- JSON-LD Structured Data -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "X-Security",
+    "operatingSystem": "Android 8.0+",
+    "applicationCategory": "SecurityApplication",
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "USD"
+    },
+    "description": "Free, open-source Android anti-stalkerware detection engine with 4-layer on-device scanning.",
+    "downloadUrl": "https://github.com/a23521745-hub/X-Security/releases/latest",
+    "softwareVersion": "latest",
+    "fileSize": "6MB"
+  }
   </script>
-
-  <!-- Custom CSS for Cyber Brick Grid & Animated RGB Glow -->
-  <style>
-    /* Siyah Tuğla Grid Arka Plan */
-    .bg-brick-grid {
-      background-color: #07080C;
-      background-image: 
-        linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
-        linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
-        radial-gradient(circle at 50% 0%, rgba(0, 242, 254, 0.12) 0%, transparent 65%);
-      background-size: 36px 36px, 36px 36px, 100% 100%;
-    }
-
-    /* Akıcı RGB Gradient Animasyonu */
-    @keyframes rgbFlow {
-      0% { background-position: 0% 50%; }
-      50% { background-position: 100% 50%; }
-      100% { background-position: 0% 50%; }
-    }
-
-    .animate-rgb-text {
-      background: linear-gradient(90deg, #00f2fe, #4facfe, #8b5cf6, #ec4899, #10b981, #00f2fe);
-      background-size: 300% 300%;
-      animation: rgbFlow 6s ease infinite;
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-    }
-
-    /* RGB Neon Çerçeve Parlaması */
-    .rgb-border-glow {
-      position: relative;
-    }
-    .rgb-border-glow::before {
-      content: '';
-      position: absolute;
-      inset: -2px;
-      border-radius: 1.75rem;
-      background: linear-gradient(45deg, #00f2fe, #ec4899, #8b5cf6, #10b981);
-      background-size: 300% 300%;
-      z-index: -1;
-      animation: rgbFlow 6s ease infinite;
-      filter: blur(10px);
-      opacity: 0.5;
-    }
-
-    /* Notion Dokunuşu: İnce ve Temiz Kenarlıklar */
-    .notion-card {
-      background: rgba(14, 17, 23, 0.85);
-      backdrop-filter: blur(12px);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      transition: all 0.25s ease;
-    }
-    .notion-card:hover {
-      border-color: rgba(0, 242, 254, 0.3);
-      box-shadow: 0 8px 32px -8px rgba(0, 242, 254, 0.15);
-    }
-  </style>
 </head>
-<body class="bg-brick-grid text-slate-100 font-sans antialiased min-h-screen selection:bg-cyan-500 selection:text-black">
-
-  <!-- NAVIGATION (M3 + NOTION STYLE) -->
-  <header class="fixed top-0 inset-x-0 z-50 p-4 sm:p-6">
-    <nav class="max-w-6xl mx-auto flex items-center justify-between px-6 py-3.5 rounded-3xl notion-card shadow-2xl">
-      <!-- Logo -->
-      <a href="#top" class="flex items-center gap-3 group">
-        <div class="w-9 h-9 rounded-2xl bg-gradient-to-tr from-cyan-500 to-indigo-600 flex items-center justify-center text-black font-extrabold font-mono text-sm shadow-lg shadow-cyan-500/20 group-hover:scale-105 transition-transform">
-          XS
-        </div>
-        <div class="flex flex-col">
-          <span class="font-bold text-base tracking-wider text-white flex items-center gap-1.5">
-            X-SECURITY
-            <span class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
-          </span>
-          <span class="text-[10px] font-mono text-slate-400">Open Source Engine</span>
-        </div>
-      </a>
-
-      <!-- Desktop Nav -->
-      <div class="hidden md:flex items-center gap-8 text-xs font-mono text-slate-400">
-        <a href="#features" class="hover:text-cyan-400 transition-colors">/ozellikler</a>
-        <a href="#architecture" class="hover:text-cyan-400 transition-colors">/mimari</a>
-        <a href="#releases" class="hover:text-cyan-400 transition-colors">/github-releases</a>
-      </div>
-
-      <!-- Actions -->
-      <div class="flex items-center gap-3">
-        <a href="https://github.com/a23521745-hub/X-Security/releases" target="_blank" rel="noopener noreferrer" class="px-5 py-2.5 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/10 text-white font-mono text-xs font-semibold flex items-center gap-2 transition-all hover:scale-105">
-          <span class="material-symbols-outlined text-[18px] text-cyan-400">download</span>
-          <span>Releases</span>
-        </a>
-      </div>
-    </nav>
-  </header>
-
-  <!-- MAIN CONTENT -->
-  <main id="top" class="max-w-6xl mx-auto px-5 pt-36 sm:pt-48 pb-24 space-y-32">
-
-    <!-- HERO SECTION -->
-    <section class="flex flex-col items-center text-center space-y-8 max-w-4xl mx-auto">
-      
-      <!-- Open Source Badge -->
-      <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-cyan-500/30 bg-cyan-500/10 text-cyan-300 font-mono text-xs font-medium tracking-wide">
-        <span class="material-symbols-outlined text-[16px] text-cyan-400">code</span>
-        <span>AÇIK KAYNAK MOBİL GÜVENLİK MOTORU</span>
-      </div>
-
-      <!-- MAIN RGB TITLE -->
-      <h1 class="text-4xl sm:text-6xl lg:text-7xl font-extrabold tracking-tight leading-[1.08]">
-        <span class="animate-rgb-text">The Best Open Source Mobile Security</span>
-      </h1>
-
-      <p class="text-base sm:text-lg text-slate-400 max-w-2xl leading-relaxed font-normal">
-        YARA kurallarını ve ClamAV <code>.ndb</code> imzalarını cihazda tarayan hafif, açık kaynak kalıp motoru — ağ izni yok, buluta veri gitmiyor.
-      </p>
-
-      <!-- RGB GLOW CTA BUTTONS -->
-      <div class="flex flex-wrap items-center justify-center gap-5 pt-4">
-        <div class="rgb-border-glow">
-          <a href="https://github.com/a23521745-hub/X-Security/releases" target="_blank" rel="noopener noreferrer" class="px-8 py-4 rounded-3xl bg-cyber-black text-white font-semibold text-sm flex items-center gap-3 shadow-2xl hover:bg-cyber-container transition-colors">
-            <span class="material-symbols-outlined text-cyan-400 text-[20px]">download</span>
-            <span>GitHub Releases</span>
-            <span class="material-symbols-outlined text-[18px] text-slate-400">arrow_forward</span>
-          </a>
-        </div>
-
-        <a href="https://github.com/a23521745-hub/X-Security" target="_blank" rel="noopener noreferrer" class="px-7 py-4 rounded-3xl notion-card text-slate-300 hover:text-white font-mono text-xs font-medium flex items-center gap-2">
-          <span class="material-symbols-outlined text-[18px]">code</span>
-          <span>GitHub Repo</span>
-        </a>
-      </div>
-
-      <!-- Live Terminal Widget (Sadeleştirilmiş) -->
-      <div class="w-full mt-12 p-6 rounded-3xl notion-card text-left font-mono text-xs space-y-4 border-l-4 border-l-cyan-400">
-        <div class="flex items-center justify-between pb-3 border-b border-white/10 text-slate-400">
-          <div class="flex items-center gap-2">
-            <span class="w-3 h-3 rounded-full bg-rose-500/80"></span>
-            <span class="w-3 h-3 rounded-full bg-amber-500/80"></span>
-            <span class="w-3 h-3 rounded-full bg-emerald-500/80"></span>
-            <span class="ml-2 text-slate-300 font-bold">xsecurity_core.engine</span>
-          </div>
-          <span class="text-cyan-400 font-semibold">[READY]</span>
-        </div>
-        <div class="grid sm:grid-cols-3 gap-3 text-slate-300">
-          <div class="p-3 rounded-2xl bg-white/[0.03] flex flex-col gap-1">
-            <span class="text-slate-400 text-[11px]">Kalıp Motoru</span>
-            <span class="text-emerald-400 font-bold">YARA alt kümesi</span>
-          </div>
-          <div class="p-3 rounded-2xl bg-white/[0.03] flex flex-col gap-1">
-            <span class="text-slate-400 text-[11px]">İmza Veritabanı</span>
-            <span class="text-cyan-400 font-bold">.ndb okuyucu</span>
-          </div>
-          <div class="p-3 rounded-2xl bg-white/[0.03] flex flex-col gap-1">
-            <span class="text-slate-400 text-[11px]">Tarama</span>
-            <span class="text-indigo-400 font-bold">Cihaz içi, akışlı</span>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- FEATURES SECTION -->
-    <section id="features" class="space-y-10">
-      <div class="space-y-2">
-        <span class="font-mono text-xs text-cyan-400 font-semibold uppercase tracking-wider">/ ÖZELLİKLER</span>
-        <h2 class="text-3xl font-extrabold tracking-tight">Temel Katmanlar</h2>
-      </div>
-
-      <div class="grid md:grid-cols-3 gap-6">
-        
-        <!-- Feature 1 -->
-        <div class="p-7 rounded-3xl notion-card space-y-3 group">
-          <div class="w-11 h-11 rounded-2xl bg-cyan-500/10 text-cyan-400 flex items-center justify-center border border-cyan-500/20 group-hover:scale-105 transition-transform">
-            <span class="material-symbols-outlined text-[24px]">search_check</span>
-          </div>
-          <h3 class="text-lg font-bold text-white">Saf YARA Kuralları</h3>
-          <p class="text-xs text-slate-400 leading-relaxed">
-            Kural dosyalarınızı ayrıştırıp APK içindeki bayt kalıplarını arayarak eşleşen kuralları raporlayan yerleşik YARA motoru (desteklenmeyen sözdizimi sessizce düşürmek yerine sayar ve bildirir).
-          </p>
-        </div>
-
-        <!-- Feature 2 -->
-        <div class="p-7 rounded-3xl notion-card space-y-3 group">
-          <div class="w-11 h-11 rounded-2xl bg-purple-500/10 text-purple-400 flex items-center justify-center border border-purple-500/20 group-hover:scale-105 transition-transform">
-            <span class="material-symbols-outlined text-[24px]">database</span>
-          </div>
-          <h3 class="text-lg font-bold text-white">ClamAV Veritabanı</h3>
-          <p class="text-xs text-slate-400 leading-relaxed">
-            ClamAV&#39;ın <code>.ndb</code> biçimini okur; ofset ve maskeleme gibi alanları uygular, desteklemediği jokerleri raporlar. Bu bir ClamAV bağlayıcısı değildir — imza dosyasını siz sağlarsınız.
-          </p>
-        </div>
-
-        <!-- Feature 3 -->
-        <div class="p-7 rounded-3xl notion-card space-y-3 group">
-          <div class="w-11 h-11 rounded-2xl bg-pink-500/10 text-pink-400 flex items-center justify-center border border-pink-500/20 group-hover:scale-105 transition-transform">
-            <span class="material-symbols-outlined text-[24px]">psychology</span>
-          </div>
-          <h3 class="text-lg font-bold text-white">Dürüst Sınırlar</h3>
-          <p class="text-xs text-slate-400 leading-relaxed">
-            Makine öğrenmesi veya davranışsal analiz yok. Motor imza yükleyemezse &quot;temiz&quot; demez; <code>FAILED</code> ve uyari listesiyle görünür hata verir.
-          </p>
-        </div>
-
-        <!-- Feature 4 -->
-        <div class="p-7 rounded-3xl notion-card space-y-3 group">
-          <div class="w-11 h-11 rounded-2xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center border border-emerald-500/20 group-hover:scale-105 transition-transform">
-            <span class="material-symbols-outlined text-[24px]">apk_install</span>
-          </div>
-          <h3 class="text-lg font-bold text-white">APK Kontrolü</h3>
-          <p class="text-xs text-slate-400 leading-relaxed">
-            Depolamadan seçtiğiniz APK&#39;yı (SAF üzerinden) uygulama önbelleğine kopyalar, SHA-256 ile tekilleştirir ve tarar; kurulu uygulamalar listelenmez.
-          </p>
-        </div>
-
-        <!-- Feature 5 -->
-        <div class="p-7 rounded-3xl notion-card space-y-3 group">
-          <div class="w-11 h-11 rounded-2xl bg-amber-500/10 text-amber-400 flex items-center justify-center border border-amber-500/20 group-hover:scale-105 transition-transform">
-            <span class="material-symbols-outlined text-[24px]">shield_person</span>
-          </div>
-          <h3 class="text-lg font-bold text-white">Yerel Çalışma</h3>
-          <p class="text-xs text-slate-400 leading-relaxed">
-            Analizler doğrudan cihazda gerçekleşir, harici sunuculara veri aktarımı yapılmaz.
-          </p>
-        </div>
-
-        <!-- Feature 6 -->
-        <div class="p-7 rounded-3xl notion-card space-y-3 group">
-          <div class="w-11 h-11 rounded-2xl bg-blue-500/10 text-blue-400 flex items-center justify-center border border-blue-500/20 group-hover:scale-105 transition-transform">
-            <span class="material-symbols-outlined text-[24px]">widgets</span>
-          </div>
-          <h3 class="text-lg font-bold text-white">Material You 3 UI</h3>
-          <p class="text-xs text-slate-400 leading-relaxed">
-            Material 3 ve Notion sadeliğini birleştiren minimalist ve anlaşılır arayüz tasarımı.
-          </p>
-        </div>
-
-      </div>
-    </section>
-
-    <!-- ARCHITECTURE TABLE -->
-    <section id="architecture" class="space-y-6">
-      <div class="space-y-2">
-        <span class="font-mono text-xs text-cyan-400 font-semibold uppercase tracking-wider">/ MİMARİ YAPISI</span>
-        <h2 class="text-2xl font-bold">Motor Katmanları</h2>
-      </div>
-
-      <div class="rounded-3xl notion-card overflow-hidden">
-        <div class="overflow-x-auto">
-          <table class="w-full text-left font-mono text-xs">
-            <thead class="bg-white/[0.04] text-slate-300 border-b border-white/10">
-              <tr>
-                <th class="p-4">KATMAN</th>
-                <th class="p-4">TEKNOLOJİ</th>
-                <th class="p-4 text-cyan-400">İŞLEV</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-white/[0.06] text-slate-400">
-              <tr>
-                <td class="p-4 font-bold text-white">Kalıp Analizi</td>
-                <td class="p-4">YARA Motoru</td>
-                <td class="p-4 text-emerald-400 font-semibold">Özel statik kural eşleştirme</td>
-              </tr>
-              <tr>
-                <td class="p-4 font-bold text-white">İmza Taraması</td>
-                <td class="p-4">ClamAV Veritabanı</td>
-                <td class="p-4 text-emerald-400 font-semibold">Bilinen zararlı yazılım tespiti</td>
-              </tr>
-              <tr>
-                <td class="p-4 font-bold text-white">Sonuç Sözleşmesi</td>
-                <td class="p-4">ScanResult / WorkManager</td>
-                <td class="p-4 text-emerald-400 font-semibold">Hata “temiz” olarak gösterilmez</td>
-              </tr>
-              <tr>
-                <td class="p-4 font-bold text-white">Gizlilik</td>
-                <td class="p-4">Cihaz İçi (Offline)</td>
-                <td class="p-4 text-cyan-400 font-semibold">Ağ izni yok; veri cihazdan çıkmaz</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </section>
-
-    <!-- GITHUB RELEASES CTA -->
-    <section id="releases" class="relative">
-      <div class="rgb-border-glow">
-        <div class="p-8 sm:p-12 rounded-3xl bg-cyber-black border border-white/10 text-center space-y-6 relative overflow-hidden">
-          
-          <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/10 text-white font-mono text-xs">
-            <span class="material-symbols-outlined text-[16px] text-emerald-400">download</span>
-            <span>RELEASES & REPO</span>
-          </div>
-
-          <div class="space-y-3 max-w-xl mx-auto">
-            <h2 class="text-2xl sm:text-4xl font-extrabold text-white">
-              GitHub Üzerinden İnceleyin
-            </h2>
-            <p class="text-xs sm:text-sm text-slate-400 font-normal">
-              Kaynak koduna erişebilir, derlenmiş sürümleri indirebilir ve projeye katkıda bulunabilirsiniz.
-            </p>
-          </div>
-
-          <!-- Download Action Buttons -->
-          <div class="flex flex-wrap items-center justify-center gap-4 pt-2">
-            <a href="https://github.com/a23521745-hub/X-Security/releases" target="_blank" rel="noopener noreferrer" class="px-7 py-3.5 rounded-2xl bg-cyan-400 text-black font-bold text-xs hover:bg-cyan-300 transition-all flex items-center gap-2 shadow-lg shadow-cyan-400/20">
-              <span class="material-symbols-outlined text-[18px]">download</span>
-              <span>GitHub Releases</span>
-            </a>
-
-            <button id="copyGitBtn" class="px-6 py-3.5 rounded-2xl notion-card text-white font-mono text-xs font-semibold flex items-center gap-2 hover:bg-white/10 transition-all">
-              <span class="material-symbols-outlined text-[18px] text-cyan-400">content_copy</span>
-              <span id="gitBtnText">git clone X-Security</span>
-            </button>
-          </div>
-
-        </div>
-      </div>
-    </section>
-
-  </main>
-
-  <!-- FOOTER -->
-  <footer class="border-t border-white/10 py-8 px-6 bg-cyber-black">
-    <div class="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 font-mono text-xs text-slate-500">
-      <div class="flex items-center gap-3">
-        <span class="font-bold text-white tracking-wider">X-SECURITY</span>
-        <span>Open Source Mobile Security</span>
-      </div>
-      <div class="flex items-center gap-6">
-        <a href="https://github.com/a23521745-hub/X-Security" target="_blank" rel="noopener noreferrer" class="hover:text-cyan-400 transition-colors">GitHub Repository</a>
-        <a href="#top" class="hover:text-cyan-400 transition-colors flex items-center gap-1">
-          <span>Yukarı Çık</span>
-          <span class="material-symbols-outlined text-[14px]">arrow_upward</span>
-        </a>
-      </div>
-    </div>
-  </footer>
-
-  <!-- SCRIPT FOR COPY BUTTON -->
-  <script>
-    const copyGitBtn = document.getElementById('copyGitBtn');
-    const gitBtnText = document.getElementById('gitBtnText');
-    const CLONE_CMD = 'git clone https://github.com/a23521745-hub/X-Security.git';
-    const IDLE_TEXT = 'git clone X-Security';
-    let resetTimer = 0;
-
-    async function copyToClipboard(text) {
-      // Clipboard API yalnizca guvenli baglamda (https) ve kullanici izniyle calisir;
-      // yoksa gizli bir text-area üzerinden execCommand'e düşüyoruz.
-      if (navigator.clipboard && window.isSecureContext) {
-        await navigator.clipboard.writeText(text);
-        return;
-      }
-      const scratch = document.createElement('textarea');
-      scratch.value = text;
-      scratch.setAttribute('readonly', '');
-      scratch.style.position = 'fixed';
-      scratch.style.opacity = '0';
-      document.body.appendChild(scratch);
-      scratch.select();
-      const ok = document.execCommand('copy');
-      scratch.remove();
-      if (!ok) throw new Error('execCommand copy rejected');
-    }
-
-    function flash(label, ok) {
-      gitBtnText.textContent = label;
-      gitBtnText.classList.toggle('text-emerald-400', ok);
-      gitBtnText.classList.toggle('text-rose-400', !ok);
-      clearTimeout(resetTimer);
-      resetTimer = setTimeout(() => {
-        gitBtnText.textContent = IDLE_TEXT;
-        gitBtnText.classList.remove('text-emerald-400', 'text-rose-400');
-      }, 2500);
-    }
-
-    copyGitBtn.addEventListener('click', () => {
-      copyToClipboard(CLONE_CMD)
-        .then(() => flash('Kopyalandı!', true))
-        .catch(() => flash(CLONE_CMD, false));
-    });
-  </script>
+<body class="bg-background text-cyber-light antialiased selection:bg-cyan selection:text-background overflow-x-hidden">
+  <div id="root"></div>
+  <script type="module" src="/src/main.tsx"></script>
 </body>
 </html>
