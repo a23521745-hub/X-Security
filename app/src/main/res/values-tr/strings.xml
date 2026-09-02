@@ -75,7 +75,7 @@
     <string name="device_scan_action">Tüm kurulu uygulamaları tara</string>
     <string name="device_scan_queued">Kurulu uygulama taraması hazırlanıyor…</string>
     <string name="device_scan_progress">%1$d / %2$d · %3$s</string>
-    <string name="device_scan_summary">%1$d uygulama tarandı · %2$d işaretli · %3$d okunamadı · %4$s</string>
+    <string name="device_scan_summary">%1$d uygulama tarandı · %2$d işaretli · %3$d okunamadı · %4$d önbellekten · %5$s</string>
     <string name="device_scan_result_name">Kurulu uygulamalar (%1$d)</string>
     <string name="device_scan_include_system">Sistem uygulamalarını da tara (daha yavaş)</string>
     <string name="device_scan_show_all">Tüm %1$d uygulamayı göster</string>
@@ -93,6 +93,49 @@
     <string name="notif_shield_failed_title">Yeni uygulama taranamadı</string>
     <string name="notif_shield_failed_body">%1$s: %2$s</string>
     <string name="shield_result_name">Kurulum kalkanı: %1$s</string>
+
+    <!-- Tarama geçmişi -->
+    <string name="history_title">Tarama geçmişi</string>
+    <string name="history_back">Geri</string>
+    <string name="history_empty">Henüz tarama kaydı yok.</string>
+    <string name="history_empty_hint">Tamamlanan cihaz, dosya ve kurulum kalkanı taramaları burada listelenir.</string>
+    <string name="history_share">Raporu paylaş</string>
+    <string name="history_share_subject">X-Security tarama raporu</string>
+    <string name="history_clear">Geçmişi temizle</string>
+    <string name="history_clear_title">Tarama geçmişi temizlensin mi?</string>
+    <string name="history_clear_body">Bu cihazdaki %1$d tarama kaydının tamamı silinecek.</string>
+    <string name="history_clear_confirm">Temizle</string>
+    <string name="history_filter_all">Tümü</string>
+    <string name="history_filter_device">Cihaz</string>
+    <string name="history_filter_file">Dosya</string>
+    <string name="history_filter_install">Kurulum</string>
+    <string name="history_filter_download">İndirme</string>
+    <string name="history_type_device">Cihaz taraması</string>
+    <string name="history_type_file">Dosya taraması</string>
+    <string name="history_type_install">Kurulum kalkanı</string>
+    <string name="history_type_download">İndirme izleme</string>
+    <string name="history_trigger_manual">Elle</string>
+    <string name="history_trigger_file_picker">Dosya seçici</string>
+    <string name="history_trigger_download_watch">İndirilenler klasörü</string>
+    <string name="history_trigger_install_shield">Kurulum kalkanı</string>
+    <string name="history_now">az önce</string>
+    <string name="history_minutes_ago">%1$d dk önce</string>
+    <string name="history_hours_ago">%1$d sa önce</string>
+    <string name="history_days_ago">%1$d gün önce</string>
+    <string name="history_threats_count">%1$d tehdit</string>
+    <string name="history_clean">temiz</string>
+    <string name="history_failed">hata</string>
+    <string name="history_detail_time">Zaman</string>
+    <string name="history_detail_type">Tür</string>
+    <string name="history_detail_apps">%1$d tarandı · %2$d işaretli · %3$d önbellekten</string>
+    <string name="history_detail_bytes">Taranan veri</string>
+    <string name="history_threats_title">Tehditler</string>
+    <string name="history_flagged_apps">İşaretli uygulamalar</string>
+    <string name="history_engine_counters">Tarama anındaki motor</string>
+    <string name="history_counters_line">YARA %1$d kural · %2$d kalıp · ClamAV %3$d · hash %4$d</string>
+    <string name="history_warnings">Uyarılar</string>
+    <string name="history_report_more">ve %1$d daha eski kayıt…</string>
+    <string name="history_count">%1$d kayıt</string>
 
     <!-- Koruma ayarları -->
     <string name="protection_title">Koruma</string>

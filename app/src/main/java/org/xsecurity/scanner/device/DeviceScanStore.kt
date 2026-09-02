@@ -21,7 +21,9 @@ data class DeviceScanState(
     val finishedAt: Long = 0L,
     val message: String? = null,
     /** Kullanici "uygulama listesini neden okuyoruz" aciklamasini bir kez onayladi. */
-    val rationaleAccepted: Boolean = false
+    val rationaleAccepted: Boolean = false,
+    /** Son turde onbellegi ([DeviceScanCache]) isleyen uygulama sayisi. */
+    val cachedCount: Int = 0
 ) {
     val isRunning: Boolean get() = phase == DeviceScanPhase.RUNNING
     val progress: Float get() = if (total <= 0) 0f else (scanned.toFloat() / total.toFloat()).coerceIn(0f, 1f)
@@ -68,10 +70,11 @@ object DeviceScanStore {
         _state.value = _state.value.copy(rationaleAccepted = true)
     }
 
-    fun markStarted(total: Int) {
+    fun markStarted(total: Int, cachedCount: Int = 0) {
         _state.value = DeviceScanState(
             phase = DeviceScanPhase.RUNNING,
             total = total,
+            cachedCount = cachedCount,
             rationaleAccepted = _state.value.rationaleAccepted
         )
     }
@@ -82,7 +85,12 @@ object DeviceScanStore {
         _state.value = current.copy(scanned = scanned, currentLabel = currentLabel, entries = entries)
     }
 
-    fun publish(context: Context, entries: List<AppScanEntry>, message: String? = null) {
+    fun publish(
+        context: Context,
+        entries: List<AppScanEntry>,
+        message: String? = null,
+        cachedCount: Int = 0
+    ) {
         val finishedAt = System.currentTimeMillis()
         prefs(context).edit {
             putString(KEY_ENTRIES_JSON, encodeEntries(entries.take(MAX_PERSISTED)))
@@ -95,7 +103,8 @@ object DeviceScanStore {
             entries = entries,
             finishedAt = finishedAt,
             message = message,
-            rationaleAccepted = _state.value.rationaleAccepted
+            rationaleAccepted = _state.value.rationaleAccepted,
+            cachedCount = cachedCount
         )
     }
 
@@ -136,56 +145,77 @@ object DeviceScanStore {
         _state.value = current.copy(entries = remaining, total = remaining.size, scanned = minOf(current.scanned, remaining.size))
     }
 
+    /**
+     * Tek girdinin JSON kodu. [DeviceScanCache] ayni codec'i "entry-lite" olarak
+     * kullandigindan bu fonksiyonlarin alan seti iki tarafin ortak paydasidir.
+     */
+    fun encodeEntry(entry: AppScanEntry): String = encodeEntryObject(entry).toString()
+
     fun encodeEntries(entries: List<AppScanEntry>): String {
         val array = JSONArray()
-        entries.forEach { entry ->
-            val item = JSONObject()
-            item.put("package", entry.packageName)
-            item.put("label", entry.label)
-            item.put("status", entry.status.name)
-            item.put("sha256", entry.sha256 ?: "")
-            item.put("error", entry.errorMessage ?: "")
-            item.put("version", entry.versionName ?: "")
-            val threats = JSONArray()
-            entry.threats.forEach { threat ->
-                val t = JSONObject()
-                t.put("engine", threat.engine)
-                t.put("name", threat.name)
-                t.put("detail", threat.detail ?: "")
-                threats.put(t)
-            }
-            item.put("threats", threats)
-            array.put(item)
-        }
+        entries.forEach { array.put(encodeEntryObject(it)) }
         return array.toString()
     }
+
+    private fun encodeEntryObject(entry: AppScanEntry): JSONObject {
+        val item = JSONObject()
+        item.put("package", entry.packageName)
+        item.put("label", entry.label)
+        item.put("status", entry.status.name)
+        item.put("sha256", entry.sha256 ?: "")
+        item.put("error", entry.errorMessage ?: "")
+        item.put("version", entry.versionName ?: "")
+        val threats = JSONArray()
+        entry.threats.forEach { threat ->
+            val t = JSONObject()
+            t.put("engine", threat.engine)
+            t.put("name", threat.name)
+            t.put("detail", threat.detail ?: "")
+            threats.put(t)
+        }
+        item.put("threats", threats)
+        item.put("bytes", entry.bytesScanned)
+        item.put("duration", entry.durationMillis)
+        return item
+    }
+
+    /**
+     * Tek girdinin JSON kodunu cozumler; JSON'in kendisi bozuksa `null` (o kayit
+     * atlanir), bilinmeyen status degeri `FAILED` (kayit korunur).
+     */
+    fun decodeEntry(raw: String): AppScanEntry? = runCatching {
+        val item = JSONObject(raw)
+        val threatArray = item.optJSONArray("threats") ?: JSONArray()
+        val threats = ArrayList<ThreatMatch>(threatArray.length())
+        for (j in 0 until threatArray.length()) {
+            val t = threatArray.optJSONObject(j) ?: continue
+            threats += ThreatMatch(
+                engine = t.optString("engine"),
+                name = t.optString("name"),
+                detail = t.optString("detail").ifEmpty { null }
+            )
+        }
+        val status = runCatching { ScanStatus.valueOf(item.optString("status", ScanStatus.FAILED.name)) }
+            .getOrDefault(ScanStatus.FAILED)
+        AppScanEntry(
+            packageName = item.optString("package"),
+            label = item.optString("label"),
+            status = status,
+            threats = threats,
+            sha256 = item.optString("sha256").ifEmpty { null },
+            errorMessage = item.optString("error").ifEmpty { null },
+            versionName = item.optString("version").ifEmpty { null },
+            bytesScanned = item.optLong("bytes"),
+            durationMillis = item.optLong("duration")
+        )
+    }.getOrNull()
 
     fun decodeEntries(raw: String): List<AppScanEntry> {
         val array = JSONArray(raw)
         val out = ArrayList<AppScanEntry>(array.length())
         for (i in 0 until array.length()) {
             val item = array.optJSONObject(i) ?: continue
-            val threatArray = item.optJSONArray("threats") ?: JSONArray()
-            val threats = ArrayList<ThreatMatch>(threatArray.length())
-            for (j in 0 until threatArray.length()) {
-                val t = threatArray.optJSONObject(j) ?: continue
-                threats += ThreatMatch(
-                    engine = t.optString("engine"),
-                    name = t.optString("name"),
-                    detail = t.optString("detail").ifEmpty { null }
-                )
-            }
-            val status = runCatching { ScanStatus.valueOf(item.optString("status", ScanStatus.FAILED.name)) }
-                .getOrDefault(ScanStatus.FAILED)
-            out += AppScanEntry(
-                packageName = item.optString("package"),
-                label = item.optString("label"),
-                status = status,
-                threats = threats,
-                sha256 = item.optString("sha256").ifEmpty { null },
-                errorMessage = item.optString("error").ifEmpty { null },
-                versionName = item.optString("version").ifEmpty { null }
-            )
+            decodeEntry(item.toString())?.let { out += it }
         }
         return out
     }

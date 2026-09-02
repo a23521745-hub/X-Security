@@ -131,6 +131,7 @@ fun DeviceScanCard(
                             state.entries.size,
                             infected,
                             failed,
+                            state.cachedCount,
                             if (state.finishedAt > 0L) formatter.format(Date(state.finishedAt)) else ""
                         ),
                         style = MaterialTheme.typography.bodyMedium,
