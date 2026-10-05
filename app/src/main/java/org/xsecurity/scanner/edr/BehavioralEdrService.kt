@@ -14,17 +14,22 @@ import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
 import android.util.Log
+import androidx.annotation.RequiresApi
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import org.xsecurity.scanner.R
 import org.xsecurity.scanner.ui.MainActivity
+import java.util.concurrent.Executor
 
 /**
  * Rootless davranışsal EDR: gerçek zamanlı kamera/mikrofon izleyici.
  *
- *  - `AppOpsManager.OnOpActiveChangedListener` ile `OPSTR_CAMERA` /
- *    `OPSTR_RECORD_AUDIO` işlemlerinin aktifleşmesini dinler (olay-güdümlü;
- *    pil dostu, kök gerektirmez, polling yok).
+ *  - `AppOpsManager.OnOpActiveChangedListener` ([EdrAppOpsWatcher]) ile
+ *    `OPSTR_CAMERA` / `OPSTR_RECORD_AUDIO` işlemlerinin aktifleşmesini dinler
+ *    (olay-güdümlü; pil dostu, kök gerektirmez, polling yok). Dinleyici arayüzü
+ *    SDK'da API 30+'ta public olduğu için ayrı bir `@RequiresApi(30)` sınıfta
+ *    tutulur ve yalnızca API 30+'ta oluşturulur (minSdk 26'da lint + VerifyError
+ *    güvenliği).
  *  - Aktifleşen paketin ön/arka plan durumu `ActivityManager` üzerinden
  *    (`RunningAppProcessInfo.importance != IMPORTANCE_FOREGROUND`), ekran
  *    durumu `PowerManager.isInteractive` ile çözülür; karar saf
@@ -49,10 +54,16 @@ import org.xsecurity.scanner.ui.MainActivity
  * "Her zaman açık" koruma modunda çalışır, diğer modlarda durur. Böylece
  * "Sadece kurulum anı" modunun "kalıcı bildirim yok" sözü bozulmaz.
  */
-class BehavioralEdrService : Service(), AppOpsManager.OnOpActiveChangedListener {
+class BehavioralEdrService : Service() {
 
     private val dedup = EdrTriggerPolicy.Deduplicator()
-    private var watching = false
+
+    /**
+     * API 30+ dinleyici sarmalayıcısı ([EdrAppOpsWatcher]) — `Any?` tutulur ki
+     * bu sınıfın hiçbir üyesi API 30 türüne derleme-zamanı bağı kurmasın.
+     * Yalnızca API 30+'ta null-dışı olur; cast hep `@RequiresApi(30)` kodda.
+     */
+    private var watcher: Any? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -85,10 +96,6 @@ class BehavioralEdrService : Service(), AppOpsManager.OnOpActiveChangedListener 
         stopSelf()
     }
 
-    override fun onOpActiveChanged(op: String, uid: Int, packageName: String, active: Boolean) {
-        handleOpActive(op, packageName, active)
-    }
-
     private fun startWatching() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
             Log.i(
@@ -98,6 +105,11 @@ class BehavioralEdrService : Service(), AppOpsManager.OnOpActiveChangedListener 
             )
             return
         }
+        startWatchingApi30()
+    }
+
+    @RequiresApi(Build.VERSION_CODES.R)
+    private fun startWatchingApi30() {
         val ops = runCatching { getSystemService(AppOpsManager::class.java) }.getOrNull()
         if (ops == null) {
             Log.w(EdrTriggerPolicy.TAG, "AppOpsManager unavailable; EDR cannot watch")
@@ -105,24 +117,32 @@ class BehavioralEdrService : Service(), AppOpsManager.OnOpActiveChangedListener 
         }
         try {
             // Framework sabitleri kullanılır; değerler EdrTriggerPolicy'deki aynalarla aynıdır.
-            ops.startWatchingActive(
-                arrayOf(AppOpsManager.OPSTR_CAMERA, AppOpsManager.OPSTR_RECORD_AUDIO),
+            val newWatcher = EdrAppOpsWatcher(
+                ops,
                 mainExecutor,
-                this
+                arrayOf(AppOpsManager.OPSTR_CAMERA, AppOpsManager.OPSTR_RECORD_AUDIO),
+                ::handleOpActive
             )
-            watching = true
+            newWatcher.start()
+            watcher = newWatcher
         } catch (error: Exception) {
             Log.w(EdrTriggerPolicy.TAG, "startWatchingActive failed: ${error.message}")
         }
     }
 
     private fun stopWatching() {
-        if (!watching) return
-        watching = false
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return
-        runCatching {
-            getSystemService(AppOpsManager::class.java)?.stopWatchingActive(this)
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+            watcher = null
+            return
         }
+        stopWatchingApi30()
+    }
+
+    @RequiresApi(Build.VERSION_CODES.R)
+    private fun stopWatchingApi30() {
+        val current = watcher as? EdrAppOpsWatcher
+        watcher = null
+        if (current != null) runCatching { current.stop() }
     }
 
     private fun handleOpActive(op: String?, packageName: String?, active: Boolean) {
@@ -327,5 +347,40 @@ class BehavioralEdrService : Service(), AppOpsManager.OnOpActiveChangedListener 
                 PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
             )
         }
+    }
+}
+
+/**
+ * API 30+ AppOps dinleyici sarmalayıcısı.
+ *
+ * `OnOpActiveChangedListener` arayüzü SDK'da API 30'da public oldu; bu sınıf
+ * `@RequiresApi(30)` taşır ve [BehavioralEdrService] onu yalnızca sürüm
+ * korumalı koldan oluşturur. Böylece minSdk 26 derlemesi lint-temiz kalır ve
+ * eski cihazlarda sınıf-doğrulama (VerifyError) riski oluşmaz.
+ */
+@RequiresApi(Build.VERSION_CODES.R)
+private class EdrAppOpsWatcher(
+    private val appOps: AppOpsManager,
+    private val executor: Executor,
+    private val ops: Array<String>,
+    private val onActive: (op: String?, packageName: String?, active: Boolean) -> Unit
+) : AppOpsManager.OnOpActiveChangedListener {
+
+    private var started = false
+
+    override fun onOpActiveChanged(op: String, uid: Int, packageName: String, active: Boolean) {
+        onActive(op, packageName, active)
+    }
+
+    fun start() {
+        if (started) return
+        appOps.startWatchingActive(ops, executor, this)
+        started = true
+    }
+
+    fun stop() {
+        if (!started) return
+        started = false
+        runCatching { appOps.stopWatchingActive(this) }
     }
 }
