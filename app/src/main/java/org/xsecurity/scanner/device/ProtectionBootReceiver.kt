@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import org.xsecurity.scanner.edr.BehavioralEdrService
 
 /**
  * Yeniden baslatmada "Her zaman acik" korumayi geri getirir. BOOT_COMPLETED,
@@ -22,5 +23,7 @@ class ProtectionBootReceiver : BroadcastReceiver() {
             return
         }
         RealtimeProtectionService.start(context)
+        // Davranışsal EDR depolama izni gerektirmez ama aynı ALWAYS yaşam döngüsünü paylaşır.
+        BehavioralEdrService.start(context)
     }
 }

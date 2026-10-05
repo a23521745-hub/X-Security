@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Davranışsal EDR'nin erişilebilirlik yapılandırması.
+  Yalnızca pencere-durumu değişimleri dinlenir; pencere içeriği alınmaz
+  (canRetrieveWindowContent=false) — karar paket+sınıf adıyla verilir.
+  Not: nitelik adları accessibilityEventTypes / accessibilityFeedbackType
+  olmak ZORUNDADIR (eventTypes/feedbackType AAPT'ta yoktur).
+-->
+<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:description="@string/edr_accessibility_description"
+    android:accessibilityEventTypes="typeWindowStateChanged"
+    android:accessibilityFeedbackType="feedbackGeneric"
+    android:notificationTimeout="100"
+    android:canRetrieveWindowContent="false" />
