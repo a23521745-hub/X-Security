@@ -40,6 +40,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import org.xsecurity.scanner.edr.BehavioralEdrService
 import org.xsecurity.scanner.engine.ScanEngines
 import org.xsecurity.scanner.ota.OtaController
 import org.xsecurity.scanner.ota.OtaNotifications
@@ -213,8 +214,11 @@ class MainActivity : ComponentActivity() {
                 // Izin istemeden once amac diyalogu; acilista nag yapmaz, kart uyari gosterir.
                 showStorageRationale = true
             }
+            // Davranışsal EDR depolama izni gerektirmez; ALWAYS modunun parçasıdır.
+            BehavioralEdrService.start(this)
         } else {
             RealtimeProtectionService.stop(this)
+            BehavioralEdrService.stop(this)
         }
         protectionRunning = RealtimeProtectionService.running
     }
@@ -226,6 +230,9 @@ class MainActivity : ComponentActivity() {
             !RealtimeProtectionService.running
         ) {
             RealtimeProtectionService.start(this)
+        }
+        if (ProtectionSettings.mode(this) == ProtectionMode.ALWAYS && !BehavioralEdrService.running) {
+            BehavioralEdrService.start(this)
         }
         protectionRunning = RealtimeProtectionService.running
     }

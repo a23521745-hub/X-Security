@@ -76,6 +76,27 @@
             android:exported="false"
             android:foregroundServiceType="dataSync" />
 
+        <!-- Rootless davranissal EDR: AppOps kamera/mikrofon izleyici. Ayni ALWAYS
+             yasam dongusunu paylasir; depolama izni gerektirmez. -->
+        <service
+            android:name="org.xsecurity.scanner.edr.BehavioralEdrService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
+        <!-- Overlay/tap-jacking sezgiseli: yalnizca kullanici sistem
+             Ayarlar > Erisilebilirlik ekranindan actiginda calisir. -->
+        <service
+            android:name="org.xsecurity.scanner.edr.AccessibilityBehaviorMonitor"
+            android:exported="true"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/edr_accessibility_config" />
+        </service>
+
         <receiver
             android:name="org.xsecurity.scanner.device.ProtectionBootReceiver"
             android:exported="true">

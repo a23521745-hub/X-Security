@@ -211,4 +211,35 @@
     <string name="def_notif_installed_title">Signature database updated</string>
     <string name="def_notif_installed_body">Definitions v%1$d installed (%2$d YARA rules, %3$d ClamAV signatures, %4$d hash signatures).</string>
     <string name="def_notif_error_title">Definition update failed</string>
+
+    <!-- History tabs: summary + advanced live LogCat -->
+    <string name="history_tab_summary">Summary (Simple Logs)</string>
+    <string name="history_tab_advanced">Advanced (Live LogCat)</string>
+
+    <!-- Advanced LogCat viewer -->
+    <string name="logcat_filter_hint">Filter by tag or text…</string>
+    <string name="logcat_pause">Pause</string>
+    <string name="logcat_resume">Resume</string>
+    <string name="logcat_autoscroll">Auto-scroll</string>
+    <string name="logcat_clear">Clear</string>
+    <string name="logcat_live">Live</string>
+    <string name="logcat_paused">Paused</string>
+    <string name="logcat_empty">No matching log lines yet. Logs appear here while the app scans or updates.</string>
+    <string name="logcat_lines">%1$d lines</string>
+    <string name="logcat_error">Log reader unavailable: %1$s</string>
+
+    <!-- Rootless behavioral EDR -->
+    <string name="edr_service_channel_name">Behavioral monitor</string>
+    <string name="edr_service_channel_description">Persistent status of the on-device behavioral monitor</string>
+    <string name="edr_alert_channel_name">Suspicious background access</string>
+    <string name="edr_alert_channel_description">High-priority alerts when an app uses the camera or microphone in the background</string>
+    <string name="edr_service_title">Behavioral monitor active</string>
+    <string name="edr_service_body">Watching for background camera and microphone use, on-device.</string>
+    <string name="edr_alert_title">🚨 Suspicious Background Access Detected</string>
+    <string name="edr_alert_body">%1$s accessed %3$s while %2$s!</string>
+    <string name="edr_context_screen_off">the screen was off</string>
+    <string name="edr_context_background">in the background</string>
+    <string name="edr_sensor_camera">Camera</string>
+    <string name="edr_sensor_microphone">Microphone</string>
+    <string name="edr_accessibility_description">Lets X-Security notice overlay windows drawn over sensitive screens (installer, permission dialogs) to warn about possible tap-jacking. No screen content is read or stored.</string>
 </resources>

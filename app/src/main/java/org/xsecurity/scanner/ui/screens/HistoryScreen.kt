@@ -33,6 +33,8 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -59,6 +61,7 @@ import org.xsecurity.scanner.data.ScanHistoryStore.TRIGGER_FILE_PICKER
 import org.xsecurity.scanner.data.ScanHistoryStore.TRIGGER_INSTALL_SHIELD
 import org.xsecurity.scanner.data.ScanHistoryStore.TRIGGER_MANUAL
 import org.xsecurity.scanner.data.ScanHistoryType
+import org.xsecurity.scanner.ui.history.LogCatViewer
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -74,6 +77,9 @@ import java.util.Locale
  *    temizle (onay diyalogu).
  *  - Yeni activity/nav kütüphanesi yok: ekrani [org.xsecurity.scanner.ui.MainActivity]
  *    showHistory state'iyle ciziyor.
+ *  - Üstte iki sekme: "Özet (Basit Loglar)" mevcut geçmiş görünümünü aynen korur;
+ *    "Gelişmiş (Canlı LogCat)" terminal benzeri canlı log akışını
+ *    ([LogCatViewer]) gösterir. İmza değişmedi; çağıran koda dokunulmaz.
  */
 @Composable
 fun HistoryScreen(
@@ -82,6 +88,7 @@ fun HistoryScreen(
     onShareReport: (report: String) -> Unit,
     onClearHistory: () -> Unit
 ) {
+    var tab by remember { mutableIntStateOf(TAB_SUMMARY) }
     var filter by remember { mutableStateOf<ScanHistoryType?>(null) }
     var expandedIndex by remember { mutableIntStateOf(-1) }
     var showClearDialog by remember { mutableStateOf(false) }
@@ -130,24 +137,44 @@ fun HistoryScreen(
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.weight(1f)
             )
-            IconButton(onClick = {
-                if (filtered.isNotEmpty()) onShareReport(report)
-            }) {
-                Icon(
-                    imageVector = Icons.Filled.Share,
-                    contentDescription = stringResource(R.string.history_share),
-                    modifier = Modifier.size(22.dp)
-                )
-            }
-            IconButton(onClick = { if (entries.isNotEmpty()) showClearDialog = true }) {
-                Icon(
-                    imageVector = Icons.Filled.Delete,
-                    contentDescription = stringResource(R.string.history_clear),
-                    modifier = Modifier.size(22.dp)
-                )
+            // Paylaş/temizle yalnızca Özet sekmesine aittir; Gelişmiş sekmenin
+            // kendi duraklat/temizle eylemleri LogCatViewer içindedir.
+            if (tab == TAB_SUMMARY) {
+                IconButton(onClick = {
+                    if (filtered.isNotEmpty()) onShareReport(report)
+                }) {
+                    Icon(
+                        imageVector = Icons.Filled.Share,
+                        contentDescription = stringResource(R.string.history_share),
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+                IconButton(onClick = { if (entries.isNotEmpty()) showClearDialog = true }) {
+                    Icon(
+                        imageVector = Icons.Filled.Delete,
+                        contentDescription = stringResource(R.string.history_clear),
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
             }
         }
         Spacer(modifier = Modifier.height(4.dp))
+        TabRow(selectedTabIndex = tab) {
+            Tab(
+                selected = tab == TAB_SUMMARY,
+                onClick = { tab = TAB_SUMMARY },
+                text = { Text(stringResource(R.string.history_tab_summary)) }
+            )
+            Tab(
+                selected = tab == TAB_ADVANCED,
+                onClick = { tab = TAB_ADVANCED },
+                text = { Text(stringResource(R.string.history_tab_advanced)) }
+            )
+        }
+        Spacer(modifier = Modifier.height(12.dp))
+        if (tab == TAB_ADVANCED) {
+            LogCatViewer(modifier = Modifier.weight(1f))
+        } else {
         Row(
             modifier = Modifier.horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -220,6 +247,7 @@ fun HistoryScreen(
                 }
             }
         }
+        } // else (Özet sekmesi)
     }
 }
 
@@ -467,3 +495,5 @@ private fun buildReport(entries: List<ScanHistoryEntry>, formatter: SimpleDateFo
 
 private const val MAX_DETAIL_WARNINGS = 6
 private const val MAX_REPORT_LINES = 20
+private const val TAB_SUMMARY = 0
+private const val TAB_ADVANCED = 1

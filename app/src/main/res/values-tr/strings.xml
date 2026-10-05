@@ -211,4 +211,35 @@
     <string name="def_notif_installed_title">İmza veritabanı güncellendi</string>
     <string name="def_notif_installed_body">Tanım paketi v%1$d kuruldu (%2$d YARA kuralı, %3$d ClamAV imzası, %4$d hash imzası).</string>
     <string name="def_notif_error_title">Tanım güncellemesi başarısız</string>
+
+    <!-- Geçmiş sekmeleri: özet + gelişmiş canlı LogCat -->
+    <string name="history_tab_summary">Özet (Basit Loglar)</string>
+    <string name="history_tab_advanced">Gelişmiş (Canlı LogCat)</string>
+
+    <!-- Gelişmiş LogCat görünümü -->
+    <string name="logcat_filter_hint">Etiket veya metne göre filtrele…</string>
+    <string name="logcat_pause">Duraklat</string>
+    <string name="logcat_resume">Sürdür</string>
+    <string name="logcat_autoscroll">Otomatik kaydır</string>
+    <string name="logcat_clear">Temizle</string>
+    <string name="logcat_live">Canlı</string>
+    <string name="logcat_paused">Duraklatıldı</string>
+    <string name="logcat_empty">Henüz eşleşen log satırı yok. Uygulama tarama veya güncelleme yaparken loglar burada görünür.</string>
+    <string name="logcat_lines">%1$d satır</string>
+    <string name="logcat_error">Log okuyucu kullanılamıyor: %1$s</string>
+
+    <!-- Rootless davranışsal EDR -->
+    <string name="edr_service_channel_name">Davranış izleyici</string>
+    <string name="edr_service_channel_description">Cihaz içi davranış izleyicinin kalıcı durumu</string>
+    <string name="edr_alert_channel_name">Şüpheli arka plan erişimi</string>
+    <string name="edr_alert_channel_description">Bir uygulama arka planda kamera veya mikrofon kullandığında yüksek öncelikli uyarılar</string>
+    <string name="edr_service_title">Davranış izleyici aktif</string>
+    <string name="edr_service_body">Arka planda kamera ve mikrofon kullanımı cihazda izleniyor.</string>
+    <string name="edr_alert_title">🚨 Şüpheli Arka Plan Erişimi Tespit Edildi</string>
+    <string name="edr_alert_body">%1$s uygulaması %2$s %3$s erişimi sağladı!</string>
+    <string name="edr_context_screen_off">ekran kapalıyken</string>
+    <string name="edr_context_background">arka plandayken</string>
+    <string name="edr_sensor_camera">Camera</string>
+    <string name="edr_sensor_microphone">Microphone</string>
+    <string name="edr_accessibility_description">X-Security’nin hassas ekranların (kurulum, izin diyalogları) üzerine çizilen overlay pencerelerini fark edip olası tap-jacking konusunda uyarmasını sağlar. Ekran içeriği okunmaz ve saklanmaz.</string>
 </resources>
