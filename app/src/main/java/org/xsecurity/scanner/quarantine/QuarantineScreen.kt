@@ -84,7 +84,11 @@ fun QuarantineScreen(
                     ) {
                         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             Text(record.label, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                            Text(record.packageName, style = MaterialTheme.typography.bodySmall)
+                            if (record.packageName != "file-vault") {
+                                Text(record.packageName, style = MaterialTheme.typography.bodySmall)
+                            } else {
+                                Text(stringResource(R.string.quarantine_file_vault_item), style = MaterialTheme.typography.bodySmall)
+                            }
                             Text(
                                 text = stringResource(R.string.quarantine_state, stateLabel(record.state)),
                                 style = MaterialTheme.typography.bodyMedium
@@ -97,10 +101,14 @@ fun QuarantineScreen(
                                 QuarantineState.QUARANTINED -> {
                                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                         OutlinedButton(onClick = { onRestore(record) }) { Text(stringResource(R.string.quarantine_restore)) }
-                                        Button(onClick = { onUninstall(record) }) { Text(stringResource(R.string.action_uninstall)) }
+                                        if (record.packageName != "file-vault") {
+                                            Button(onClick = { onUninstall(record) }) { Text(stringResource(R.string.action_uninstall)) }
+                                        }
                                     }
-                                    TextButton(onClick = { onAllow(record) }) {
-                                        Text(stringResource(R.string.autopilot_allow_24h))
+                                    if (record.packageName != "file-vault") {
+                                        TextButton(onClick = { onAllow(record) }) {
+                                            Text(stringResource(R.string.autopilot_allow_24h))
+                                        }
                                     }
                                 }
                                 QuarantineState.FAILED -> {

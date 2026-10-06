@@ -425,4 +425,9 @@
     <string name="quarantine_failure_oem">This Android/OEM build did not expose a supported Force stop action</string>
     <string name="quarantine_failure_generic">Rootless action was unavailable; use the system app settings</string>
     <string name="quarantine_history_open">Quarantine history (%1$d)</string>
+    <string name="autopilot_open_quarantine">Open Quarantine</string>
+    <string name="autopilot_file_vaulted">AutoPilot: file encrypted in Quarantine Vault.</string>
+    <string name="autopilot_file_ask">AutoPilot: uncertain file; review required.</string>
+    <string name="autopilot_file_clean">AutoPilot: no action needed.</string>
+    <string name="quarantine_file_vault_item">Encrypted file vault item</string>
 </resources>

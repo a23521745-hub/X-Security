@@ -106,6 +106,40 @@ class ApkScanWorker(
         }
 
         ScanStore.publishResult(context, result)
+        if (result.isComplete) {
+            val verdict = when {
+                result.threats.isNotEmpty() -> org.xsecurity.scanner.autopilot.SecuritySignal.Verdict.KNOWN_BAD
+                result.status == org.xsecurity.scanner.engine.ScanStatus.CLEAN -> org.xsecurity.scanner.autopilot.SecuritySignal.Verdict.KNOWN_GOOD
+                else -> org.xsecurity.scanner.autopilot.SecuritySignal.Verdict.UNKNOWN
+            }
+            val autoResult = org.xsecurity.scanner.autopilot.AutopilotRuntime.evaluate(
+                context,
+                org.xsecurity.scanner.autopilot.SecurityEvent.FileScan(
+                    path = staged.absolutePath,
+                    sha256 = result.sha256,
+                    verdict = verdict,
+                    engine = result.threats.map { it.engine }.distinct().sorted().joinToString(",").ifBlank { "signature_set" }
+                )
+            )
+            val autonomy = org.xsecurity.scanner.autopilot.AutopilotSettings.level(context)
+            val decisionText = when {
+                verdict == org.xsecurity.scanner.autopilot.SecuritySignal.Verdict.KNOWN_GOOD -> R.string.autopilot_file_clean
+                verdict == org.xsecurity.scanner.autopilot.SecuritySignal.Verdict.KNOWN_BAD && autonomy == org.xsecurity.scanner.autopilot.AutonomyLevel.L2 && autoResult == org.xsecurity.scanner.autopilot.ActionDispatcher.Result.EXECUTED -> R.string.autopilot_file_vaulted
+                verdict == org.xsecurity.scanner.autopilot.SecuritySignal.Verdict.KNOWN_BAD -> R.string.autopilot_file_ask
+                else -> R.string.autopilot_file_ask
+            }
+            ScanStore.setAutopilotDecision(context.getString(decisionText))
+        } else {
+            org.xsecurity.scanner.autopilot.AutopilotRuntime.evaluate(
+                context,
+                org.xsecurity.scanner.autopilot.SecurityEvent.FileScan(
+                    path = staged.absolutePath,
+                    sha256 = result.sha256,
+                    verdict = org.xsecurity.scanner.autopilot.SecuritySignal.Verdict.UNKNOWN,
+                    engine = "unavailable"
+                )
+            )
+        }
         ScanNotifications.showResult(context, result)
         recordHistory(
             context = context,
