@@ -86,7 +86,9 @@ fun HistoryScreen(
     entries: List<ScanHistoryEntry>,
     onBack: () -> Unit,
     onShareReport: (report: String) -> Unit,
-    onClearHistory: () -> Unit
+    onClearHistory: () -> Unit,
+    quarantineCount: Int = 0,
+    onOpenQuarantine: () -> Unit = {}
 ) {
     var tab by remember { mutableIntStateOf(TAB_SUMMARY) }
     var filter by remember { mutableStateOf<ScanHistoryType?>(null) }
@@ -170,6 +172,11 @@ fun HistoryScreen(
                 onClick = { tab = TAB_ADVANCED },
                 text = { Text(stringResource(R.string.history_tab_advanced)) }
             )
+        }
+        if (tab == TAB_SUMMARY) {
+            TextButton(onClick = onOpenQuarantine, modifier = Modifier.fillMaxWidth()) {
+                Text(stringResource(R.string.quarantine_history_open, quarantineCount))
+            }
         }
         Spacer(modifier = Modifier.height(12.dp))
         if (tab == TAB_ADVANCED) {

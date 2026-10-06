@@ -21,6 +21,18 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.xsecurity.scanner.R
+import org.xsecurity.scanner.autopilot.AutoPilotHealthInputs
+import org.xsecurity.scanner.autopilot.AutoPilotHealthScore
+import org.xsecurity.scanner.autopilot.AutoPilotHealthScoreV1
+import org.xsecurity.scanner.autopilot.AutopilotNotifications
+import org.xsecurity.scanner.autopilot.AutopilotPermission
+import org.xsecurity.scanner.autopilot.AutopilotRuntime
+import org.xsecurity.scanner.autopilot.AutopilotScheduler
+import org.xsecurity.scanner.autopilot.AutopilotSettings
+import org.xsecurity.scanner.autopilot.AutonomyLevel
+import org.xsecurity.scanner.autopilot.RootlessCapabilityProvider
+import org.xsecurity.scanner.autopilot.SecurityEvent
+import org.xsecurity.scanner.autopilot.SignalRequest
 import org.xsecurity.scanner.data.EngineInfo
 import org.xsecurity.scanner.data.ScanController
 import org.xsecurity.scanner.data.ScanHistoryStore
@@ -59,6 +71,11 @@ import org.xsecurity.scanner.ui.screens.PhishingScreen
 import org.xsecurity.scanner.ui.screens.PrivacyAdvisorScreen
 import org.xsecurity.scanner.ui.screens.SettingsScreen
 import org.xsecurity.scanner.ui.theme.XSecurityTheme
+import org.xsecurity.scanner.quarantine.QuarantinePendingActionStore
+import org.xsecurity.scanner.quarantine.QuarantineRecord
+import org.xsecurity.scanner.quarantine.QuarantineRepository
+import org.xsecurity.scanner.quarantine.QuarantineScreen
+import org.xsecurity.scanner.quarantine.QuarantineUserActions
 import java.io.File
 
 /**
@@ -99,6 +116,12 @@ class MainActivity : ComponentActivity() {
     private var showSettings by mutableStateOf(false)
     private var showPrivacy by mutableStateOf(false)
     private var showPhishing by mutableStateOf(false)
+    private var showQuarantine by mutableStateOf(false)
+    private var autopilotPermissionRationale by mutableStateOf<AutopilotPermission?>(null)
+    private var capabilityStates by mutableStateOf<Map<AutopilotPermission, Boolean>>(emptyMap())
+    private var autopilotHealthScore by mutableStateOf(
+        AutoPilotHealthScore(100, AutoPilotHealthScore.Grade.GOOD, emptyList())
+    )
     /** EDR durum kartinin anlik gorunumu (onCreate/onResume'da tazelenir). */
     private var edrSnapshot by mutableStateOf(EdrStatusSnapshot(false, false, true, false, 0))
 
@@ -122,9 +145,15 @@ class MainActivity : ComponentActivity() {
         EdrAlertStore.restore(this)
         PhishingStore.restore(this)
         HealthStore.refresh(this)
+        AutopilotSettings.restore(this)
+        QuarantineRepository.restore(this)
+        AutopilotNotifications.ensureChannels(this)
         refreshEdrSnapshot()
+        refreshAutopilotStatus()
         applyProtectionMode(promptForStorage = false)
         requestNotificationPermissionIfNeeded()
+        // Existing WorkManager schedulers remain the owner of OTA/definition checks.
+        AutopilotScheduler.schedule(this)
         // Gunluk imzali guncelleme kontrolu (yalnizca ag bagliyken; bildirim sessiz).
         OtaController.schedulePeriodicCheck(this)
         // Gunluk imzali TANIM paketi kontrolu (ayni anahtar/kanal; kurulum otomatik).
@@ -144,11 +173,15 @@ class MainActivity : ComponentActivity() {
                 val privacyState by PrivacyStore.state.collectAsState()
                 val healthSnapshot by HealthStore.snapshot.collectAsState()
                 val phishingBlocklistState by PhishingStore.state.collectAsState()
+                val quarantineRecords by QuarantineRepository.records.collectAsState()
+                val autonomyLevel by AutopilotSettings.autonomy.collectAsState()
                 // Sistem geri dongusu alt ekranlardan dashboard'a doner.
                 BackHandler(enabled = showHistory) { showHistory = false }
                 BackHandler(enabled = showSettings) { showSettings = false }
                 BackHandler(enabled = showPrivacy) { showPrivacy = false }
                 BackHandler(enabled = showPhishing) { showPhishing = false }
+                BackHandler(enabled = showQuarantine) { showQuarantine = false }
+                BackHandler(enabled = autopilotPermissionRationale != null) { autopilotPermissionRationale = null }
                 if (showStorageRationale) {
                     AlertDialog(
                         onDismissRequest = { showStorageRationale = false },
@@ -165,24 +198,69 @@ class MainActivity : ComponentActivity() {
                         }
                     )
                 }
+                autopilotPermissionRationale?.let { permission ->
+                    AlertDialog(
+                        onDismissRequest = { autopilotPermissionRationale = null },
+                        title = { Text(getString(autopilotPermissionTitle(permission))) },
+                        text = { Text(getString(autopilotPermissionBody(permission))) },
+                        confirmButton = {
+                            TextButton(onClick = {
+                                autopilotPermissionRationale = null
+                                openAutopilotPermissionSettings(permission)
+                            }) { Text(getString(R.string.autopilot_permission_open)) }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { autopilotPermissionRationale = null }) {
+                                Text(getString(R.string.action_cancel))
+                            }
+                        }
+                    )
+                }
                 if (showHistory) {
                     HistoryScreen(
                         entries = historyEntries,
                         onBack = { showHistory = false },
                         onShareReport = { report -> shareScanReport(report) },
-                        onClearHistory = { ScanHistoryStore.clear(this) }
+                        onClearHistory = { ScanHistoryStore.clear(this) },
+                        quarantineCount = quarantineRecords.size,
+                        onOpenQuarantine = { showHistory = false; showQuarantine = true }
+                    )
+                } else if (showQuarantine) {
+                    QuarantineScreen(
+                        records = quarantineRecords,
+                        onBack = { showQuarantine = false },
+                        onAllow = { record ->
+                            QuarantineUserActions.allowFor24Hours(this, record.packageName, record.id)
+                            QuarantineRepository.restore(this)
+                        },
+                        onRestore = { record ->
+                            QuarantineUserActions.restore(this, record.id)
+                            QuarantineRepository.restore(this)
+                        },
+                        onUninstall = { record -> requestQuarantineUninstall(record) },
+                        onRetry = { record ->
+                            QuarantineUserActions.retry(this, record.id, RootlessCapabilityProvider())
+                            QuarantineRepository.restore(this)
+                        }
                     )
                 } else if (showSettings) {
                     SettingsScreen(
                         settings = updateSettings,
                         versionName = appVersionName(),
                         versionCode = OtaController.currentVersionCode(this),
+                        autonomyLevel = autonomyLevel,
+                        healthScore = autopilotHealthScore,
+                        quarantineCount = quarantineRecords.size,
+                        capabilityStates = capabilityStates,
                         onAutoCheckChange = { enabled ->
                             UpdatePreferences.applyAutoCheck(this, enabled)
                         },
                         onMeteredChange = { allowed ->
                             UpdatePreferences.setMeteredAllowed(this, allowed)
                         },
+                        onAutonomyChange = { level -> AutopilotSettings.setLevel(this, level) },
+                        onOpenQuarantine = { showSettings = false; showQuarantine = true },
+                        onRequestPermission = { permission -> autopilotPermissionRationale = permission },
                         onBack = { showSettings = false }
                     )
                 } else if (showPrivacy) {
@@ -198,6 +276,15 @@ class MainActivity : ComponentActivity() {
                         blocklistState = phishingBlocklistState,
                         onUpdateList = {
                             lifecycleScope.launch { PhishingStore.refresh(this@MainActivity) }
+                        },
+                        onAutoPilotEvaluation = { text ->
+                            lifecycleScope.launch {
+                                AutopilotRuntime.evaluate(
+                                    this@MainActivity,
+                                    SecurityEvent.Manual(origin = "phishing_share"),
+                                    SignalRequest(phishingText = text)
+                                )
+                            }
                         },
                         onBack = { showPhishing = false }
                     )
@@ -251,10 +338,16 @@ class MainActivity : ComponentActivity() {
         DefinitionsStore.restore(this)
         DeviceScanStore.restore(this)
         ScanHistoryStore.restore(this)
+        QuarantineRepository.restore(this)
+        AutopilotSettings.restore(this)
         // Kullanici sistem ayarlarindan donmus olabilir (erisim izni, erisilebilirlik...).
         HealthStore.refresh(this)
         refreshEdrSnapshot()
+        refreshAutopilotStatus()
         refreshProtection()
+        QuarantinePendingActionStore.consumeUninstall(this)?.let { pending ->
+            pending.recordId?.let { QuarantineUserActions.markUninstalledAfterUserConfirmation(this, it) }
+        }
         pendingUninstall?.let { packageName ->
             pendingUninstall = null
             // Kullanici sistem ekranindan dondu: paket gercekten gittiyse listeden dus.
@@ -321,7 +414,11 @@ class MainActivity : ComponentActivity() {
     private fun queueDeviceScan(includeSystemApps: Boolean) {
         DeviceScanStore.acceptRationale(this)
         ScanStore.markQueued(this, getString(R.string.device_scan_queued))
-        if (!ScanController.enqueueDeviceScan(this, includeSystemApps)) {
+        val queued = AutopilotRuntime.enqueue(
+            this,
+            SecurityEvent.Manual(origin = "device_scan", includeSystemApps = includeSystemApps)
+        )
+        if (!queued && !ScanController.enqueueDeviceScan(this, includeSystemApps)) {
             ScanStore.markFailed(this, getString(R.string.stage_failed))
         }
     }
@@ -329,6 +426,78 @@ class MainActivity : ComponentActivity() {
     /** EDR karti icin anlik durum (ayar donuslerinde tazelenir). */
     private fun refreshEdrSnapshot() {
         edrSnapshot = EdrStatus.snapshot(this)
+    }
+
+    private fun refreshAutopilotStatus() {
+        val capabilities = RootlessCapabilityProvider()
+        capabilityStates = mapOf(
+            AutopilotPermission.BATTERY_EXEMPTION to capabilities.hasCapability(
+                this, org.xsecurity.scanner.autopilot.Capability.BATTERY_EXEMPTION
+            ),
+            AutopilotPermission.OVERLAY to capabilities.hasCapability(
+                this, org.xsecurity.scanner.autopilot.Capability.OVERLAY_WARNING
+            ),
+            AutopilotPermission.USAGE_ACCESS to capabilities.hasCapability(
+                this, org.xsecurity.scanner.autopilot.Capability.USAGE_STATS
+            ),
+            AutopilotPermission.ACCESSIBILITY to capabilities.hasCapability(
+                this, org.xsecurity.scanner.autopilot.Capability.ACCESSIBILITY_ASSIST
+            )
+        )
+        val definitions = DefinitionsStore.state.value
+        val freshness = maxOf(definitions.lastInstalledAt, definitions.checkedAt)
+        val fresh = definitions.installedDefVersion > 0 &&
+            (freshness == 0L || System.currentTimeMillis() - freshness < AutopilotScheduler.DEFINITIONS_STALE_MILLIS)
+        autopilotHealthScore = AutoPilotHealthScoreV1.calculate(
+            AutoPilotHealthInputs(
+                scannerReady = ScanStore.state.value.engine?.isReady == true,
+                definitionsFresh = fresh,
+                usageAccessGranted = capabilityStates[AutopilotPermission.USAGE_ACCESS] == true,
+                accessibilityAssistGranted = capabilityStates[AutopilotPermission.ACCESSIBILITY] == true
+            )
+        )
+    }
+
+    private fun autopilotPermissionTitle(permission: AutopilotPermission): Int = when (permission) {
+        AutopilotPermission.BATTERY_EXEMPTION -> R.string.autopilot_rationale_battery_title
+        AutopilotPermission.OVERLAY -> R.string.autopilot_rationale_overlay_title
+        AutopilotPermission.USAGE_ACCESS -> R.string.autopilot_rationale_usage_title
+        AutopilotPermission.ACCESSIBILITY -> R.string.autopilot_rationale_accessibility_title
+    }
+
+    private fun autopilotPermissionBody(permission: AutopilotPermission): Int = when (permission) {
+        AutopilotPermission.BATTERY_EXEMPTION -> R.string.autopilot_rationale_battery_body
+        AutopilotPermission.OVERLAY -> R.string.autopilot_rationale_overlay_body
+        AutopilotPermission.USAGE_ACCESS -> R.string.autopilot_rationale_usage_body
+        AutopilotPermission.ACCESSIBILITY -> R.string.autopilot_rationale_accessibility_body
+    }
+
+    private fun openAutopilotPermissionSettings(permission: AutopilotPermission) {
+        val intent = when (permission) {
+            AutopilotPermission.BATTERY_EXEMPTION -> {
+                val power = getSystemService(POWER_SERVICE) as? android.os.PowerManager
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
+                    power?.isIgnoringBatteryOptimizations(packageName) != true
+                ) {
+                    Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:$packageName"))
+                } else {
+                    Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+                }
+            }
+            AutopilotPermission.OVERLAY -> Intent(
+                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                Uri.parse("package:$packageName")
+            )
+            AutopilotPermission.USAGE_ACCESS -> org.xsecurity.scanner.autopilot.ForegroundAppObserver.usageAccessSettingsIntent()
+            AutopilotPermission.ACCESSIBILITY -> Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+        }
+        runCatching { startActivity(intent) }
+    }
+
+    private fun requestQuarantineUninstall(record: QuarantineRecord) {
+        val intent = QuarantineUserActions.uninstallIntent(this, record.packageName, record.id) ?: return
+        QuarantinePendingActionStore.setUninstall(this, record.packageName, record.id)
+        runCatching { startActivity(intent) }
     }
 
     /** Overlay izleyici dugmesi: sistemin Erisilebilirlik ekranini acar. */
@@ -475,6 +644,7 @@ class MainActivity : ComponentActivity() {
                     )
                     ScanStore.markEngineReady()
                 }
+                refreshAutopilotStatus()
             }
         }
     }
