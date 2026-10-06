@@ -15,6 +15,7 @@ import androidx.work.WorkManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.xsecurity.scanner.BuildConfig
+import org.xsecurity.scanner.data.UpdatePreferences
 import org.xsecurity.scanner.worker.OtaCheckWorker
 import org.xsecurity.scanner.worker.OtaDownloadWorker
 import java.io.File
@@ -95,6 +96,10 @@ object OtaController {
      * isidir: uygulama acik degilken de calisabilir.
      */
     fun schedulePeriodicCheck(context: Context) {
+        if (!UpdatePreferences.isAutoCheckEnabled(context)) {
+            runCatching { WorkManager.getInstance(context).cancelUniqueWork(CHECK_WORK_NAME) }
+            return
+        }
         if (!currentConfig().isConfigured) return
         val request = PeriodicWorkRequestBuilder<OtaCheckWorker>(24, TimeUnit.HOURS)
             .setConstraints(
