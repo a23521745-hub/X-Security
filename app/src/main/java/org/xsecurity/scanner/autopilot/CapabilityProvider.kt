@@ -4,6 +4,7 @@ import android.content.Context
 import android.os.PowerManager
 import android.provider.Settings
 import org.xsecurity.scanner.quarantine.PackageSoftQuarantine
+import org.xsecurity.scanner.quarantine.QuarantineAccessibilityService
 import org.xsecurity.scanner.quarantine.SoftQuarantineResult
 
 /** Capabilities are queried at use time because special-access grants can change in Settings. */
