@@ -134,7 +134,7 @@
             android:label="@string/autopilot_overlay_title"
             android:launchMode="singleTop" />
 
-        <!-- Accessibility-assisted force-stop is opt-in and only inspects a pending Settings assist. -->
+        <!-- User-enabled package-only foreground sensing plus the explicit, time-limited Settings force-stop assist. -->
         <service
             android:name="org.xsecurity.scanner.quarantine.QuarantineAccessibilityService"
             android:exported="true"

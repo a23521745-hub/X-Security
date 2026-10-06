@@ -26,6 +26,11 @@ object AutopilotRuntime {
         request: SignalRequest = SignalRequest()
     ): ActionDispatcher.Result = withContext(Dispatchers.IO) {
         val appContext = context.applicationContext
+        if (event is SecurityEvent.ForegroundApp) {
+            // Launch Shield is list/cache-only: no provider scan or generic risk prompt on every launch.
+            ForegroundInterceptionCoordinator.handle(appContext, event)
+            return@withContext ActionDispatcher.Result.EXECUTED
+        }
         val evaluatedEvent = safelistedEvent(appContext, event)
         val signals = ArrayList<SecuritySignal>()
         var providerFailed = false
@@ -54,12 +59,29 @@ object AutopilotRuntime {
                 reasonCode = if (phishingShareWithoutLink) "phishing_no_link_signal" else "no_applicable_signal"
             )
         }
+        updateKnownBadVerdictCache(appContext, evaluatedEvent, signals)
         val autonomy = AutopilotSettings.level(appContext)
         val bypassActive = evaluatedEvent.packageName?.let {
             QuarantineRepository.activeBypass(appContext, it) != null
         } ?: false
         val decision = PolicyEngine.decide(evaluatedEvent, signals, autonomy, bypassActive)
         ActionDispatcher().dispatch(appContext, evaluatedEvent, signals, decision, autonomy)
+    }
+
+    private fun updateKnownBadVerdictCache(
+        context: Context,
+        event: SecurityEvent,
+        signals: List<SecuritySignal>
+    ) {
+        val packageName = event.packageName ?: return
+        if (event !is SecurityEvent.PackageInstalled && event !is SecurityEvent.Manual) return
+        if (event.isSystemPackage || SystemPackageSafelist.isSystemPackage(context, packageName)) return
+        val scannerSignal = signals.firstOrNull { it.provider == SecuritySignal.ProviderId.SCANNER } ?: return
+        when (scannerSignal.verdict) {
+            SecuritySignal.Verdict.KNOWN_BAD -> KnownBadVerdictCache.remember(context, packageName, scannerSignal)
+            SecuritySignal.Verdict.KNOWN_GOOD -> KnownBadVerdictCache.invalidate(context, packageName)
+            SecuritySignal.Verdict.UNKNOWN -> Unit
+        }
     }
 
     private fun safelistedEvent(context: Context, event: SecurityEvent): SecurityEvent {

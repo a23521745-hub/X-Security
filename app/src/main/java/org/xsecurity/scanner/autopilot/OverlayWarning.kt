@@ -19,11 +19,21 @@ import org.xsecurity.scanner.R
 import org.xsecurity.scanner.quarantine.QuarantinePendingActionStore
 import org.xsecurity.scanner.quarantine.QuarantineUserActions
 
-/** SYSTEM_ALERT_WINDOW warning with the required user Allow/Uninstall actions. */
+/** Warning surfaces: generic policy prompts plus opaque, list-only launch interception. */
 object OverlayWarning {
     const val EXTRA_PACKAGE = "warning_package"
     const val EXTRA_RECORD_ID = "warning_record_id"
     const val EXTRA_REASON = "warning_reason"
+    const val EXTRA_INTERCEPTION = "warning_interception"
+    const val EXTRA_VERDICT = "warning_verdict"
+    const val EXTRA_PROVIDER = "warning_provider"
+
+    fun showInterception(context: Context, interception: ForegroundInterception) {
+        val appContext = context.applicationContext
+        val showOnMain = Runnable { showInterceptionOnMainThread(appContext, interception) }
+        if (Looper.myLooper() == Looper.getMainLooper()) showOnMain.run()
+        else Handler(Looper.getMainLooper()).post(showOnMain)
+    }
 
     fun show(context: Context, packageName: String?, recordId: String?, reasonCode: String) {
         val appContext = context.applicationContext
@@ -31,6 +41,106 @@ object OverlayWarning {
         if (Looper.myLooper() == Looper.getMainLooper()) showOnMain.run()
         else Handler(Looper.getMainLooper()).post(showOnMain)
     }
+
+    private fun showInterceptionOnMainThread(context: Context, interception: ForegroundInterception) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && Settings.canDrawOverlays(context)) {
+            if (showInterceptionOverlay(context, interception)) return
+        }
+        // Overlay denial/OEM failure falls back to an opaque, full-screen Activity.
+        val intent = Intent(context, OverlayWarningActivity::class.java).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            putExtra(EXTRA_PACKAGE, interception.packageName)
+            putExtra(EXTRA_RECORD_ID, interception.recordId)
+            putExtra(EXTRA_REASON, interception.reasonCode)
+            putExtra(EXTRA_INTERCEPTION, true)
+            putExtra(EXTRA_VERDICT, interception.verdict.name)
+            putExtra(EXTRA_PROVIDER, interception.provider.name)
+        }
+        runCatching { context.startActivity(intent) }
+    }
+
+    private fun showInterceptionOverlay(context: Context, interception: ForegroundInterception): Boolean {
+        val manager = context.getSystemService(Context.WINDOW_SERVICE) as? WindowManager ?: return false
+        val root = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            setPadding(dp(context, 28), dp(context, 28), dp(context, 28), dp(context, 28))
+            setBackgroundColor(Color.rgb(12, 18, 30))
+        }
+        val target = label(context, interception.packageName)
+        root.addView(TextView(context).apply {
+            text = context.getString(R.string.autopilot_interception_title)
+            setTextColor(Color.WHITE)
+            textSize = 23f
+            typeface = Typeface.DEFAULT_BOLD
+            gravity = Gravity.CENTER
+        }, centeredTextParams())
+        root.addView(TextView(context).apply {
+            text = context.getString(R.string.autopilot_interception_body, target)
+            setTextColor(Color.WHITE)
+            textSize = 18f
+            gravity = Gravity.CENTER
+            setPadding(0, dp(context, 18), 0, dp(context, 14))
+        }, centeredTextParams())
+        root.addView(TextView(context).apply {
+            text = context.getString(
+                R.string.autopilot_interception_details,
+                ForegroundInterceptionLabels.verdict(context, interception.verdict),
+                ForegroundInterceptionLabels.reason(context, interception.reasonCode)
+            )
+            setTextColor(Color.LTGRAY)
+            textSize = 15f
+            gravity = Gravity.CENTER
+            setPadding(0, 0, 0, dp(context, 22))
+        }, centeredTextParams())
+        root.addView(interceptionButton(context, R.string.autopilot_go_back) {
+            if (ForegroundInterceptionCoordinator.goBack(context, interception)) remove(manager, root)
+        })
+        root.addView(interceptionButton(context, R.string.action_uninstall) {
+            val intent = QuarantineUserActions.uninstallIntent(context, interception.packageName, interception.recordId)
+            if (intent != null) {
+                QuarantinePendingActionStore.setUninstall(context, interception.packageName, interception.recordId)
+                if (runCatching { context.startActivity(intent) }.isSuccess) remove(manager, root)
+            }
+        })
+        root.addView(interceptionButton(context, R.string.autopilot_open_anyway_24h) {
+            if (QuarantineUserActions.allowFor24Hours(context, interception.packageName, interception.recordId)) {
+                remove(manager, root)
+            }
+        })
+
+        val params = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+            PixelFormat.OPAQUE
+        ).apply { gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL }
+        return try {
+            manager.addView(root, params)
+            true
+        } catch (_: SecurityException) {
+            false
+        } catch (_: RuntimeException) {
+            false
+        }
+    }
+
+    private fun interceptionButton(context: Context, labelRes: Int, action: () -> Unit): Button =
+        Button(context).apply {
+            text = context.getString(labelRes)
+            isAllCaps = false
+            setOnClickListener { action() }
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { bottomMargin = dp(context, 10) }
+        }
+
+    private fun centeredTextParams() = LinearLayout.LayoutParams(
+        LinearLayout.LayoutParams.MATCH_PARENT,
+        LinearLayout.LayoutParams.WRAP_CONTENT
+    )
 
     private fun showOnMainThread(context: Context, packageName: String?, recordId: String?, reasonCode: String) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && Settings.canDrawOverlays(context)) {

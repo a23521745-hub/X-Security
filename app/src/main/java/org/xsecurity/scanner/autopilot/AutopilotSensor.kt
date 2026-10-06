@@ -4,19 +4,17 @@ import android.app.AppOpsManager
 import android.app.usage.UsageEvents
 import android.app.usage.UsageStatsManager
 import android.content.Context
-import android.content.pm.ApplicationInfo
-import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Process
 import android.provider.Settings
 import android.content.Intent
-import android.net.Uri
 import org.xsecurity.scanner.definitions.DefinitionsStore
-import org.xsecurity.scanner.ui.MainActivity
 import java.util.concurrent.TimeUnit
 
-/** Polls UsageStats (no Accessibility screen reading) and emits only package identifiers. */
+/** UsageStats polling fallback; the accessibility sensor uses the same package-only deduplicator. */
 object ForegroundAppObserver {
+    private val eventLock = Any()
+
     fun hasUsageAccess(context: Context): Boolean = try {
         val appOps = context.getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager
         appOps.checkOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS, Process.myUid(), context.packageName) ==
@@ -30,9 +28,20 @@ object ForegroundAppObserver {
     fun poll(context: Context, nowMillis: Long = System.currentTimeMillis()): SecurityEvent.ForegroundApp? {
         if (!hasUsageAccess(context)) return null
         val packageName = foregroundPackage(context, nowMillis) ?: return null
-        if (packageName == context.packageName || packageName == AutopilotSettings.lastForegroundPackage(context)) return null
+        return eventForPackage(context, packageName, nowMillis)
+    }
+
+    /** Called by both sensors; emits once per package transition and never reads window text. */
+    fun eventForPackage(
+        context: Context,
+        packageName: String,
+        nowMillis: Long = System.currentTimeMillis()
+    ): SecurityEvent.ForegroundApp? = synchronized(eventLock) {
+        if (packageName.isBlank() || packageName == AutopilotSettings.lastForegroundPackage(context)) return@synchronized null
         AutopilotSettings.setLastForegroundPackage(context, packageName)
-        return SecurityEvent.ForegroundApp(packageName, isSystemPackage(context, packageName), nowMillis)
+        if (!AutopilotSettings.isEnabled(context) || packageName == context.packageName) return@synchronized null
+        if (SystemPackageSafelist.isSystemPackage(context, packageName)) return@synchronized null
+        SecurityEvent.ForegroundApp(packageName, isSystemPackage = false, occurredAtMillis = nowMillis)
     }
 
     fun foregroundPackage(context: Context, nowMillis: Long = System.currentTimeMillis()): String? {
@@ -57,19 +66,6 @@ object ForegroundAppObserver {
             }
         }
         return latest
-    }
-
-    private fun isSystemPackage(context: Context, packageName: String): Boolean = try {
-        val info = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            context.packageManager.getApplicationInfo(packageName, PackageManager.ApplicationInfoFlags.of(0))
-        } else {
-            @Suppress("DEPRECATION")
-            context.packageManager.getApplicationInfo(packageName, 0)
-        }
-        (info.flags and ApplicationInfo.FLAG_SYSTEM) != 0 ||
-            (info.flags and ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0
-    } catch (_: Exception) {
-        false
     }
 }
 
@@ -129,8 +125,11 @@ object AutopilotScheduler {
             AutopilotRuntime.evaluate(appContext, SecurityEvent.DefsStale(latestDefinitionsActivity, nowMillis))
         }
 
-        // No Usage Access means no foreground-app events; install-time observation remains.
-        ForegroundAppObserver.poll(appContext, nowMillis)?.let { AutopilotRuntime.evaluate(appContext, it) }
+        // No Usage Access means no polling events; opt-in Accessibility remains the immediate sensor.
+        // v17 checks active quarantine/positive verdict cache only; it never scans every launch.
+        ForegroundAppObserver.poll(appContext, nowMillis)?.let {
+            ForegroundInterceptionCoordinator.handle(appContext, it)
+        }
     }
 
     private const val PREFS = "xsec_autopilot_sensor"

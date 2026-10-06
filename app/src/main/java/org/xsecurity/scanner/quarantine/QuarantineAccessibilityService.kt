@@ -8,28 +8,55 @@ import android.net.Uri
 import android.provider.Settings
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
+import org.xsecurity.scanner.autopilot.ForegroundAppObserver
+import org.xsecurity.scanner.autopilot.ForegroundInterceptionCoordinator
 import org.xsecurity.scanner.edr.EdrStatus
 
 /**
- * Narrow, user-enabled assist for the system app-details screen. It only looks for
- * Force stop controls while a time-limited request exists, never reads app content,
- * and never logs node text. OEMs that do not expose a recognized control stay in
- * PENDING/FAILED rather than being reported as quarantined.
+ * User-enabled package-only foreground sensor plus narrow Force stop assist. Foreground
+ * events use window-state changes only; node text is consulted only during an explicit,
+ * time-limited Settings quarantine assist and is never retained or logged.
  */
 class QuarantineAccessibilityService : AccessibilityService() {
+    private val sensorScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
     override fun onServiceConnected() {
         serviceInfo = (serviceInfo ?: AccessibilityServiceInfo()).apply {
-            eventTypes = AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED or AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
+            eventTypes = AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
+            packageNames = null
             feedbackType = AccessibilityServiceInfo.FEEDBACK_GENERIC
             flags = flags or AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS
-            notificationTimeout = 250
+            notificationTimeout = 500
         }
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        if (event == null) return
+        if (event == null || event.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
+        val packageName = event.packageName?.toString()?.takeIf(::isPackageIdentifier) ?: return
+        val nowMillis = System.currentTimeMillis()
+
+        // Copy only the package identifier off the event object; never enqueue screen/window text.
+        sensorScope.launch {
+            ForegroundAppObserver.eventForPackage(applicationContext, packageName, nowMillis)?.let { foreground ->
+                ForegroundInterceptionCoordinator.handle(applicationContext, foreground)
+            }
+        }
+        handlePendingQuarantineAssist(packageName)
+    }
+
+    private fun isPackageIdentifier(value: String): Boolean =
+        value.length <= 255 && value.contains('.') && value.all {
+            it.isLetterOrDigit() || it == '.' || it == '_'
+        }
+
+    private fun handlePendingQuarantineAssist(packageName: String) {
+        if (!isSettingsPackage(packageName)) return
         val request = QuarantineAssistStore.current(this) ?: return
-        if (!isSettingsPackage(event.packageName?.toString())) return
         if (System.currentTimeMillis() - request.startedAtMillis > ASSIST_TIMEOUT_MILLIS) {
             failRequest(request.recordId)
             return
@@ -52,6 +79,11 @@ class QuarantineAccessibilityService : AccessibilityService() {
     }
 
     override fun onInterrupt() = Unit
+
+    override fun onDestroy() {
+        sensorScope.cancel()
+        super.onDestroy()
+    }
 
     private fun completeRequest(recordId: String) {
         val result = QuarantineRepository.transition(
