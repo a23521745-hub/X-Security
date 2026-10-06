@@ -13,6 +13,28 @@ system installer. The same signed channel also delivers **signature database
 (definitions) packages**, which are verified and applied automatically
 (`org.xsecurity.scanner.definitions`). See [Over-the-air updates](#over-the-air-updates).
 
+## Features
+
+- **On-device scanning** — YARA + ClamAV `.ndb` + `.hsb` layers over APK/ZIP
+  content, installed-app scan, install-time shield and download watch.
+- **Behavioral monitor status** — dashboard card showing the AppOps behavior
+  service, the overlay/accessibility monitor (with a shortcut to system
+  settings) and the last-24-hours alert count.
+- **Privacy Advisor** — lists installed apps that were *granted* camera,
+  microphone, location, SMS or contacts permissions, ranked with a risk badge;
+  uninstall goes through the system confirmation screen. No new permissions.
+- **Link & phishing scanner** — extracts URLs from pasted/shared text and
+  scores them on-device against a local blocklist plus heuristics (IP host,
+  `@` sign, punycode, shorteners). Also available as a system share target
+  ("Scan with X-Security"). The blocklist ships embedded and refreshes from
+  the community-maintained [`phishing-blocklist.txt`](phishing-blocklist.txt).
+- **Quick Settings tile** — one-tap installed-app scan from the notification
+  shade.
+- **Device health badge** — on-device integrity signals (root `su` binary,
+  test-keys build, ADB enabled). No network, no uploads.
+- **Settings** — background update-check preferences (automatic checks,
+  metered-network gate); manual checks always work.
+
 ## What the engine actually does
 
 | Layer | Supported today | Not supported (counted and reported, never silently dropped) |

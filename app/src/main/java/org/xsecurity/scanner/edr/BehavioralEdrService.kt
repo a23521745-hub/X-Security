@@ -246,6 +246,8 @@ class BehavioralEdrService : Service() {
          * [Camera/Microphone] erişimi sağladı!".
          */
         fun showAlert(context: Context, packageName: String, op: String?, screenInteractive: Boolean) {
+            // Dashboard kartindaki 24 saatlik sayac; hatasi bildirimi engellemez.
+            runCatching { EdrAlertStore.record(context) }
             ensureChannels(context)
             val manager = context.getSystemService(NotificationManager::class.java) ?: return
             val sensor = context.getString(

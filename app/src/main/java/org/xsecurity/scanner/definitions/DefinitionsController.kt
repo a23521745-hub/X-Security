@@ -196,6 +196,11 @@ object DefinitionsController {
     /** "Kontrol et / Guncelle" dugmesi: tek seferlik is kuyruga yazilir. */
     fun enqueueManualCheck(context: Context) {
         val request = OneTimeWorkRequestBuilder<DefinitionsUpdateWorker>()
+            .setInputData(
+                androidx.work.Data.Builder()
+                    .putBoolean(DefinitionsUpdateWorker.KEY_MANUAL, true)
+                    .build()
+            )
             .setConstraints(
                 Constraints.Builder()
                     .setRequiredNetworkType(NetworkType.CONNECTED)

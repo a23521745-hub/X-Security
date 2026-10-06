@@ -242,4 +242,95 @@
     <string name="edr_sensor_camera">Camera</string>
     <string name="edr_sensor_microphone">Microphone</string>
     <string name="edr_accessibility_description">Lets X-Security notice overlay windows drawn over sensitive screens (installer, permission dialogs) to warn about possible tap-jacking. No screen content is read or stored.</string>
+
+    <!-- Community freshness (ETag + short content hash) -->
+    <string name="community_hash_short">SHA-256: %1$s</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_open">Open settings</string>
+    <string name="settings_updates_title">Background update checks</string>
+    <string name="settings_updates_hint">Daily checks for app and definition updates. Manual checks always work.</string>
+    <string name="settings_auto_check">Check automatically</string>
+    <string name="settings_auto_check_desc">Run the daily background check for app and definition updates</string>
+    <string name="settings_metered">Check on metered networks</string>
+    <string name="settings_metered_desc">Allow background checks on mobile or metered Wi-Fi connections</string>
+    <string name="settings_about_title">About</string>
+    <string name="settings_version">Version %1$s (%2$d)</string>
+
+    <!-- Behavioral EDR status card -->
+    <string name="edr_card_title">Behavioral monitor</string>
+    <string name="edr_card_behavior_running">Behavior monitor is running</string>
+    <string name="edr_card_behavior_stopped">Behavior monitor stopped — reopen the app to restart it</string>
+    <string name="edr_card_behavior_off">The behavior monitor runs in “Always on” protection mode</string>
+    <string name="edr_card_behavior_passive">Detailed watching needs Android 10+; the service is idle on this device</string>
+    <string name="edr_card_accessibility_on">Overlay monitor is enabled</string>
+    <string name="edr_card_accessibility_off">Overlay monitor is off</string>
+    <string name="edr_card_accessibility_hint">Detects overlay windows over installer and permission screens. Enable it in the system Accessibility settings.</string>
+    <string name="edr_card_open_accessibility">Open Accessibility settings</string>
+    <string name="edr_card_alerts">%1$d alert(s) in the last 24 hours</string>
+    <string name="edr_card_no_alerts">No alerts in the last 24 hours</string>
+
+    <!-- Privacy Advisor -->
+    <string name="privacy_title">Privacy Advisor</string>
+    <string name="privacy_hint">These apps were GRANTED sensitive permissions. Everything is checked on-device; uninstalling always asks the system first.</string>
+    <string name="privacy_card_hint">See which apps hold camera, microphone, location, SMS and contacts permissions</string>
+    <string name="privacy_card_summary">%1$d app(s) hold sensitive permissions</string>
+    <string name="privacy_card_empty">No app holds sensitive permissions</string>
+    <string name="privacy_card_unknown">Not checked yet — tap to review</string>
+    <string name="privacy_risk_high">High</string>
+    <string name="privacy_risk_medium">Medium</string>
+    <string name="privacy_risk_low">Low</string>
+    <string name="privacy_group_camera">Camera</string>
+    <string name="privacy_group_microphone">Microphone</string>
+    <string name="privacy_group_location">Location</string>
+    <string name="privacy_group_sms">SMS</string>
+    <string name="privacy_group_contacts">Contacts</string>
+    <string name="privacy_system_app">system</string>
+    <string name="privacy_empty">No installed app currently holds these permissions.</string>
+    <string name="privacy_rescan">Re-check</string>
+    <string name="privacy_scanning">Checking installed apps…</string>
+    <string name="privacy_count">%1$d app(s)</string>
+    <string name="privacy_last_checked">Last checked: %1$s</string>
+
+    <!-- Link & phishing scanner -->
+    <string name="phishing_title">Link &amp; phishing scanner</string>
+    <string name="phishing_hint">Paste a suspicious message. Links are extracted and checked on-device against the local blocklist and heuristics — nothing is uploaded.</string>
+    <string name="phishing_input_hint">Paste message text here…</string>
+    <string name="phishing_scan">Scan links</string>
+    <string name="phishing_card_hint">Check links in a suspicious message for phishing signs</string>
+    <string name="phishing_no_urls">No links found in the text.</string>
+    <string name="phishing_found">%1$d link(s) checked</string>
+    <string name="phishing_verdict_safe">Looks safe</string>
+    <string name="phishing_verdict_suspicious">Suspicious</string>
+    <string name="phishing_verdict_malicious">Blocked: known phishing link</string>
+    <string name="phishing_reason_blocklisted">On the phishing blocklist</string>
+    <string name="phishing_reason_ip_host">Uses an IP address instead of a domain</string>
+    <string name="phishing_reason_at_sign">Contains “@”, hiding the real destination</string>
+    <string name="phishing_reason_punycode">Uses punycode (look-alike characters)</string>
+    <string name="phishing_reason_shortener">Uses a link shortener, hiding the destination</string>
+    <string name="phishing_blocklist_title">Phishing blocklist</string>
+    <string name="phishing_blocklist_status">%1$d entries · updated %2$s</string>
+    <string name="phishing_blocklist_update">Update list</string>
+    <string name="phishing_blocklist_updating">Updating…</string>
+    <string name="phishing_blocklist_error">List update failed: %1$s</string>
+    <string name="phishing_share_label">Scan with X-Security</string>
+    <string name="phishing_shared_empty">The shared text contains no links.</string>
+
+    <!-- Quick Settings tile -->
+    <string name="tile_label">Scan device</string>
+    <string name="tile_subtitle">Tap to scan installed apps</string>
+    <string name="tile_scan_started">Device scan started</string>
+    <string name="tile_scan_running">A scan is already running</string>
+
+    <!-- Device health -->
+    <string name="health_title">Device health</string>
+    <string name="health_hint">On-device integrity signals. No network, no uploads.</string>
+    <string name="health_healthy">Healthy</string>
+    <string name="health_warning">Warning</string>
+    <string name="health_at_risk">At risk</string>
+    <string name="health_clean">No integrity issues detected</string>
+    <string name="health_finding_root_su">Root binary found (%1$s)</string>
+    <string name="health_finding_test_keys">Test-keys build (custom ROM?)</string>
+    <string name="health_finding_adb">USB debugging (ADB) is enabled</string>
 </resources>

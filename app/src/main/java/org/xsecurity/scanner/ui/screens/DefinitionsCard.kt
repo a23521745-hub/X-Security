@@ -211,6 +211,14 @@ private fun CommunitySection() {
                         MaterialTheme.colorScheme.onSurfaceVariant
                     }
                 )
+                val shaShort = item.shaShort
+                if (shaShort != null) {
+                    Text(
+                        text = stringResource(R.string.community_hash_short, shaShort),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
                 if (source.license.isNotBlank()) {
                     Text(
                         text = source.license + " · " + source.attribution,
