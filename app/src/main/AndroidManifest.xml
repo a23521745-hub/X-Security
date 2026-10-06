@@ -21,6 +21,11 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- AutoPilot optional special access; rationale is shown before Settings is opened. -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" tools:ignore="ProtectedPermissions" />
+    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" tools:ignore="ProtectedPermissions" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <uses-permission android:name="android.permission.KILL_BACKGROUND_PROCESSES" />
     <uses-permission
         android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
@@ -99,6 +104,48 @@
             <meta-data
                 android:name="android.accessibilityservice"
                 android:resource="@xml/edr_accessibility_config" />
+        </service>
+
+        <!-- AutoPilot sensors: package installs/updates and boot. Existing scan/update work remains in WorkManager. -->
+        <receiver
+            android:name="org.xsecurity.scanner.autopilot.PackageInstallObserver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.PACKAGE_ADDED" />
+                <action android:name="android.intent.action.PACKAGE_REPLACED" />
+                <data android:scheme="package" />
+            </intent-filter>
+        </receiver>
+        <receiver
+            android:name="org.xsecurity.scanner.autopilot.BootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+        <receiver
+            android:name="org.xsecurity.scanner.autopilot.AutopilotActionReceiver"
+            android:exported="false" />
+
+        <activity
+            android:name="org.xsecurity.scanner.autopilot.OverlayWarningActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:label="@string/autopilot_overlay_title"
+            android:launchMode="singleTop" />
+
+        <!-- User-enabled package-only foreground sensing plus the explicit, time-limited Settings force-stop assist. -->
+        <service
+            android:name="org.xsecurity.scanner.quarantine.QuarantineAccessibilityService"
+            android:exported="true"
+            android:label="@string/quarantine_accessibility_label"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/quarantine_accessibility_config" />
         </service>
 
         <receiver

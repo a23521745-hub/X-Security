@@ -96,7 +96,8 @@ fun PhishingScreen(
     blocklist: Set<String>,
     blocklistState: PhishingBlocklistState,
     onUpdateList: () -> Unit,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onAutoPilotEvaluation: (String) -> Unit = {}
 ) {
     var input by rememberSaveable { mutableStateOf("") }
     var findings by remember { mutableStateOf<List<PhishingHeuristics.Finding>?>(null) }
@@ -138,7 +139,10 @@ fun PhishingScreen(
             placeholder = { Text(stringResource(R.string.phishing_input_hint)) }
         )
         Spacer(modifier = Modifier.height(12.dp))
-        Button(onClick = { findings = PhishingScanner.scanText(input, blocklist) }) {
+        Button(onClick = {
+            findings = PhishingScanner.scanText(input, blocklist)
+            onAutoPilotEvaluation(input)
+        }) {
             Text(stringResource(R.string.phishing_scan))
         }
         Spacer(modifier = Modifier.height(12.dp))

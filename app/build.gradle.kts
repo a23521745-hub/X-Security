@@ -1,4 +1,5 @@
 import java.io.File
+import org.gradle.api.tasks.Copy
 
 plugins {
     id("com.android.application")
@@ -29,6 +30,16 @@ fun javaStringLiteral(value: String): String =
 
 android {
     namespace = "org.xsecurity.scanner"
+
+    flavorDimensions += "edition"
+    productFlavors {
+        // Default consumer build; the ROM edition remains a separately opt-in skeleton.
+        create("standard") { dimension = "edition" }
+        create("romEdition") {
+            dimension = "edition"
+            applicationIdSuffix = ".rom"
+        }
+    }
 
     // compileSdk 35: targetSdk 35 (edge-to-edge zorunlulugu) icin gerekli.
     compileSdk = 35
@@ -125,6 +136,33 @@ android {
         fatal += "MissingClass"
         checkReleaseBuilds = true
         abortOnError = true
+    }
+}
+
+// Keep the existing release workflow's unflavored artifact lookup working while
+// publishing a standard-flavor APK into the legacy outputs/apk/release directory.
+val stageStandardReleaseForLegacyWorkflow = tasks.register<Copy>("stageStandardReleaseForLegacyWorkflow") {
+    dependsOn("assembleStandardRelease")
+    from(layout.buildDirectory.dir("outputs/apk/standard/release"))
+    into(layout.buildDirectory.dir("outputs/apk/release"))
+}
+tasks.matching { it.name == "assembleRelease" }.configureEach {
+    finalizedBy(stageStandardReleaseForLegacyWorkflow)
+}
+
+// Preserve CI task names from v16 while ensuring both flavor unit/lint variants run.
+afterEvaluate {
+    val variantUnitTests = listOf("testStandardDebugUnitTest", "testRomEditionDebugUnitTest")
+    val variantLint = listOf("lintStandardDebug", "lintRomEditionDebug")
+    if (tasks.findByName("testDebugUnitTest") == null) {
+        tasks.register("testDebugUnitTest") { dependsOn(variantUnitTests) }
+    } else {
+        tasks.named("testDebugUnitTest") { dependsOn(variantUnitTests) }
+    }
+    if (tasks.findByName("lintDebug") == null) {
+        tasks.register("lintDebug") { dependsOn(variantLint) }
+    } else {
+        tasks.named("lintDebug") { dependsOn(variantLint) }
     }
 }
 
