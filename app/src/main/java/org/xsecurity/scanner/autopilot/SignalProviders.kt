@@ -27,7 +27,7 @@ interface SignalProvider {
 
 /** Existing YARA/ClamAV/hash scanner -> known-bad/known-good/unknown. */
 class ScannerVerdictProvider(
-    private val scanPackage: suspend (Context, String) -> List<ScanResult> = ::scanInstalledPackage
+    private val scanPackage: suspend (Context, String) -> List<ScanResult> = Companion::scanInstalledPackage
 ) : SignalProvider {
     override suspend fun provide(context: Context, event: SecurityEvent, request: SignalRequest): SecuritySignal? {
         if (event !is SecurityEvent.PackageInstalled && event !is SecurityEvent.Manual) return null
