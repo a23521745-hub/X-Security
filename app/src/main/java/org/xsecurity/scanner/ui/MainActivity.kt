@@ -7,6 +7,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.OpenableColumns
+import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -26,10 +27,17 @@ import org.xsecurity.scanner.data.ScanHistoryStore
 import org.xsecurity.scanner.data.ScanNotifications
 import org.xsecurity.scanner.data.ScanStore
 import org.xsecurity.scanner.data.SignatureStore
+import org.xsecurity.scanner.data.UpdatePreferences
 import org.xsecurity.scanner.community.CommunityStore
 import org.xsecurity.scanner.definitions.DefinitionsController
 import org.xsecurity.scanner.definitions.DefinitionsStore
 import org.xsecurity.scanner.device.DeviceScanStore
+import org.xsecurity.scanner.edr.EdrAlertStore
+import org.xsecurity.scanner.edr.EdrStatus
+import org.xsecurity.scanner.edr.EdrStatusSnapshot
+import org.xsecurity.scanner.health.HealthStore
+import org.xsecurity.scanner.phishing.PhishingStore
+import org.xsecurity.scanner.privacy.PrivacyStore
 import org.xsecurity.scanner.device.InstallShieldReceiver
 import org.xsecurity.scanner.device.ProtectionMode
 import org.xsecurity.scanner.device.ProtectionSettings
@@ -47,6 +55,9 @@ import org.xsecurity.scanner.ota.OtaNotifications
 import org.xsecurity.scanner.ota.OtaStore
 import org.xsecurity.scanner.ui.screens.DashboardScreen
 import org.xsecurity.scanner.ui.screens.HistoryScreen
+import org.xsecurity.scanner.ui.screens.PhishingScreen
+import org.xsecurity.scanner.ui.screens.PrivacyAdvisorScreen
+import org.xsecurity.scanner.ui.screens.SettingsScreen
 import org.xsecurity.scanner.ui.theme.XSecurityTheme
 import java.io.File
 
@@ -84,6 +95,12 @@ class MainActivity : ComponentActivity() {
     private var showStorageRationale by mutableStateOf(false)
     /** Tarama gecmisi ekraninin acik/kapali oldugunu tutar (yeni activity yok). */
     private var showHistory by mutableStateOf(false)
+    /** Ayarlar / Gizlilik / Oltalama ekranlari (ayni desende, activity yok). */
+    private var showSettings by mutableStateOf(false)
+    private var showPrivacy by mutableStateOf(false)
+    private var showPhishing by mutableStateOf(false)
+    /** EDR durum kartinin anlik gorunumu (onCreate/onResume'da tazelenir). */
+    private var edrSnapshot by mutableStateOf(EdrStatusSnapshot(false, false, true, false, 0))
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -101,6 +118,11 @@ class MainActivity : ComponentActivity() {
         DeviceScanStore.restore(this)
         ScanHistoryStore.restore(this)
         ProtectionSettings.restore(this)
+        UpdatePreferences.restore(this)
+        EdrAlertStore.restore(this)
+        PhishingStore.restore(this)
+        HealthStore.refresh(this)
+        refreshEdrSnapshot()
         applyProtectionMode(promptForStorage = false)
         requestNotificationPermissionIfNeeded()
         // Gunluk imzali guncelleme kontrolu (yalnizca ag bagliyken; bildirim sessiz).
@@ -118,8 +140,15 @@ class MainActivity : ComponentActivity() {
                 val deviceState by DeviceScanStore.state.collectAsState()
                 val protectionState by ProtectionSettings.state.collectAsState()
                 val historyEntries by ScanHistoryStore.entries.collectAsState()
-                // Sistem geri dongusu gecmis ekranindan dashboard'a doner.
+                val updateSettings by UpdatePreferences.state.collectAsState()
+                val privacyState by PrivacyStore.state.collectAsState()
+                val healthSnapshot by HealthStore.snapshot.collectAsState()
+                val phishingBlocklistState by PhishingStore.state.collectAsState()
+                // Sistem geri dongusu alt ekranlardan dashboard'a doner.
                 BackHandler(enabled = showHistory) { showHistory = false }
+                BackHandler(enabled = showSettings) { showSettings = false }
+                BackHandler(enabled = showPrivacy) { showPrivacy = false }
+                BackHandler(enabled = showPhishing) { showPhishing = false }
                 if (showStorageRationale) {
                     AlertDialog(
                         onDismissRequest = { showStorageRationale = false },
@@ -142,6 +171,35 @@ class MainActivity : ComponentActivity() {
                         onBack = { showHistory = false },
                         onShareReport = { report -> shareScanReport(report) },
                         onClearHistory = { ScanHistoryStore.clear(this) }
+                    )
+                } else if (showSettings) {
+                    SettingsScreen(
+                        settings = updateSettings,
+                        versionName = appVersionName(),
+                        versionCode = OtaController.currentVersionCode(this),
+                        onAutoCheckChange = { enabled ->
+                            UpdatePreferences.applyAutoCheck(this, enabled)
+                        },
+                        onMeteredChange = { allowed ->
+                            UpdatePreferences.setMeteredAllowed(this, allowed)
+                        },
+                        onBack = { showSettings = false }
+                    )
+                } else if (showPrivacy) {
+                    PrivacyAdvisorScreen(
+                        state = privacyState,
+                        onBack = { showPrivacy = false },
+                        onRescan = { refreshPrivacy() },
+                        onUninstall = { packageName -> requestUninstall(packageName) }
+                    )
+                } else if (showPhishing) {
+                    PhishingScreen(
+                        blocklist = PhishingStore.blocklist(this),
+                        blocklistState = phishingBlocklistState,
+                        onUpdateList = {
+                            lifecycleScope.launch { PhishingStore.refresh(this@MainActivity) }
+                        },
+                        onBack = { showPhishing = false }
                     )
                 } else {
                     DashboardScreen(
@@ -171,7 +229,14 @@ class MainActivity : ComponentActivity() {
                         onCheckUpdate = { lifecycleScope.launch { OtaController.check(this@MainActivity) } },
                         onDownloadUpdate = { startDownload() },
                         onInstallUpdate = { installDownloadedUpdate() },
-                        onCheckDefinitions = { DefinitionsController.enqueueManualCheck(this) }
+                        onCheckDefinitions = { DefinitionsController.enqueueManualCheck(this) },
+                        edrSnapshot = edrSnapshot,
+                        onOpenAccessibilitySettings = { openAccessibilitySettings() },
+                        privacyState = privacyState,
+                        onOpenPrivacy = { openPrivacy() },
+                        onOpenPhishing = { showPhishing = true },
+                        healthSnapshot = healthSnapshot,
+                        onOpenSettings = { showSettings = true }
                     )
                 }
             }
@@ -186,7 +251,9 @@ class MainActivity : ComponentActivity() {
         DefinitionsStore.restore(this)
         DeviceScanStore.restore(this)
         ScanHistoryStore.restore(this)
-        // Kullanici "Tum dosyalara erisim" ayarindan donmus olabilir.
+        // Kullanici sistem ayarlarindan donmus olabilir (erisim izni, erisilebilirlik...).
+        HealthStore.refresh(this)
+        refreshEdrSnapshot()
         refreshProtection()
         pendingUninstall?.let { packageName ->
             pendingUninstall = null
@@ -257,6 +324,38 @@ class MainActivity : ComponentActivity() {
         if (!ScanController.enqueueDeviceScan(this, includeSystemApps)) {
             ScanStore.markFailed(this, getString(R.string.stage_failed))
         }
+    }
+
+    /** EDR karti icin anlik durum (ayar donuslerinde tazelenir). */
+    private fun refreshEdrSnapshot() {
+        edrSnapshot = EdrStatus.snapshot(this)
+    }
+
+    /** Overlay izleyici dugmesi: sistemin Erisilebilirlik ekranini acar. */
+    private fun openAccessibilitySettings() {
+        runCatching { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
+    }
+
+    /** Gizlilik ekrani her acilista yeniden denetlenir (izinler degismis olabilir). */
+    private fun openPrivacy() {
+        showPrivacy = true
+        refreshPrivacy()
+    }
+
+    private fun refreshPrivacy() {
+        lifecycleScope.launch { PrivacyStore.scan(this@MainActivity) }
+    }
+
+    private fun appVersionName(): String = try {
+        val info = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            packageManager.getPackageInfo(packageName, PackageManager.PackageInfoFlags.of(0))
+        } else {
+            @Suppress("DEPRECATION")
+            packageManager.getPackageInfo(packageName, 0)
+        }
+        info.versionName ?: getString(R.string.app_version)
+    } catch (_: Throwable) {
+        getString(R.string.app_version)
     }
 
     /** Sistemin kaldirma onay ekranini acar; son karar kullanicinindir. */

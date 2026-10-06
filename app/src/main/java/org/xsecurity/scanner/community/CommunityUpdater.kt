@@ -59,16 +59,40 @@ object CommunityUpdater {
         }
         CommunityStore.setUpdating(context, source.id, true)
         try {
-            val payload = try {
-                fetcher.fetch(source.url)
+            // ETag tazeligi: sunucu 304 donerse govde inmeden guncel sayilir.
+            // Istisna: yerel dosya yoksa (orn. tercih kapatilip acilmis) 304'e
+            // guvenilmez, kosulsuz indirme yapilir.
+            val storedEtag = CommunityStore.etag(context, source)
+            val conditional = try {
+                fetcher.fetchConditional(source.url, storedEtag)
             } catch (error: IOException) {
                 return failed(context, source, error.message ?: "indirme hatasi")
             }
+            val installed = CommunityStore.fileFor(context, source)
+            if (conditional is ConditionalFetch.NotModified && installed.isFile) {
+                CommunityStore.setError(context, source, null)
+                return SourceResult.UpToDate
+            }
+            val payload: ByteArray
+            val sha: String
+            val etag: String?
+            if (conditional is ConditionalFetch.Fresh) {
+                payload = conditional.bytes
+                sha = conditional.sha256
+                etag = conditional.etag
+            } else {
+                try {
+                    payload = fetcher.fetch(source.url)
+                } catch (error: IOException) {
+                    return failed(context, source, error.message ?: "indirme hatasi")
+                }
+                sha = Digest.sha256Hex(payload)
+                etag = storedEtag
+            }
 
-            val sha = Digest.sha256Hex(payload)
-            if (sha == CommunityStore.lastSha(context, source) &&
-                CommunityStore.fileFor(context, source).isFile
-            ) {
+            if (isUpToDate(CommunityStore.lastSha(context, source), sha, installed.isFile)) {
+                // Icerik ayni ama ETag degismis olabilir; yeni degeri sakla.
+                CommunityStore.setEtag(context, source, etag)
                 CommunityStore.setError(context, source, null)
                 return SourceResult.UpToDate
             }
@@ -81,7 +105,8 @@ object CommunityUpdater {
                 source,
                 sha,
                 validated.hashEntries,
-                validated.yaraRules
+                validated.yaraRules,
+                etag
             )
             ScanEngines.invalidate()
             CommunityStore.setError(context, source, null)
@@ -102,6 +127,13 @@ object CommunityUpdater {
             throw IOException("topluluk kaynagi kurulamadi: ${target.absolutePath}")
         }
     }
+
+    /**
+     * Saf: SHA-256 ayni VE yerel dosya yerindeyse yeniden kurulum gerekmez.
+     * Dosya eksikse ozet eslesse bile kurulum yapilir (fail-closed).
+     */
+    fun isUpToDate(lastSha: String?, newSha: String, fileExists: Boolean): Boolean =
+        fileExists && lastSha != null && lastSha == newSha
 
     private fun failed(context: Context, source: CommunitySource, message: String): SourceResult {
         CommunityStore.setError(context, source, message)

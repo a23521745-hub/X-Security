@@ -21,16 +21,24 @@ class OtaCheckWorker(
     workerParams: WorkerParameters
 ) : CoroutineWorker(appContext, workerParams) {
 
-    override suspend fun doWork(): Result = try {
-        OtaController.check(applicationContext)
-        notifyIfNewUpdate()
-        Result.success()
-    } catch (cancelled: CancellationException) {
-        throw cancelled
-    } catch (error: Throwable) {
-        // Periyodik kontrol hatasi uygulamayi bozmaz; sessizce bir sonraki
-        // periyot (veya kullanicinin manuel kontrolu) denenir.
-        Result.failure()
+    override suspend fun doWork(): Result {
+        // Worker kapisi: otomatik kontrol kapaliysa ya da kotali agda izin
+        // yoksa sessizce atla (bu worker yalnizca arka plan icindir; elle
+        // kontrol MainActivity'den dogrudan OtaController'a gider).
+        if (!org.xsecurity.scanner.data.UpdatePreferences.shouldRunBackgroundCheck(applicationContext)) {
+            return Result.success()
+        }
+        return try {
+            OtaController.check(applicationContext)
+            notifyIfNewUpdate()
+            Result.success()
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (error: Throwable) {
+            // Periyodik kontrol hatasi uygulamayi bozmaz; sessizce bir sonraki
+            // periyot (veya kullanicinin manuel kontrolu) denenir.
+            Result.failure()
+        }
     }
 
     private fun notifyIfNewUpdate() {

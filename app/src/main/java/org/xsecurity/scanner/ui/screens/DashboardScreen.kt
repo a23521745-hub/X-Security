@@ -26,6 +26,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -36,6 +37,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -52,7 +54,10 @@ import org.xsecurity.scanner.definitions.DefinitionsState
 import org.xsecurity.scanner.device.DeviceScanState
 import org.xsecurity.scanner.device.ProtectionMode
 import org.xsecurity.scanner.device.ProtectionState
+import org.xsecurity.scanner.edr.EdrStatusSnapshot
+import org.xsecurity.scanner.health.DeviceHealth
 import org.xsecurity.scanner.ota.OtaState
+import org.xsecurity.scanner.privacy.PrivacyState
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -90,7 +95,14 @@ fun DashboardScreen(
     onCheckUpdate: () -> Unit,
     onDownloadUpdate: () -> Unit,
     onInstallUpdate: () -> Unit,
-    onCheckDefinitions: () -> Unit
+    onCheckDefinitions: () -> Unit,
+    edrSnapshot: EdrStatusSnapshot,
+    onOpenAccessibilitySettings: () -> Unit,
+    privacyState: PrivacyState,
+    onOpenPrivacy: () -> Unit,
+    onOpenPhishing: () -> Unit,
+    healthSnapshot: DeviceHealth.Snapshot,
+    onOpenSettings: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -101,8 +113,9 @@ fun DashboardScreen(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Header()
+        Header(onOpenSettings = onOpenSettings)
         StatusCard(state = state, onCancelScan = onCancelScan)
+        HealthCard(snapshot = healthSnapshot)
         LastScanCard(state = state)
         ThreatsCard(result = state.lastResult)
         DeviceScanCard(
@@ -120,6 +133,12 @@ fun DashboardScreen(
             serviceRunning = protectionServiceRunning,
             onRequestStorage = onRequestStorage
         )
+        EdrStatusCard(
+            snapshot = edrSnapshot,
+            onOpenAccessibilitySettings = onOpenAccessibilitySettings
+        )
+        PrivacyCard(state = privacyState, onOpen = onOpenPrivacy)
+        PhishingCard(onOpen = onOpenPhishing)
         EngineCard(engine = state.engine, onPickYara = onPickYaraRules, onPickClam = onPickClamDatabase, onReload = onReloadEngine)
         OtaUpdateCard(
             state = otaState,
@@ -142,18 +161,30 @@ private val ScanUiState.isBusy: Boolean
     get() = phase == ScanPhase.QUEUED || phase == ScanPhase.SCANNING
 
 @Composable
-private fun Header() {
-    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Text(
-            text = stringResource(R.string.app_name),
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold
-        )
-        Text(
-            text = stringResource(R.string.dashboard_subtitle),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+private fun Header(onOpenSettings: () -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Column(
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+            modifier = Modifier.weight(1f)
+        ) {
+            Text(
+                text = stringResource(R.string.app_name),
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = stringResource(R.string.dashboard_subtitle),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        IconButton(onClick = onOpenSettings) {
+            Icon(
+                painter = painterResource(R.drawable.ic_settings_gear),
+                contentDescription = stringResource(R.string.settings_open),
+                modifier = Modifier.size(26.dp)
+            )
+        }
     }
 }
 

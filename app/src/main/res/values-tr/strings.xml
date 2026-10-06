@@ -242,4 +242,95 @@
     <string name="edr_sensor_camera">Camera</string>
     <string name="edr_sensor_microphone">Microphone</string>
     <string name="edr_accessibility_description">X-Security’nin hassas ekranların (kurulum, izin diyalogları) üzerine çizilen overlay pencerelerini fark edip olası tap-jacking konusunda uyarmasını sağlar. Ekran içeriği okunmaz ve saklanmaz.</string>
+
+    <!-- Topluluk tazeliği (ETag + kısa içerik özeti) -->
+    <string name="community_hash_short">SHA-256: %1$s</string>
+
+    <!-- Ayarlar -->
+    <string name="settings_title">Ayarlar</string>
+    <string name="settings_open">Ayarları aç</string>
+    <string name="settings_updates_title">Arka plan güncelleme kontrolleri</string>
+    <string name="settings_updates_hint">Uygulama ve tanım güncellemeleri için günlük kontroller. Elle kontroller her zaman çalışır.</string>
+    <string name="settings_auto_check">Otomatik kontrol et</string>
+    <string name="settings_auto_check_desc">Uygulama ve tanım güncellemeleri için günlük arka plan kontrolünü çalıştır</string>
+    <string name="settings_metered">Kotalı ağlarda kontrol et</string>
+    <string name="settings_metered_desc">Arka plan kontrollerine mobil veya kotalı Wi-Fi bağlantılarında izin ver</string>
+    <string name="settings_about_title">Hakkında</string>
+    <string name="settings_version">Sürüm %1$s (%2$d)</string>
+
+    <!-- Davranışsal EDR durum kartı -->
+    <string name="edr_card_title">Davranış izleyici</string>
+    <string name="edr_card_behavior_running">Davranış izleyici çalışıyor</string>
+    <string name="edr_card_behavior_stopped">Davranış izleyici durdu — yeniden başlatmak için uygulamayı yeniden açın</string>
+    <string name="edr_card_behavior_off">Davranış izleyici “Her zaman açık” koruma modunda çalışır</string>
+    <string name="edr_card_behavior_passive">Ayrıntılı izleme Android 10+ gerektirir; servis bu cihazda beklemede</string>
+    <string name="edr_card_accessibility_on">Overlay izleyici açık</string>
+    <string name="edr_card_accessibility_off">Overlay izleyici kapalı</string>
+    <string name="edr_card_accessibility_hint">Kurulum ve izin ekranları üzerindeki overlay pencerelerini algılar. Sistem Erişilebilirlik ayarlarından açın.</string>
+    <string name="edr_card_open_accessibility">Erişilebilirlik ayarlarını aç</string>
+    <string name="edr_card_alerts">Son 24 saatte %1$d uyarı</string>
+    <string name="edr_card_no_alerts">Son 24 saatte uyarı yok</string>
+
+    <!-- Gizlilik Danışmanı -->
+    <string name="privacy_title">Gizlilik Danışmanı</string>
+    <string name="privacy_hint">Bu uygulamalara hassas izinler VERİLDİ. Her şey cihazda denetlenir; kaldırma her zaman önce sisteme sorar.</string>
+    <string name="privacy_card_hint">Hangi uygulamaların kamera, mikrofon, konum, SMS ve rehber izinlerine sahip olduğunu görün</string>
+    <string name="privacy_card_summary">%1$d uygulama hassas izinlere sahip</string>
+    <string name="privacy_card_empty">Hassas izinlere sahip uygulama yok</string>
+    <string name="privacy_card_unknown">Henüz denetlenmedi — incelemek için dokunun</string>
+    <string name="privacy_risk_high">Yüksek</string>
+    <string name="privacy_risk_medium">Orta</string>
+    <string name="privacy_risk_low">Düşük</string>
+    <string name="privacy_group_camera">Kamera</string>
+    <string name="privacy_group_microphone">Mikrofon</string>
+    <string name="privacy_group_location">Konum</string>
+    <string name="privacy_group_sms">SMS</string>
+    <string name="privacy_group_contacts">Rehber</string>
+    <string name="privacy_system_app">sistem</string>
+    <string name="privacy_empty">Şu anda bu izinlere sahip kurulu uygulama yok.</string>
+    <string name="privacy_rescan">Yeniden denetle</string>
+    <string name="privacy_scanning">Kurulu uygulamalar denetleniyor…</string>
+    <string name="privacy_count">%1$d uygulama</string>
+    <string name="privacy_last_checked">Son denetim: %1$s</string>
+
+    <!-- Bağlantı ve oltalama tarayıcı -->
+    <string name="phishing_title">Bağlantı ve oltalama tarayıcı</string>
+    <string name="phishing_hint">Şüpheli bir iletiyi yapıştırın. Bağlantılar çıkarılıp yerel blok listesi ve sezgisel kurallarla cihazda denetlenir — hiçbir şey yüklenmez.</string>
+    <string name="phishing_input_hint">İleti metnini buraya yapıştırın…</string>
+    <string name="phishing_scan">Bağlantıları tara</string>
+    <string name="phishing_card_hint">Şüpheli bir iletideki bağlantıları oltalama belirtilerine karşı denetleyin</string>
+    <string name="phishing_no_urls">Metinde bağlantı bulunamadı.</string>
+    <string name="phishing_found">%1$d bağlantı denetlendi</string>
+    <string name="phishing_verdict_safe">Güvenli görünüyor</string>
+    <string name="phishing_verdict_suspicious">Şüpheli</string>
+    <string name="phishing_verdict_malicious">Engellendi: bilinen oltalama bağlantısı</string>
+    <string name="phishing_reason_blocklisted">Oltalama blok listesinde</string>
+    <string name="phishing_reason_ip_host">Alan adı yerine IP adresi kullanıyor</string>
+    <string name="phishing_reason_at_sign">Gerçek hedefi gizleyen “@” içeriyor</string>
+    <string name="phishing_reason_punycode">Punycode (benzer görünümlü karakterler) kullanıyor</string>
+    <string name="phishing_reason_shortener">Hedefi gizleyen bağlantı kısaltıcı kullanıyor</string>
+    <string name="phishing_blocklist_title">Oltalama blok listesi</string>
+    <string name="phishing_blocklist_status">%1$d kayıt · güncelleme %2$s</string>
+    <string name="phishing_blocklist_update">Listeyi güncelle</string>
+    <string name="phishing_blocklist_updating">Güncelleniyor…</string>
+    <string name="phishing_blocklist_error">Liste güncellenemedi: %1$s</string>
+    <string name="phishing_share_label">X-Security ile tara</string>
+    <string name="phishing_shared_empty">Paylaşılan metinde bağlantı yok.</string>
+
+    <!-- Hızlı ayar karosu -->
+    <string name="tile_label">Cihazı tara</string>
+    <string name="tile_subtitle">Kurulu uygulamaları taramak için dokunun</string>
+    <string name="tile_scan_started">Cihaz taraması başlatıldı</string>
+    <string name="tile_scan_running">Zaten bir tarama çalışıyor</string>
+
+    <!-- Cihaz sağlığı -->
+    <string name="health_title">Cihaz sağlığı</string>
+    <string name="health_hint">Cihaz içi bütünlük sinyalleri. Ağ yok, yükleme yok.</string>
+    <string name="health_healthy">Sağlıklı</string>
+    <string name="health_warning">Uyarı</string>
+    <string name="health_at_risk">Riskli</string>
+    <string name="health_clean">Bütünlük sorunu algılanmadı</string>
+    <string name="health_finding_root_su">Root dosyası bulundu (%1$s)</string>
+    <string name="health_finding_test_keys">Test-keys derlemesi (özel ROM?)</string>
+    <string name="health_finding_adb">USB hata ayıklama (ADB) açık</string>
 </resources>

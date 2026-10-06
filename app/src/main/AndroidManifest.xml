@@ -32,6 +32,10 @@
         android:name="android.permission.QUERY_ALL_PACKAGES"
         tools:ignore="QueryAllPackagesPermission" />
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Normal izin: arka plan kontrollerinin kotali baglantida calisip
+         calismayacagina karar vermek icin (UpdatePreferences worker kapisi).
+         Kullaniciya sorulmaz, veri okumaz. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <application
@@ -104,6 +108,34 @@
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
             </intent-filter>
         </receiver>
+
+        <!-- Paylasim hedefi: baska uygulamalarin "Paylas" menusunde "X-Security ile
+             tara" olarak gorunur; paylasilan metindeki baglantilari cihazda
+             degerlendirir (ag yok). exported=true zorunlu: cagri disaridan gelir. -->
+        <activity
+            android:name="org.xsecurity.scanner.phishing.PhishingScanActivity"
+            android:exported="true"
+            android:label="@string/phishing_share_label"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+        </activity>
+
+        <!-- Hizli ayar karosu: tek dokunusla kurulu-uygulama taramasi baslatir.
+             exported=true + BIND_QUICK_SETTINGS_TILE zorunlu: sistem baglanir. -->
+        <service
+            android:name="org.xsecurity.scanner.tile.ScanTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_stat_shield"
+            android:label="@string/tile_label"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
 
         <!-- Indirilen guncelleme APK'sini sistem kurulum ekranina tek-okuma content URI
              olarak vermek icin. Yalnizca uygulamanin ota onbellek dizinini paylasir. -->

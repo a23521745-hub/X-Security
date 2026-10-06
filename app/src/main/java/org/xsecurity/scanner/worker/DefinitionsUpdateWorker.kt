@@ -22,41 +22,54 @@ class DefinitionsUpdateWorker(
     workerParams: WorkerParameters
 ) : CoroutineWorker(appContext, workerParams) {
 
-    override suspend fun doWork(): Result = try {
-        // Imzali kanal kontrolunden sonra dogrudan topluluk kaynaklari da tazelenir.
-        // Topluluk hatasi imzali kanalin sonucunu BOZMAMALI: ayri try, hata yalnizca
-        // kaynak durumuna yazilir.
-        runCatching { CommunityUpdater.refreshAll(applicationContext) }
-        when (val outcome = DefinitionsController.checkAndInstall(applicationContext)) {
-            is DefinitionsController.Outcome.Error -> {
-                if (runAttemptCount < MAX_ATTEMPTS) {
-                    Result.retry()
-                } else {
-                    runCatching {
-                        DefinitionsNotifications.showError(applicationContext, outcome.message)
-                    }
-                    Result.failure()
-                }
-            }
-            else -> Result.success()
+    override suspend fun doWork(): Result {
+        // Worker kapisi (yalnizca arka plan kosulari icin; elle tetiklenen is
+        // KEY_MANUAL tasir ve her zaman calisir): otomatik kontrol kapaliysa
+        // ya da kotali agda izin yoksa sessizce atla, retry yapma.
+        val manual = inputData.getBoolean(KEY_MANUAL, false)
+        if (!manual &&
+            !org.xsecurity.scanner.data.UpdatePreferences.shouldRunBackgroundCheck(applicationContext)
+        ) {
+            return Result.success()
         }
-    } catch (cancelled: CancellationException) {
-        throw cancelled
-    } catch (error: Throwable) {
-        if (runAttemptCount < MAX_ATTEMPTS) {
-            Result.retry()
-        } else {
-            runCatching {
-                DefinitionsNotifications.showError(
-                    applicationContext,
-                    error.message ?: "Tanim paketi guncellenemedi."
-                )
+        return try {
+            // Imzali kanal kontrolunden sonra dogrudan topluluk kaynaklari da tazelenir.
+            // Topluluk hatasi imzali kanalin sonucunu BOZMAMALI: ayri try, hata yalnizca
+            // kaynak durumuna yazilir.
+            runCatching { CommunityUpdater.refreshAll(applicationContext) }
+            when (val outcome = DefinitionsController.checkAndInstall(applicationContext)) {
+                is DefinitionsController.Outcome.Error -> {
+                    if (runAttemptCount < MAX_ATTEMPTS) {
+                        Result.retry()
+                    } else {
+                        runCatching {
+                            DefinitionsNotifications.showError(applicationContext, outcome.message)
+                        }
+                        Result.failure()
+                    }
+                }
+                else -> Result.success()
             }
-            Result.failure()
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (error: Throwable) {
+            if (runAttemptCount < MAX_ATTEMPTS) {
+                Result.retry()
+            } else {
+                runCatching {
+                    DefinitionsNotifications.showError(
+                        applicationContext,
+                        error.message ?: "Tanim paketi guncellenemedi."
+                    )
+                }
+                Result.failure()
+            }
         }
     }
 
     companion object {
+        /** Elle "kontrol et" dugmesinden gelen is; worker kapisindan muaftir. */
+        const val KEY_MANUAL = "manual"
         private const val MAX_ATTEMPTS = 3
     }
 }

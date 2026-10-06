@@ -26,12 +26,17 @@ object CommunityStore {
         val installedRules: Int,
         val updatedAt: Long,
         val updating: Boolean,
-        val error: String?
+        val error: String?,
+        /** Sunucunun son `ETag` yaniti (kosullu GET icin saklanir). */
+        val etag: String? = null,
+        /** Kurulu icerigin kisa SHA-256'i (UI'da tazelik gostergesi). */
+        val shaShort: String? = null
     )
 
     private const val PREFS = "xsec_community"
     private const val KEY_ENABLED = "enabled_"
     private const val KEY_SHA = "sha_"
+    private const val KEY_ETAG = "etag_"
     private const val KEY_ENTRIES = "entries_"
     private const val KEY_RULES = "rules_"
     private const val KEY_UPDATED = "updated_"
@@ -71,9 +76,26 @@ object CommunityStore {
     fun lastSha(context: Context, source: CommunitySource): String? =
         prefs(context).getString(KEY_SHA + source.id, null)
 
-    fun setInstalled(context: Context, source: CommunitySource, sha: String, entries: Int, rules: Int) {
+    /** Son basarili indirmede sunucunun verdigi `ETag` (yoksa null). */
+    fun etag(context: Context, source: CommunitySource): String? =
+        prefs(context).getString(KEY_ETAG + source.id, null)
+
+    fun setEtag(context: Context, source: CommunitySource, etag: String?) {
+        prefs(context).edit().putString(KEY_ETAG + source.id, etag).apply()
+        publish(context)
+    }
+
+    fun setInstalled(
+        context: Context,
+        source: CommunitySource,
+        sha: String,
+        entries: Int,
+        rules: Int,
+        etag: String? = null
+    ) {
         prefs(context).edit()
             .putString(KEY_SHA + source.id, sha)
+            .putString(KEY_ETAG + source.id, etag)
             .putInt(KEY_ENTRIES + source.id, entries)
             .putInt(KEY_RULES + source.id, rules)
             .putLong(KEY_UPDATED + source.id, System.currentTimeMillis())
@@ -134,10 +156,24 @@ object CommunityStore {
                 updating = if (updatingOverride != null && updatingOverride.first == source.id) {
                     updatingOverride.second
                 } else false,
-                error = preferences.getString(KEY_ERROR + source.id, null)
+                error = preferences.getString(KEY_ERROR + source.id, null),
+                etag = preferences.getString(KEY_ETAG + source.id, null),
+                shaShort = shortHash(preferences.getString(KEY_SHA + source.id, null))
             )
         }
     }
+
+    /**
+     * Saf: tam SHA-256'ten UI'da gosterilen kisa ozet (ilk 12 hex). Kisa/eksik
+     * deger gosterilmez (null) ki yarim hash "tazelik" izlenimi vermesin.
+     */
+    fun shortHash(sha256: String?): String? {
+        val clean = sha256?.trim().orEmpty()
+        if (clean.length < SHORT_HASH_LENGTH) return null
+        return clean.take(SHORT_HASH_LENGTH)
+    }
+
+    private const val SHORT_HASH_LENGTH = 12
 
     private fun prefs(context: Context) =
         context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)

@@ -1,0 +1,13 @@
+# X-Security oltalama blok listesi (gomulu tohum liste).
+#
+# Bicim: satir basina bir alan adi; `#` sonrasi yorumdur. Eslesme tam alan adi
+# + alt alan adidir (`a.b.ornek`, `ornek` kaydina uyar).
+#
+# Bu tohum liste bilerek KUCUK tutulur: asil liste topluluk guncellemesiyle
+# (uygulamadaki "Listeyi guncelle" dugmesi) buyur. Asagidaki kayitlar ayrilmis
+# `.example` alan adlaridir (RFC 2606 — gercekte cozulmezler); yalnizca bicimi
+# gosterir ve mekanizmanin oz-sinamasina yarar:
+#   "http://kotu-ornek.example/kredi" metnini taratinca MALICIOUS beklenir.
+kotu-ornek.example
+olta-test.example
+sahte-banka.example
