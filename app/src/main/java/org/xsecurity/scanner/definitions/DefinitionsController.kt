@@ -15,6 +15,7 @@ import org.xsecurity.scanner.BuildConfig
 import org.xsecurity.scanner.R
 import org.xsecurity.scanner.community.CommunityStore
 import org.xsecurity.scanner.data.SignatureStore
+import org.xsecurity.scanner.data.UpdatePreferences
 import org.xsecurity.scanner.engine.ScanEngines
 import org.xsecurity.scanner.ota.OtaConfig
 import org.xsecurity.scanner.ota.OtaController
@@ -175,6 +176,10 @@ object DefinitionsController {
      * yalnizca gercekten kurulum yapildiginda bildirimle haberdar eder.
      */
     fun schedulePeriodicCheck(context: Context) {
+        if (!UpdatePreferences.isAutoCheckEnabled(context)) {
+            runCatching { WorkManager.getInstance(context).cancelUniqueWork(PERIODIC_WORK_NAME) }
+            return
+        }
         if (!currentConfig(context).isConfigured) return
         val request = PeriodicWorkRequestBuilder<DefinitionsUpdateWorker>(24, TimeUnit.HOURS)
             .setConstraints(
