@@ -33,7 +33,7 @@ import org.xsecurity.scanner.ui.theme.XSecurityTheme
 
 /** Full-screen fallback shown when overlay permission is absent or denied by an OEM. */
 class OverlayWarningActivity : ComponentActivity() {
-    private var packageName by mutableStateOf<String?>(null)
+    private var targetPackageName by mutableStateOf<String?>(null)
     private var recordId by mutableStateOf<String?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -43,10 +43,10 @@ class OverlayWarningActivity : ComponentActivity() {
         setContent {
             XSecurityTheme {
                 WarningContent(
-                    target = packageName?.let(::label) ?: getString(R.string.autopilot_unknown_target),
-                    canManagePackage = !packageName.isNullOrBlank(),
+                    target = targetPackageName?.let(::label) ?: getString(R.string.autopilot_unknown_target),
+                    canManagePackage = !targetPackageName.isNullOrBlank(),
                     onAllow = {
-                        packageName?.let { QuarantineUserActions.allowFor24Hours(this, it, recordId) }
+                        targetPackageName?.let { QuarantineUserActions.allowFor24Hours(this, it, recordId) }
                         finish()
                     },
                     onUninstall = { launchUninstall() },
@@ -70,14 +70,14 @@ class OverlayWarningActivity : ComponentActivity() {
     }
 
     private fun launchUninstall() {
-        val pkg = packageName ?: return
+        val pkg = targetPackageName ?: return
         val intent = QuarantineUserActions.uninstallIntent(this, pkg, recordId) ?: return
         QuarantinePendingActionStore.setUninstall(this, pkg, recordId)
         runCatching { startActivity(intent) }
     }
 
     private fun readArguments(intent: Intent?) {
-        packageName = intent?.getStringExtra(OverlayWarning.EXTRA_PACKAGE)?.takeIf { it.isNotBlank() }
+        targetPackageName = intent?.getStringExtra(OverlayWarning.EXTRA_PACKAGE)?.takeIf { it.isNotBlank() }
         recordId = intent?.getStringExtra(OverlayWarning.EXTRA_RECORD_ID)
     }
 
