@@ -1,11 +1,11 @@
 {
-  "versionCode": 17,
+  "versionCode": 18,
   "versionName": "0.93.0",
-  "apkUrl": "https://github.com/a23521745-hub/X-Security/releases/download/v17/X-Security.apk",
-  "apkSha256": "9d5619eb4faff34539f3ee01472077c5858bd9227f58cdefb3c7317bb193f812",
-  "apkSizeBytes": 6814167,
+  "apkUrl": "https://github.com/a23521745-hub/X-Security/releases/download/v18/X-Security.apk",
+  "apkSha256": "21a67152fc5a69b152325a89944e12e58d3cb159da09fd6c0ce848954358b481",
+  "apkSizeBytes": 6820115,
   "minSdk": 26,
   "forceUpdate": false,
-  "changelog": "X-Security otomatik OTA güncellemesi (v17)",
-  "releaseNotes": "X-Security Otomatik OTA Güncellemesi (v17)"
+  "changelog": "X-Security otomatik OTA güncellemesi (v18)",
+  "releaseNotes": "X-Security Otomatik OTA Güncellemesi (v18)"
 }
