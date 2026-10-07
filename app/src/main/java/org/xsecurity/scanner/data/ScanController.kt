@@ -71,17 +71,27 @@ object ScanController {
                 EnqueueResult(false, null, "The selected file could not be copied into app storage.")
             } else {
                 purgeStaleCopies(context)
-                enqueue(context, staged, displayName, fromDownloadWatch)
+                // Keep a handle on the ORIGINAL: a known-bad verdict must be able to remove it
+                // (cut-and-paste quarantine), not just our staged copy. Released again on a clean scan.
+                org.xsecurity.scanner.quarantine.SourceGrants.takePersistable(context, uri)
+                enqueue(context, staged, displayName, fromDownloadWatch, uri)
             }
         }
 
-    private fun enqueue(context: Context, staged: Staged, displayName: String?, fromDownloadWatch: Boolean): EnqueueResult {
+    private fun enqueue(
+        context: Context,
+        staged: Staged,
+        displayName: String?,
+        fromDownloadWatch: Boolean,
+        sourceUri: Uri
+    ): EnqueueResult {
         val request = OneTimeWorkRequestBuilder<ApkScanWorker>()
             .setInputData(
                 Data.Builder()
                     .putString(ApkScanWorker.KEY_APK_PATH, staged.file.absolutePath)
                     .putString(ApkScanWorker.KEY_DISPLAY_NAME, displayName ?: staged.file.name)
                     .putString(ApkScanWorker.KEY_SHA256, staged.sha256)
+                    .putString(ApkScanWorker.KEY_SOURCE_URI, sourceUri.toString())
                     .putString(
                         ApkScanWorker.KEY_TRIGGER,
                         if (fromDownloadWatch) ApkScanWorker.TRIGGER_REALTIME else ApkScanWorker.TRIGGER_FILE_PICKER
@@ -102,6 +112,7 @@ object ScanController {
             EnqueueResult(true, staged.sha256, null)
         } catch (error: Exception) {
             staged.file.delete()
+            org.xsecurity.scanner.quarantine.SourceGrants.release(context, sourceUri.toString())
             EnqueueResult(false, staged.sha256, error.message ?: "The scan could not be queued.")
         }
     }

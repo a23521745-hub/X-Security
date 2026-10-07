@@ -68,6 +68,10 @@ object QuarantineUserActions {
     fun restore(context: Context, recordId: String): Boolean {
         val record = QuarantineRepository.record(context, recordId) ?: return false
         if (record.state != QuarantineState.QUARANTINED) return false
+        if (QuarantineHonesty.isFileRecord(record)) {
+            // File vault: move the bytes back and drop the vault copy (VaultDeleteFlow handles audit + notifications).
+            return VaultDeleteFlow.restore(context, recordId) is RestoreOutcome.Restored
+        }
         if (SystemPackageSafelist.isSystemPackage(context, record.packageName)) return false
         val result = PackageSoftQuarantine.restore(context, record.packageName)
         if (result.state != QuarantineState.RESTORED) return false

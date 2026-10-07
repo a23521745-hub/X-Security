@@ -59,6 +59,7 @@ class ApkScanWorker(
         }
         val staged = File(apkPath)
         val displayName = inputData.getString(KEY_DISPLAY_NAME) ?: staged.name
+        val sourceUri = inputData.getString(KEY_SOURCE_URI)?.takeIf { it.isNotBlank() }
         val historyType = if (isRealtimeTrigger) ScanHistoryType.REALTIME else ScanHistoryType.FILE
         val historyTrigger =
             if (isRealtimeTrigger) ScanHistoryStore.TRIGGER_DOWNLOAD_WATCH else ScanHistoryStore.TRIGGER_FILE_PICKER
@@ -118,9 +119,14 @@ class ApkScanWorker(
                     path = staged.absolutePath,
                     sha256 = result.sha256,
                     verdict = verdict,
-                    engine = result.threats.map { it.engine }.distinct().sorted().joinToString(",").ifBlank { "signature_set" }
+                    engine = result.threats.map { it.engine }.distinct().sorted().joinToString(",").ifBlank { "signature_set" },
+                    sourceUri = sourceUri
                 )
             )
+            if (verdict != org.xsecurity.scanner.autopilot.SecuritySignal.Verdict.KNOWN_BAD) {
+                // Clean/unknown: we have no business keeping a grant on the user's file.
+                org.xsecurity.scanner.quarantine.SourceGrants.release(context, sourceUri)
+            }
             val autonomy = org.xsecurity.scanner.autopilot.AutopilotSettings.level(context)
             val decisionText = when {
                 verdict == org.xsecurity.scanner.autopilot.SecuritySignal.Verdict.KNOWN_GOOD -> R.string.autopilot_file_clean
@@ -136,7 +142,8 @@ class ApkScanWorker(
                     path = staged.absolutePath,
                     sha256 = result.sha256,
                     verdict = org.xsecurity.scanner.autopilot.SecuritySignal.Verdict.UNKNOWN,
-                    engine = "unavailable"
+                    engine = "unavailable",
+                    sourceUri = sourceUri
                 )
             )
         }
@@ -195,6 +202,8 @@ class ApkScanWorker(
         return if (runAttemptCount < MAX_ATTEMPTS) {
             Result.retry()
         } else {
+            // Giving up: no verdict, so no reason to keep a grant on the user's original.
+            org.xsecurity.scanner.quarantine.SourceGrants.release(context, inputData.getString(KEY_SOURCE_URI))
             Result.failure(failureData(message))
         }
     }
@@ -256,6 +265,8 @@ class ApkScanWorker(
         const val KEY_DISPLAY_NAME = "display_name"
         const val KEY_SHA256 = "sha256"
         const val KEY_TRIGGER = "trigger"
+        /** URI of the user's original file (content:// or file://); the staged copy is only what we scan. */
+        const val KEY_SOURCE_URI = "source_uri"
 
         /** Indirme izleme tetikleyicisi (REALTIME). */
         const val TRIGGER_REALTIME = "realtime"

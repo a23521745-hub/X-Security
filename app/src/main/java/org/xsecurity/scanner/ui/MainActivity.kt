@@ -8,6 +8,7 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.OpenableColumns
 import android.provider.Settings
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -71,11 +72,16 @@ import org.xsecurity.scanner.ui.screens.PhishingScreen
 import org.xsecurity.scanner.ui.screens.PrivacyAdvisorScreen
 import org.xsecurity.scanner.ui.screens.SettingsScreen
 import org.xsecurity.scanner.ui.theme.XSecurityTheme
+import org.xsecurity.scanner.quarantine.QuarantineCutActivity
+import org.xsecurity.scanner.quarantine.QuarantineHonesty
 import org.xsecurity.scanner.quarantine.QuarantinePendingActionStore
 import org.xsecurity.scanner.quarantine.QuarantineRecord
 import org.xsecurity.scanner.quarantine.QuarantineRepository
 import org.xsecurity.scanner.quarantine.QuarantineScreen
 import org.xsecurity.scanner.quarantine.QuarantineUserActions
+import org.xsecurity.scanner.quarantine.RestoreDestination
+import org.xsecurity.scanner.quarantine.RestoreOutcome
+import org.xsecurity.scanner.quarantine.VaultDeleteFlow
 import java.io.File
 
 /**
@@ -103,13 +109,18 @@ class MainActivity : ComponentActivity() {
     private val notificationPermission =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* sonuç önemli degil */ }
 
-    /** API 26-29: klasik depolama izni (API 30+ ayar ekranina gider, bkz. StorageAccess). */
-    private val storagePermission =
-        registerForActivityResult(ActivityResultContracts.RequestPermission()) { refreshProtection() }
+    /** API 26-29: klasik depolama izinleri (API 30+ ayar ekranina gider, bkz. StorageAccess). */
+    private val storagePermissions =
+        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+            refreshProtection()
+            refreshAutopilotStatus()
+        }
 
     private var storageGranted by mutableStateOf(false)
     private var protectionRunning by mutableStateOf(false)
     private var showStorageRationale by mutableStateOf(false)
+    /** One-time antivirus rationale for All Files Access (cut-and-paste quarantine). */
+    private var showAllFilesOnboarding by mutableStateOf(false)
     /** Tarama gecmisi ekraninin acik/kapali oldugunu tutar (yeni activity yok). */
     private var showHistory by mutableStateOf(false)
     /** Ayarlar / Gizlilik / Oltalama ekranlari (ayni desende, activity yok). */
@@ -152,6 +163,12 @@ class MainActivity : ComponentActivity() {
         refreshAutopilotStatus()
         applyProtectionMode(promptForStorage = false)
         requestNotificationPermissionIfNeeded()
+        maybeShowAllFilesOnboarding()
+        handleOpenQuarantine(intent)
+        // Originals still waiting for the user's "Delete now" tap stay visible after restarts.
+        lifecycleScope.launch(Dispatchers.IO) {
+            runCatching { VaultDeleteFlow.refreshPendingNotifications(this@MainActivity) }
+        }
         // Existing WorkManager schedulers remain the owner of OTA/definition checks.
         AutopilotScheduler.schedule(this)
         // Gunluk imzali guncelleme kontrolu (yalnizca ag bagliyken; bildirim sessiz).
@@ -198,6 +215,24 @@ class MainActivity : ComponentActivity() {
                         }
                     )
                 }
+                if (showAllFilesOnboarding) {
+                    AlertDialog(
+                        onDismissRequest = { showAllFilesOnboarding = false },
+                        title = { Text(getString(R.string.onboarding_all_files_title)) },
+                        text = { Text(getString(R.string.onboarding_all_files_body)) },
+                        confirmButton = {
+                            TextButton(onClick = {
+                                showAllFilesOnboarding = false
+                                launchStoragePermission()
+                            }) { Text(getString(R.string.onboarding_all_files_grant)) }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { showAllFilesOnboarding = false }) {
+                                Text(getString(R.string.onboarding_all_files_later))
+                            }
+                        }
+                    )
+                }
                 autopilotPermissionRationale?.let { permission ->
                     AlertDialog(
                         onDismissRequest = { autopilotPermissionRationale = null },
@@ -234,21 +269,39 @@ class MainActivity : ComponentActivity() {
                             QuarantineRepository.restore(this)
                         },
                         onRestore = { record ->
-                            if (record.packageName == "file-vault" && record.vaultFileName != null) {
-                                val restoredFile = java.io.File(cacheDir, "restored-${record.id}.bin")
-                                runCatching {
-                                    org.xsecurity.scanner.quarantine.FileVault.restoreTo(this, record.vaultFileName, restoredFile)
-                                    QuarantineRepository.transition(this, record.id, org.xsecurity.scanner.quarantine.QuarantineState.RESTORED, org.xsecurity.scanner.quarantine.QuarantineActor.USER_ACTION)
+                            if (QuarantineHonesty.isFileRecord(record)) {
+                                // Move the bytes back (original path / Downloads) and drop the vault copy.
+                                lifecycleScope.launch {
+                                    val outcome = withContext(Dispatchers.IO) { VaultDeleteFlow.restore(this@MainActivity, record.id) }
+                                    val message = when (outcome) {
+                                        is RestoreOutcome.Restored -> getString(
+                                            when (outcome.destination.kind) {
+                                                RestoreDestination.KIND_ORIGINAL_PATH -> R.string.quarantine_restore_done_original_path
+                                                RestoreDestination.KIND_ORIGINAL_UNCHANGED -> R.string.quarantine_restore_done_original_unchanged
+                                                RestoreDestination.KIND_DOWNLOADS -> R.string.quarantine_restore_done_downloads
+                                                else -> R.string.quarantine_restore_done_app_private
+                                            }
+                                        )
+                                        is RestoreOutcome.Failed -> getString(R.string.quarantine_restore_failed)
+                                    }
+                                    Toast.makeText(this@MainActivity, message, Toast.LENGTH_LONG).show()
+                                    QuarantineRepository.restore(this@MainActivity)
                                 }
                             } else {
                                 QuarantineUserActions.restore(this, record.id)
+                                QuarantineRepository.restore(this)
                             }
-                            QuarantineRepository.restore(this)
                         },
                         onUninstall = { record -> requestQuarantineUninstall(record) },
                         onRetry = { record ->
                             QuarantineUserActions.retry(this, record.id, RootlessCapabilityProvider())
                             QuarantineRepository.restore(this)
+                        },
+                        onDeleteOriginal = { record ->
+                            runCatching { startActivity(QuarantineCutActivity.intent(this, record.id, QuarantineCutActivity.MODE_CUT)) }
+                        },
+                        onDeleteRecord = { record ->
+                            runCatching { startActivity(QuarantineCutActivity.intent(this, record.id, QuarantineCutActivity.MODE_DELETE_RECORD)) }
                         }
                     )
                 } else if (showSettings) {
@@ -409,7 +462,7 @@ class MainActivity : ComponentActivity() {
     /** Neden-gerekli diyalogu onaylandi: API 30+ sistem ayari, altinda runtime izni. */
     private fun launchStoragePermission() {
         if (StorageAccess.usesRuntimePermission) {
-            storagePermission.launch(Manifest.permission.READ_EXTERNAL_STORAGE)
+            storagePermissions.launch(StorageAccess.legacyRuntimePermissions)
             return
         }
         for (intent in StorageAccess.settingsIntents(this)) {
@@ -451,7 +504,8 @@ class MainActivity : ComponentActivity() {
             ),
             AutopilotPermission.ACCESSIBILITY to capabilities.hasCapability(
                 this, org.xsecurity.scanner.autopilot.Capability.ACCESSIBILITY_ASSIST
-            )
+            ),
+            AutopilotPermission.ALL_FILES_ACCESS to StorageAccess.hasDirectDeleteAccess(this)
         )
         val definitions = DefinitionsStore.state.value
         val freshness = maxOf(definitions.lastInstalledAt, definitions.checkedAt)
@@ -472,6 +526,7 @@ class MainActivity : ComponentActivity() {
         AutopilotPermission.OVERLAY -> R.string.autopilot_rationale_overlay_title
         AutopilotPermission.USAGE_ACCESS -> R.string.autopilot_rationale_usage_title
         AutopilotPermission.ACCESSIBILITY -> R.string.autopilot_rationale_accessibility_title
+        AutopilotPermission.ALL_FILES_ACCESS -> R.string.onboarding_all_files_title
     }
 
     private fun autopilotPermissionBody(permission: AutopilotPermission): Int = when (permission) {
@@ -479,6 +534,7 @@ class MainActivity : ComponentActivity() {
         AutopilotPermission.OVERLAY -> R.string.autopilot_rationale_overlay_body
         AutopilotPermission.USAGE_ACCESS -> R.string.autopilot_rationale_usage_body
         AutopilotPermission.ACCESSIBILITY -> R.string.autopilot_rationale_accessibility_body
+        AutopilotPermission.ALL_FILES_ACCESS -> R.string.onboarding_all_files_body
     }
 
     private fun openAutopilotPermissionSettings(permission: AutopilotPermission) {
@@ -499,8 +555,42 @@ class MainActivity : ComponentActivity() {
             )
             AutopilotPermission.USAGE_ACCESS -> org.xsecurity.scanner.autopilot.ForegroundAppObserver.usageAccessSettingsIntent()
             AutopilotPermission.ACCESSIBILITY -> Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+            AutopilotPermission.ALL_FILES_ACCESS -> {
+                launchStoragePermission()
+                return
+            }
         }
         runCatching { startActivity(intent) }
+    }
+
+    /**
+     * Antivirus rationale for All Files Access, shown once. With it, a confirmed threat is removed
+     * directly after the user's tap; without it the same tap goes through the Android delete
+     * dialog (graceful fallback), so declining here costs one extra tap per removal, nothing more.
+     */
+    private fun maybeShowAllFilesOnboarding() {
+        if (StorageAccess.hasDirectDeleteAccess(this)) return
+        val prefs = getSharedPreferences(ONBOARDING_PREFS, MODE_PRIVATE)
+        if (prefs.getBoolean(KEY_ALL_FILES_RATIONALE_SHOWN, false)) return
+        prefs.edit().putBoolean(KEY_ALL_FILES_RATIONALE_SHOWN, true).apply()
+        showAllFilesOnboarding = true
+    }
+
+    private fun handleOpenQuarantine(intent: Intent?) {
+        if (intent?.getBooleanExtra(EXTRA_OPEN_QUARANTINE, false) == true) {
+            showHistory = false
+            showSettings = false
+            showPrivacy = false
+            showPhishing = false
+            showQuarantine = true
+            intent.removeExtra(EXTRA_OPEN_QUARANTINE)
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleOpenQuarantine(intent)
     }
 
     private fun requestQuarantineUninstall(record: QuarantineRecord) {
@@ -676,11 +766,16 @@ class MainActivity : ComponentActivity() {
         return null
     }
 
-    private companion object {
+    companion object {
+        /** Opens the Quarantine list directly (notification actions, cut activity). */
+        const val EXTRA_OPEN_QUARANTINE = "open_quarantine"
+        private const val ONBOARDING_PREFS = "onboarding"
+        private const val KEY_ALL_FILES_RATIONALE_SHOWN = "all_files_rationale_shown"
+
         // SAF'ta `.yar`/`.ndb` icin kayitli bir MIME turu yoktur; genis tur listesi
         // verip dogrulamayi parser'a birakiyoruz.
-        val ANY_MIME_TYPES = arrayOf("*/*")
-        val APK_MIME_TYPES = arrayOf(
+        private val ANY_MIME_TYPES = arrayOf("*/*")
+        private val APK_MIME_TYPES = arrayOf(
             "application/vnd.android.package-archive",
             "application/java-archive",
             "application/zip",

@@ -177,6 +177,15 @@ fun SettingsScreen(
                     granted = capabilityStates[AutopilotPermission.ACCESSIBILITY] == true,
                     onOpen = { onRequestPermission(AutopilotPermission.ACCESSIBILITY) }
                 )
+                PermissionRow(
+                    title = stringResource(R.string.settings_all_files_access_title),
+                    description = stringResource(
+                        if (capabilityStates[AutopilotPermission.ALL_FILES_ACCESS] == true) R.string.settings_all_files_access_desc_granted
+                        else R.string.settings_all_files_access_desc_missing
+                    ),
+                    granted = capabilityStates[AutopilotPermission.ALL_FILES_ACCESS] == true,
+                    onOpen = { onRequestPermission(AutopilotPermission.ALL_FILES_ACCESS) }
+                )
             }
         }
 

@@ -28,6 +28,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -36,7 +37,13 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-/** Minimal quarantine list + user-only restore/uninstall controls. */
+/**
+ * Minimal quarantine list + user-only restore/uninstall controls.
+ *
+ * File records are labelled through [QuarantineHonesty]/[QuarantineWording]: while the original
+ * file is still on the device the card says so and offers "Delete now"; it only reads
+ * "quarantined" once the original is gone.
+ */
 @Composable
 fun QuarantineScreen(
     records: List<QuarantineRecord>,
@@ -44,8 +51,11 @@ fun QuarantineScreen(
     onAllow: (QuarantineRecord) -> Unit,
     onRestore: (QuarantineRecord) -> Unit,
     onUninstall: (QuarantineRecord) -> Unit,
-    onRetry: (QuarantineRecord) -> Unit
+    onRetry: (QuarantineRecord) -> Unit,
+    onDeleteOriginal: (QuarantineRecord) -> Unit = {},
+    onDeleteRecord: (QuarantineRecord) -> Unit = {}
 ) {
+    val context = LocalContext.current
     val formatter = SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault())
     Column(
         modifier = Modifier
@@ -82,39 +92,79 @@ fun QuarantineScreen(
                         shape = RoundedCornerShape(16.dp),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
                     ) {
+                        val isFile = QuarantineHonesty.isFileRecord(record)
+                        val display = QuarantineHonesty.displayState(record)
+                        val residue = QuarantineHonesty.effectiveResidue(record)
+                        val removalPending = QuarantineHonesty.originalRemovalPending(record)
                         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             Text(record.label, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                            if (record.packageName != "file-vault") {
+                            if (!isFile) {
                                 Text(record.packageName, style = MaterialTheme.typography.bodySmall)
                             } else {
                                 Text(stringResource(R.string.quarantine_file_vault_item), style = MaterialTheme.typography.bodySmall)
                             }
+                            val stateText = QuarantineWording.stateKey(display)
+                                ?.let { QuarantineFileNotifications.resolve(context, it) }
+                                ?: stateLabel(record.state)
                             Text(
-                                text = stringResource(R.string.quarantine_state, stateLabel(record.state)),
+                                text = stringResource(R.string.quarantine_state, stateText),
                                 style = MaterialTheme.typography.bodyMedium
                             )
+                            if (isFile && residue != null && record.state == QuarantineState.QUARANTINED) {
+                                Text(
+                                    text = QuarantineFileNotifications.resolve(context, QuarantineWording.residueKey(residue)),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = if (residue == OriginalResidue.ORIGINAL_PRESENT) MaterialTheme.colorScheme.error
+                                    else MaterialTheme.colorScheme.primary
+                                )
+                                if (removalPending) {
+                                    QuarantineWording.hintKey(record.cutResult)?.let { hintKey ->
+                                        Text(
+                                            QuarantineFileNotifications.resolve(context, hintKey),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                            }
                             Text(stringResource(R.string.quarantine_engine, record.engine))
                             Text(stringResource(R.string.quarantine_detected, formatter.format(Date(record.detectedAtMillis))))
                             record.sha256?.let { Text(stringResource(R.string.quarantine_hash, it.take(16))) }
                             record.failureCode?.let { Text(stringResource(R.string.quarantine_failed, failureLabel(it))) }
                             when (record.state) {
                                 QuarantineState.QUARANTINED -> {
-                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        OutlinedButton(onClick = { onRestore(record) }) { Text(stringResource(R.string.quarantine_restore)) }
-                                        if (record.packageName != "file-vault") {
-                                            Button(onClick = { onUninstall(record) }) { Text(stringResource(R.string.action_uninstall)) }
+                                    if (isFile && removalPending) {
+                                        Button(onClick = { onDeleteOriginal(record) }, modifier = Modifier.fillMaxWidth()) {
+                                            Text(QuarantineFileNotifications.resolve(context, QuarantineWording.KEY_ACTION_DELETE_NOW))
                                         }
                                     }
-                                    if (record.packageName != "file-vault") {
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        OutlinedButton(onClick = { onRestore(record) }) { Text(stringResource(R.string.quarantine_restore)) }
+                                        if (!isFile) {
+                                            Button(onClick = { onUninstall(record) }) { Text(stringResource(R.string.action_uninstall)) }
+                                        } else {
+                                            OutlinedButton(onClick = { onDeleteRecord(record) }) {
+                                                Text(stringResource(R.string.quarantine_delete_record))
+                                            }
+                                        }
+                                    }
+                                    if (!isFile) {
                                         TextButton(onClick = { onAllow(record) }) {
                                             Text(stringResource(R.string.autopilot_allow_24h))
                                         }
                                     }
                                 }
                                 QuarantineState.FAILED -> {
-                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        OutlinedButton(onClick = { onRetry(record) }) { Text(stringResource(R.string.quarantine_retry)) }
-                                        Button(onClick = { onUninstall(record) }) { Text(stringResource(R.string.action_uninstall)) }
+                                    if (isFile) {
+                                        OutlinedButton(onClick = { onDeleteRecord(record) }) {
+                                            Text(stringResource(R.string.quarantine_delete_record))
+                                        }
+                                    } else {
+                                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            OutlinedButton(onClick = { onRetry(record) }) { Text(stringResource(R.string.quarantine_retry)) }
+                                            Button(onClick = { onUninstall(record) }) { Text(stringResource(R.string.action_uninstall)) }
+                                        }
                                     }
                                 }
                                 QuarantineState.PENDING -> {

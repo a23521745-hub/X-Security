@@ -33,7 +33,10 @@ object QuarantineRepository {
         engine: String,
         nowMillis: Long = System.currentTimeMillis(),
         vaultFileName: String? = null,
-        restoreInfo: String? = null
+        restoreInfo: String? = null,
+        residue: OriginalResidue? = null,
+        sourceUri: String? = null,
+        sourcePath: String? = null
     ): QuarantineRecord = QuarantineRecord(
         id = UUID.randomUUID().toString(),
         packageName = packageName,
@@ -45,7 +48,10 @@ object QuarantineRepository {
         updatedAtMillis = nowMillis,
         state = QuarantineState.DETECTED,
         vaultFileName = vaultFileName,
-        restoreInfo = restoreInfo
+        restoreInfo = restoreInfo,
+        residue = residue,
+        sourceUri = sourceUri,
+        sourcePath = sourcePath
     )
 
     fun insert(context: Context, record: QuarantineRecord) = synchronized(lock) {
@@ -83,7 +89,43 @@ object QuarantineRepository {
             true
         }
 
+    /** Residue + last cut result of a file record; the honesty layer reads these for every label. */
+    fun updateResidue(
+        context: Context,
+        id: String,
+        residue: OriginalResidue,
+        cutResult: String?,
+        nowMillis: Long = System.currentTimeMillis()
+    ): QuarantineRecord? = synchronized(lock) {
+        val store = db(context)
+        val current = store.find(id) ?: return@synchronized null
+        val updated = current.copy(residue = residue, cutResult = cutResult, updatedAtMillis = nowMillis)
+        store.save(updated)
+        publish(context)
+        updated
+    }
+
+    /** Where the original lives (private DB only; never written to the audit log). */
+    fun updateSource(
+        context: Context,
+        id: String,
+        sourceUri: String?,
+        sourcePath: String?,
+        nowMillis: Long = System.currentTimeMillis()
+    ): QuarantineRecord? = synchronized(lock) {
+        val store = db(context)
+        val current = store.find(id) ?: return@synchronized null
+        val updated = current.copy(sourceUri = sourceUri, sourcePath = sourcePath, updatedAtMillis = nowMillis)
+        store.save(updated)
+        publish(context)
+        updated
+    }
+
     fun record(context: Context, id: String): QuarantineRecord? = synchronized(lock) { db(context).find(id) }
+
+    /** File records whose original is still on the device (the "Delete now" backlog). */
+    fun pendingOriginalRemovals(context: Context): List<QuarantineRecord> =
+        synchronized(lock) { db(context).all().filter(QuarantineHonesty::originalRemovalPending) }
 
     fun recordsForPackage(context: Context, packageName: String): List<QuarantineRecord> =
         synchronized(lock) { db(context).findByPackage(packageName) }
