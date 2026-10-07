@@ -11,7 +11,7 @@ sealed class SecurityEvent(open val occurredAtMillis: Long) {
     open val packageName: String? get() = null
     open val isSystemPackage: Boolean get() = false
 
-    enum class Type { PACKAGE_INSTALLED, FOREGROUND_APP, SCAN_DUE, DEFS_STALE, BOOT, MANUAL }
+    enum class Type { PACKAGE_INSTALLED, FOREGROUND_APP, SCAN_DUE, DEFS_STALE, BOOT, MANUAL, FILE_SCAN }
 
     data class PackageInstalled(
         override val packageName: String,
@@ -60,11 +60,23 @@ sealed class SecurityEvent(open val occurredAtMillis: Long) {
         override val type = Type.MANUAL
     }
 
+    /** Ephemeral completed file scan metadata; path/hash never enter the durable audit record. */
+    data class FileScan(
+        val path: String,
+        val sha256: String?,
+        val verdict: SecuritySignal.Verdict,
+        val engine: String,
+        override val occurredAtMillis: Long = System.currentTimeMillis()
+    ) : SecurityEvent(occurredAtMillis) {
+        override val type = Type.FILE_SCAN
+        override fun toString(): String = "FileScan(verdict=$verdict, engine=$engine)"
+    }
+
     fun hasRiskTarget(): Boolean = when (this) {
         is PackageInstalled, is ForegroundApp -> !packageName.isNullOrBlank()
         // Manual events may carry an ephemeral phishing payload in SignalRequest, but
         // that payload is not part of this event and is never persisted.
-        is Manual -> true
+        is Manual, is FileScan -> true
         is ScanDue, is DefsStale, is Boot -> false
     }
 }

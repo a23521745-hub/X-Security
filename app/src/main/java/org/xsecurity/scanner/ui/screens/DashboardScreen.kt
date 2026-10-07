@@ -92,6 +92,7 @@ fun DashboardScreen(
     onPickClamDatabase: () -> Unit,
     onReloadEngine: () -> Unit,
     onCancelScan: () -> Unit,
+    onOpenQuarantine: () -> Unit,
     onCheckUpdate: () -> Unit,
     onDownloadUpdate: () -> Unit,
     onInstallUpdate: () -> Unit,
@@ -114,7 +115,7 @@ fun DashboardScreen(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Header(onOpenSettings = onOpenSettings)
-        StatusCard(state = state, onCancelScan = onCancelScan)
+        StatusCard(state = state, onCancelScan = onCancelScan, onOpenQuarantine = onOpenQuarantine)
         HealthCard(snapshot = healthSnapshot)
         LastScanCard(state = state)
         ThreatsCard(result = state.lastResult)
@@ -189,7 +190,7 @@ private fun Header(onOpenSettings: () -> Unit) {
 }
 
 @Composable
-private fun StatusCard(state: ScanUiState, onCancelScan: () -> Unit) {
+private fun StatusCard(state: ScanUiState, onCancelScan: () -> Unit, onOpenQuarantine: () -> Unit) {
     val result0 = state.lastResult
     val palette = when {
         state.phase == ScanPhase.SCANNING || state.phase == ScanPhase.QUEUED -> StatusPalette(
@@ -270,6 +271,17 @@ private fun StatusCard(state: ScanUiState, onCancelScan: () -> Unit) {
                 color = palette.onContainer,
                 textAlign = TextAlign.Center
             )
+            state.autopilotDecision?.let { decision ->
+                Text(decision, style = MaterialTheme.typography.bodyMedium, color = palette.onContainer, textAlign = TextAlign.Center)
+                if (result?.isInfected == true) {
+                    Text(
+                        text = stringResource(R.string.autopilot_open_quarantine),
+                        modifier = Modifier.clickable(onClick = onOpenQuarantine),
+                        color = palette.onContainer,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
             if (state.isBusy) {
                 LinearProgressIndicator(
                     modifier = Modifier

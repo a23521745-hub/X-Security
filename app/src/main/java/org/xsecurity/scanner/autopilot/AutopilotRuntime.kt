@@ -33,6 +33,21 @@ object AutopilotRuntime {
         }
         val evaluatedEvent = safelistedEvent(appContext, event)
         val signals = ArrayList<SecuritySignal>()
+        if (evaluatedEvent is SecurityEvent.FileScan) {
+            signals += SecuritySignal(
+                SecuritySignal.ProviderId.SCANNER,
+                evaluatedEvent.verdict,
+                if (evaluatedEvent.verdict == SecuritySignal.Verdict.UNKNOWN) SecuritySignal.Risk.HIGH else SecuritySignal.Risk.LOW,
+                when (evaluatedEvent.verdict) {
+                    SecuritySignal.Verdict.KNOWN_BAD -> "file_signature_match"
+                    SecuritySignal.Verdict.KNOWN_GOOD -> "file_scan_clean"
+                    SecuritySignal.Verdict.UNKNOWN -> "file_scan_incomplete"
+                }
+            )
+            val autonomy = AutopilotSettings.level(appContext)
+            val decision = PolicyEngine.decide(evaluatedEvent, signals, autonomy)
+            return@withContext ActionDispatcher().dispatch(appContext, evaluatedEvent, signals, decision, autonomy)
+        }
         var providerFailed = false
         for (provider in providers) {
             try {
@@ -91,7 +106,7 @@ object AutopilotRuntime {
             is SecurityEvent.PackageInstalled -> event.copy(isSystemPackage = true)
             is SecurityEvent.ForegroundApp -> event.copy(isSystemPackage = true)
             is SecurityEvent.Manual -> event.copy(isSystemPackage = true)
-            is SecurityEvent.ScanDue, is SecurityEvent.DefsStale, is SecurityEvent.Boot -> event
+            is SecurityEvent.ScanDue, is SecurityEvent.DefsStale, is SecurityEvent.Boot, is SecurityEvent.FileScan -> event
         }
     }
 
@@ -139,6 +154,7 @@ object SecurityEventCodec {
                 data.putBoolean(KEY_INCLUDE_SYSTEM, event.includeSystemApps)
             }
             is SecurityEvent.ForegroundApp, is SecurityEvent.ScanDue, is SecurityEvent.Boot -> Unit
+            is SecurityEvent.FileScan -> error("FileScan events must be evaluated in-process; never serialize file paths")
         }
         return data.build()
     }
@@ -155,6 +171,7 @@ object SecurityEventCodec {
             SecurityEvent.Type.SCAN_DUE -> SecurityEvent.ScanDue(occurredAt)
             SecurityEvent.Type.DEFS_STALE -> SecurityEvent.DefsStale(data.getLong(KEY_LAST_DEFS, 0L), occurredAt)
             SecurityEvent.Type.BOOT -> SecurityEvent.Boot(occurredAt)
+            SecurityEvent.Type.FILE_SCAN -> null
             SecurityEvent.Type.MANUAL -> SecurityEvent.Manual(
                 packageName = pkg,
                 isSystemPackage = system,
@@ -172,6 +189,7 @@ object SecurityEventCodec {
         is SecurityEvent.ScanDue -> "${AutopilotRuntime.TAG}_scan_due"
         is SecurityEvent.DefsStale -> "${AutopilotRuntime.TAG}_defs_stale"
         is SecurityEvent.Boot -> "${AutopilotRuntime.TAG}_boot"
+        is SecurityEvent.FileScan -> "${AutopilotRuntime.TAG}_file_scan_forbidden"
         is SecurityEvent.Manual -> "${AutopilotRuntime.TAG}_manual_${event.packageName ?: stableOrigin(event.origin)}"
     }
 

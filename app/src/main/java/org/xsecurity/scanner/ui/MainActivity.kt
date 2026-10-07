@@ -234,7 +234,15 @@ class MainActivity : ComponentActivity() {
                             QuarantineRepository.restore(this)
                         },
                         onRestore = { record ->
-                            QuarantineUserActions.restore(this, record.id)
+                            if (record.packageName == "file-vault" && record.vaultFileName != null) {
+                                val restoredFile = java.io.File(cacheDir, "restored-${record.id}.bin")
+                                runCatching {
+                                    org.xsecurity.scanner.quarantine.FileVault.restoreTo(this, record.vaultFileName, restoredFile)
+                                    QuarantineRepository.transition(this, record.id, org.xsecurity.scanner.quarantine.QuarantineState.RESTORED, org.xsecurity.scanner.quarantine.QuarantineActor.USER_ACTION)
+                                }
+                            } else {
+                                QuarantineUserActions.restore(this, record.id)
+                            }
                             QuarantineRepository.restore(this)
                         },
                         onUninstall = { record -> requestQuarantineUninstall(record) },
@@ -313,6 +321,7 @@ class MainActivity : ComponentActivity() {
                         onPickClamDatabase = { clamPicker.launch(ANY_MIME_TYPES) },
                         onReloadEngine = { reloadEngine() },
                         onCancelScan = { ScanController.cancelAll(this) },
+                        onOpenQuarantine = { showQuarantine = true },
                         onCheckUpdate = { lifecycleScope.launch { OtaController.check(this@MainActivity) } },
                         onDownloadUpdate = { startDownload() },
                         onInstallUpdate = { installDownloadedUpdate() },

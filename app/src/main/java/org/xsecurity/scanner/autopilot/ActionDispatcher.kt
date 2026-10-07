@@ -45,6 +45,32 @@ class ActionDispatcher(
                 return Result.EXECUTED
             }
             PolicyAction.BLOCK_AND_QUARANTINE -> {
+                if (event is SecurityEvent.FileScan) {
+                    val stored = runCatching {
+                        org.xsecurity.scanner.quarantine.FileVault.store(
+                            appContext, java.io.File(event.path), "f-${java.util.UUID.randomUUID()}"
+                        )
+                    }.getOrNull()
+                    if (stored == null) {
+                        appendActionFailure(appContext, event, signals, autonomy, "file_vault_failed")
+                        AutopilotNotifications.showDecision(appContext, event, PolicyDecision(PolicyAction.ASK_USER, "file_vault_failed", notify = true))
+                        return Result.ACTION_FAILED
+                    }
+                    val record = QuarantineRepository.newRecord(
+                        packageName = "file-vault",
+                        label = java.io.File(event.path).name.take(120).ifBlank { "Scanned file" },
+                        sha256 = stored.sha256,
+                        verdict = "KNOWN_BAD",
+                        engine = event.engine.ifBlank { "unknown" },
+                        vaultFileName = stored.fileName,
+                        restoreInfo = "encrypted_file_vault"
+                    )
+                    QuarantineRepository.insert(appContext, record)
+                    QuarantineRepository.transition(appContext, record.id, QuarantineState.PENDING, org.xsecurity.scanner.quarantine.QuarantineActor.AUTOMATION)
+                    QuarantineRepository.transition(appContext, record.id, QuarantineState.QUARANTINED, org.xsecurity.scanner.quarantine.QuarantineActor.AUTOMATION)
+                    AutopilotNotifications.showDecision(appContext, event, decision)
+                    return Result.EXECUTED
+                }
                 val packageName = event.packageName
                 if (packageName != null) {
                     // Defense in depth: a stale/misreported event cannot cross the system safelist.
@@ -105,7 +131,7 @@ class ActionDispatcher(
                     }
                 }
             }
-            is SecurityEvent.PackageInstalled, is SecurityEvent.ForegroundApp -> Unit
+            is SecurityEvent.PackageInstalled, is SecurityEvent.ForegroundApp, is SecurityEvent.FileScan -> Unit
         }
         return Result.EXECUTED
     }

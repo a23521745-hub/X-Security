@@ -425,4 +425,9 @@
     <string name="quarantine_failure_oem">Bu Android/üretici sürümü desteklenen bir Zorla durdur eylemi sunmadı</string>
     <string name="quarantine_failure_generic">Rootless eylem kullanılamadı; sistem uygulama ayarlarını kullanın</string>
     <string name="quarantine_history_open">Karantina geçmişi (%1$d)</string>
+    <string name="autopilot_open_quarantine">Karantinayı Aç</string>
+    <string name="autopilot_file_vaulted">AutoPilot: dosya şifrelenerek Karantina Kasası’na alındı.</string>
+    <string name="autopilot_file_ask">AutoPilot: dosya belirsiz; inceleme gerekiyor.</string>
+    <string name="autopilot_file_clean">AutoPilot: işlem gerekmiyor.</string>
+    <string name="quarantine_file_vault_item">Şifrelenmiş dosya kasası öğesi</string>
 </resources>
