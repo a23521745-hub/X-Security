@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- FileProvider: yalnizca guncelleme APK'sinin tuttugu cache/ota dizini paylasilir. -->
+<paths>
+    <cache-path name="ota_updates" path="ota/" />
+</paths>

@@ -88,7 +88,7 @@ class ApkScannerEngineTest {
         )
         val engine = ApkScannerEngine.load(yara, File("absent.ndb")).getOrThrow()
         val content = ByteArray(10_000) { 'q'.code.toByte() } + "zzzTAIL".encodeToByteArray()
-        val target = fileWith(".apk", content.decodeToString(Charsets.ISO_8859_1))
+        val target = fileWith(".apk", String(content, Charsets.ISO_8859_1))
 
         val seen = ArrayList<Float>()
         engine.scan(target) { seen += it }
@@ -99,25 +99,103 @@ class ApkScannerEngineTest {
     }
 
     @Test
-    fun bundledSampleAssetsDetectEicar() {
+    fun bundledCuratedAssetsDetectEicar() {
         val base = listOf(
             "src/main/assets/signatures",
             "app/src/main/assets/signatures",
             "../app/src/main/assets/signatures"
         ).map { File(it) }.firstOrNull { it.isDirectory } ?: return
 
-        val yara = File(base, "sample-rules.yar")
-        val ndb = File(base, "sample-signatures.ndb")
-        if (!yara.isFile || !ndb.isFile) return
+        val yara = File(base, "rules.yar")
+        val ndb = File(base, "signatures.ndb")
+        val hsb = File(base, "hashes.hsb")
+        if (!yara.isFile || !ndb.isFile || !hsb.isFile) return
 
-        val engine = ApkScannerEngine.load(yara, ndb).getOrThrow()
-        assertTrue("ornek YARA kurallari yuklenmeli", engine.yaraRules.isNotEmpty())
-        assertTrue("ornek ClamAV imzalari yuklenmeli", engine.clamAvSignatureCount > 0)
+        val engine = ApkScannerEngine.load(yara, ndb, hsb).getOrThrow()
+        assertTrue("paketle gelen YARA kurallari yuklenmeli", engine.yaraRules.isNotEmpty())
+        assertTrue("paketle gelen ClamAV imzalari yuklenmeli", engine.clamAvSignatureCount > 0)
+        assertTrue("paketle gelen hash imzalari yuklenmeli", engine.hashSignatureCount >= 30)
 
         val result = engine.scan(fileWith(".eicar", eicar))
         assertEquals(ScanStatus.THREATS_FOUND, result.status)
         assertTrue(result.threats.any { it.engine == ScanResult.ENGINE_YARA })
         assertTrue(result.threats.any { it.engine == ScanResult.ENGINE_CLAMAV })
+        // EICAR'in uc ozeti de hashes.hsb icinde: hash katmani da isabet raporlamali.
+        val hashHits = result.clamHashThreats
+        assertTrue("hash katmani EICAR'i bulmali: ${result.threats}", hashHits.isNotEmpty())
+        assertTrue(hashHits.all { it.name == "Eicar.Test-File" })
+        assertTrue(hashHits.any { it.detail?.contains("whole-file") == true })
+    }
+
+    @Test
+    fun communitySourcesMergeIntoAllLayers() {
+        // Topluluk YARA kaynagi: tek kural, belirgin igne.
+        val communityYar = fileWith(
+            ".yar",
+            "rule Community_Test { strings: ${'$'}c = \"communityneedle\" condition: any of them }"
+        )
+        // Topluluk hash kaynagi: prob dosyasinin SHA-256 ozeti imzalanmis.
+        val probeContent = "community hash layer probe communityneedle"
+        val sha256 = java.security.MessageDigest.getInstance("SHA-256")
+            .digest(probeContent.toByteArray())
+            .joinToString("") { "%02x".format(it) }
+        val communityHsb = fileWith(".hsb", "$sha256:-1:Community.Test.Signature")
+
+        val engine = ApkScannerEngine.load(
+            yaraFile = null,
+            clamFile = null,
+            hashFile = null,
+            communityYaraFiles = listOf(communityYar),
+            communityHashFiles = listOf(communityHsb)
+        ).getOrThrow()
+
+        assertEquals(listOf("Community_Test"), engine.yaraRules.map { it.name })
+        assertEquals(1, engine.hashSignatureCount)
+        assertTrue(engine.hasAnyPattern)
+
+        val result = engine.scan(fileWith(".bin", probeContent))
+        assertEquals(ScanStatus.THREATS_FOUND, result.status)
+        assertTrue(
+            "topluluk YARA kurali atlamali: " + result.threats,
+            result.threats.any { it.engine == ScanResult.ENGINE_YARA && it.name == "Community_Test" }
+        )
+        assertTrue(
+            "topluluk hash imzasi atlamali: " + result.threats,
+            result.threats.any { it.engine == ScanResult.ENGINE_CLAM_HASH && it.name == "Community.Test.Signature" }
+        )
+    }
+
+    @Test
+    fun curatedHashWinsOverCommunityDuplicate() {
+        // Ayni ozet hem kuratorluk hem topluluk dosyasinda: kuratorluk kazanmali.
+        val base = listOf(
+            "src/main/assets/signatures",
+            "app/src/main/assets/signatures",
+            "../app/src/main/assets/signatures"
+        ).map { File(it) }.firstOrNull { it.isDirectory } ?: return
+        val curated = File(base, "hashes.hsb")
+        if (!curated.isFile) return
+
+        val digest = "275a021bbfb6489e54d471899f7db9d1663fc695ec2fe2a2c4538aabf651fd0f"
+        val communityHsb = fileWith(".hsb", "$digest:-1:Community.Duplicate.Name")
+
+        val curatedOnly = ApkScannerEngine.load(
+            yaraFile = null, clamFile = null, hashFile = curated
+        ).getOrThrow()
+        val merged = ApkScannerEngine.load(
+            yaraFile = null, clamFile = null, hashFile = curated,
+            communityHashFiles = listOf(communityHsb)
+        ).getOrThrow()
+
+        assertEquals(
+            "ayni ozet iki tarafta: birlesik boyut artmamali",
+            curatedOnly.hashSignatureCount,
+            merged.hashSignatureCount
+        )
+        assertEquals(
+            "Eicar.Test-File",  // kuratorluk hsb'deki isim; topluluk gecersiz kilamaz
+            merged.hashDatabase!!.signatures[digest]!!.name
+        )
     }
 
     @Test

@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "comment": "Dogrudan topluluk kaynaklari kayit defteri. Bu dosya APK icine gomulur (sabit); URL'ler yalnizca imzali tanim kanali guncellemesiyle degistirilebilir. Her kaynak HTTPS + izinli host uzerinden iner, bicim dogrulamadan gecmeden kurulmaz.",
+  "sources": [
+    {
+      "id": "echap-hashes",
+      "kind": "HSB_FROM_CSV",
+      "label": "Echap stalkerware-indicators",
+      "detail": "samples.csv — APK SHA-256 ozetleri (~2000+)",
+      "url": "https://raw.githubusercontent.com/AssoEchap/stalkerware-indicators/master/samples.csv",
+      "csvColumns": "SHA256,Package,Certificate,Version,App",
+      "namePrefix": "Android.Stalkerware.",
+      "maxEntries": 20000,
+      "enabledByDefault": true,
+      "license": "CC BY 4.0",
+      "attribution": "AssoEchap / Echap — https://github.com/AssoEchap/stalkerware-indicators"
+    },
+    {
+      "id": "echap-yara",
+      "kind": "YARA",
+      "label": "Echap stalkerware YARA kurallari",
+      "detail": "rules.yar — topluluk stalkerware kurallari",
+      "url": "https://raw.githubusercontent.com/AssoEchap/stalkerware-indicators/master/rules.yar",
+      "maxEntries": 1000,
+      "enabledByDefault": true,
+      "license": "CC BY 4.0",
+      "attribution": "AssoEchap / Echap — https://github.com/AssoEchap/stalkerware-indicators"
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  OTA yalnizca TLS uzerinden calisir. Cleartext (http) trafigi uygulama genelinde
+  yasaktir; sertifika sabitleme (pinning) uretimde eklenmelidir (bkz. README).
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false" />
+</network-security-config>

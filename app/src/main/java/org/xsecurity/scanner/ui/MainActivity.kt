@@ -1,12 +1,16 @@
 package org.xsecurity.scanner.ui
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.OpenableColumns
+import android.provider.Settings
+import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
@@ -18,14 +22,67 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.xsecurity.scanner.R
+import org.xsecurity.scanner.autopilot.AutoPilotHealthInputs
+import org.xsecurity.scanner.autopilot.AutoPilotHealthScore
+import org.xsecurity.scanner.autopilot.AutoPilotHealthScoreV1
+import org.xsecurity.scanner.autopilot.AutopilotNotifications
+import org.xsecurity.scanner.autopilot.AutopilotPermission
+import org.xsecurity.scanner.autopilot.AutopilotRuntime
+import org.xsecurity.scanner.autopilot.AutopilotScheduler
+import org.xsecurity.scanner.autopilot.AutopilotSettings
+import org.xsecurity.scanner.autopilot.AutonomyLevel
+import org.xsecurity.scanner.autopilot.RootlessCapabilityProvider
+import org.xsecurity.scanner.autopilot.SecurityEvent
+import org.xsecurity.scanner.autopilot.SignalRequest
 import org.xsecurity.scanner.data.EngineInfo
 import org.xsecurity.scanner.data.ScanController
+import org.xsecurity.scanner.data.ScanHistoryStore
 import org.xsecurity.scanner.data.ScanNotifications
 import org.xsecurity.scanner.data.ScanStore
 import org.xsecurity.scanner.data.SignatureStore
+import org.xsecurity.scanner.data.UpdatePreferences
+import org.xsecurity.scanner.community.CommunityStore
+import org.xsecurity.scanner.definitions.DefinitionsController
+import org.xsecurity.scanner.definitions.DefinitionsStore
+import org.xsecurity.scanner.device.DeviceScanStore
+import org.xsecurity.scanner.edr.EdrAlertStore
+import org.xsecurity.scanner.edr.EdrStatus
+import org.xsecurity.scanner.edr.EdrStatusSnapshot
+import org.xsecurity.scanner.health.HealthStore
+import org.xsecurity.scanner.phishing.PhishingStore
+import org.xsecurity.scanner.privacy.PrivacyStore
+import org.xsecurity.scanner.device.InstallShieldReceiver
+import org.xsecurity.scanner.device.ProtectionMode
+import org.xsecurity.scanner.device.ProtectionSettings
+import org.xsecurity.scanner.device.RealtimeProtectionService
+import org.xsecurity.scanner.device.StorageAccess
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import org.xsecurity.scanner.edr.BehavioralEdrService
 import org.xsecurity.scanner.engine.ScanEngines
+import org.xsecurity.scanner.ota.OtaController
+import org.xsecurity.scanner.ota.OtaNotifications
+import org.xsecurity.scanner.ota.OtaStore
 import org.xsecurity.scanner.ui.screens.DashboardScreen
+import org.xsecurity.scanner.ui.screens.HistoryScreen
+import org.xsecurity.scanner.ui.screens.PhishingScreen
+import org.xsecurity.scanner.ui.screens.PrivacyAdvisorScreen
+import org.xsecurity.scanner.ui.screens.SettingsScreen
 import org.xsecurity.scanner.ui.theme.XSecurityTheme
+import org.xsecurity.scanner.quarantine.QuarantineCutActivity
+import org.xsecurity.scanner.quarantine.QuarantineHonesty
+import org.xsecurity.scanner.quarantine.QuarantinePendingActionStore
+import org.xsecurity.scanner.quarantine.QuarantineRecord
+import org.xsecurity.scanner.quarantine.QuarantineRepository
+import org.xsecurity.scanner.quarantine.QuarantineScreen
+import org.xsecurity.scanner.quarantine.QuarantineUserActions
+import org.xsecurity.scanner.quarantine.RestoreDestination
+import org.xsecurity.scanner.quarantine.RestoreOutcome
+import org.xsecurity.scanner.quarantine.VaultDeleteFlow
+import java.io.File
 
 /**
  * Uygulamanin tek ekrani.
@@ -52,6 +109,33 @@ class MainActivity : ComponentActivity() {
     private val notificationPermission =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* sonuç önemli degil */ }
 
+    /** API 26-29: klasik depolama izinleri (API 30+ ayar ekranina gider, bkz. StorageAccess). */
+    private val storagePermissions =
+        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+            refreshProtection()
+            refreshAutopilotStatus()
+        }
+
+    private var storageGranted by mutableStateOf(false)
+    private var protectionRunning by mutableStateOf(false)
+    private var showStorageRationale by mutableStateOf(false)
+    /** One-time antivirus rationale for All Files Access (cut-and-paste quarantine). */
+    private var showAllFilesOnboarding by mutableStateOf(false)
+    /** Tarama gecmisi ekraninin acik/kapali oldugunu tutar (yeni activity yok). */
+    private var showHistory by mutableStateOf(false)
+    /** Ayarlar / Gizlilik / Oltalama ekranlari (ayni desende, activity yok). */
+    private var showSettings by mutableStateOf(false)
+    private var showPrivacy by mutableStateOf(false)
+    private var showPhishing by mutableStateOf(false)
+    private var showQuarantine by mutableStateOf(false)
+    private var autopilotPermissionRationale by mutableStateOf<AutopilotPermission?>(null)
+    private var capabilityStates by mutableStateOf<Map<AutopilotPermission, Boolean>>(emptyMap())
+    private var autopilotHealthScore by mutableStateOf(
+        AutoPilotHealthScore(100, AutoPilotHealthScore.Grade.GOOD, emptyList())
+    )
+    /** EDR durum kartinin anlik gorunumu (onCreate/onResume'da tazelenir). */
+    private var edrSnapshot by mutableStateOf(EdrStatusSnapshot(false, false, true, false, 0))
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // API 35 hedefinde kenar-dan-kenara zorunlu; SystemBarStyle varsayilanlari
@@ -61,21 +145,249 @@ class MainActivity : ComponentActivity() {
 
         SignatureStore.ensureBundledDefaults(this)
         ScanNotifications.ensureChannel(this)
+        OtaNotifications.ensureChannel(this)
         ScanStore.restore(this)
+        OtaStore.restore(this)
+        DefinitionsStore.restore(this)
+        DeviceScanStore.restore(this)
+        ScanHistoryStore.restore(this)
+        ProtectionSettings.restore(this)
+        UpdatePreferences.restore(this)
+        EdrAlertStore.restore(this)
+        PhishingStore.restore(this)
+        HealthStore.refresh(this)
+        AutopilotSettings.restore(this)
+        QuarantineRepository.restore(this)
+        AutopilotNotifications.ensureChannels(this)
+        refreshEdrSnapshot()
+        refreshAutopilotStatus()
+        applyProtectionMode(promptForStorage = false)
         requestNotificationPermissionIfNeeded()
+        maybeShowAllFilesOnboarding()
+        handleOpenQuarantine(intent)
+        // Originals still waiting for the user's "Delete now" tap stay visible after restarts.
+        lifecycleScope.launch(Dispatchers.IO) {
+            runCatching { VaultDeleteFlow.refreshPendingNotifications(this@MainActivity) }
+        }
+        // Existing WorkManager schedulers remain the owner of OTA/definition checks.
+        AutopilotScheduler.schedule(this)
+        // Gunluk imzali guncelleme kontrolu (yalnizca ag bagliyken; bildirim sessiz).
+        OtaController.schedulePeriodicCheck(this)
+        // Gunluk imzali TANIM paketi kontrolu (ayni anahtar/kanal; kurulum otomatik).
+        DefinitionsController.schedulePeriodicCheck(this)
+        CommunityStore.publish(this)
         reloadEngine()
 
         setContent {
             XSecurityTheme {
                 val state by ScanStore.state.collectAsState()
-                DashboardScreen(
-                    state = state,
-                    onScanApk = { apkPicker.launch(APK_MIME_TYPES) },
-                    onPickYaraRules = { yaraPicker.launch(ANY_MIME_TYPES) },
-                    onPickClamDatabase = { clamPicker.launch(ANY_MIME_TYPES) },
-                    onReloadEngine = { reloadEngine() },
-                    onCancelScan = { ScanController.cancelAll(this) }
-                )
+                val otaState by OtaStore.state.collectAsState()
+                val defState by DefinitionsStore.state.collectAsState()
+                val deviceState by DeviceScanStore.state.collectAsState()
+                val protectionState by ProtectionSettings.state.collectAsState()
+                val historyEntries by ScanHistoryStore.entries.collectAsState()
+                val updateSettings by UpdatePreferences.state.collectAsState()
+                val privacyState by PrivacyStore.state.collectAsState()
+                val healthSnapshot by HealthStore.snapshot.collectAsState()
+                val phishingBlocklistState by PhishingStore.state.collectAsState()
+                val quarantineRecords by QuarantineRepository.records.collectAsState()
+                val autonomyLevel by AutopilotSettings.autonomy.collectAsState()
+                // Sistem geri dongusu alt ekranlardan dashboard'a doner.
+                BackHandler(enabled = showHistory) { showHistory = false }
+                BackHandler(enabled = showSettings) { showSettings = false }
+                BackHandler(enabled = showPrivacy) { showPrivacy = false }
+                BackHandler(enabled = showPhishing) { showPhishing = false }
+                BackHandler(enabled = showQuarantine) { showQuarantine = false }
+                BackHandler(enabled = autopilotPermissionRationale != null) { autopilotPermissionRationale = null }
+                if (showStorageRationale) {
+                    AlertDialog(
+                        onDismissRequest = { showStorageRationale = false },
+                        title = { Text(getString(R.string.protection_storage_rationale_title)) },
+                        text = { Text(getString(R.string.protection_storage_rationale_body)) },
+                        confirmButton = {
+                            TextButton(onClick = {
+                                showStorageRationale = false
+                                launchStoragePermission()
+                            }) { Text(getString(R.string.protection_storage_rationale_ok)) }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { showStorageRationale = false }) { Text(getString(R.string.action_cancel)) }
+                        }
+                    )
+                }
+                if (showAllFilesOnboarding) {
+                    AlertDialog(
+                        onDismissRequest = { showAllFilesOnboarding = false },
+                        title = { Text(getString(R.string.onboarding_all_files_title)) },
+                        text = { Text(getString(R.string.onboarding_all_files_body)) },
+                        confirmButton = {
+                            TextButton(onClick = {
+                                showAllFilesOnboarding = false
+                                launchStoragePermission()
+                            }) { Text(getString(R.string.onboarding_all_files_grant)) }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { showAllFilesOnboarding = false }) {
+                                Text(getString(R.string.onboarding_all_files_later))
+                            }
+                        }
+                    )
+                }
+                autopilotPermissionRationale?.let { permission ->
+                    AlertDialog(
+                        onDismissRequest = { autopilotPermissionRationale = null },
+                        title = { Text(getString(autopilotPermissionTitle(permission))) },
+                        text = { Text(getString(autopilotPermissionBody(permission))) },
+                        confirmButton = {
+                            TextButton(onClick = {
+                                autopilotPermissionRationale = null
+                                openAutopilotPermissionSettings(permission)
+                            }) { Text(getString(R.string.autopilot_permission_open)) }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { autopilotPermissionRationale = null }) {
+                                Text(getString(R.string.action_cancel))
+                            }
+                        }
+                    )
+                }
+                if (showHistory) {
+                    HistoryScreen(
+                        entries = historyEntries,
+                        onBack = { showHistory = false },
+                        onShareReport = { report -> shareScanReport(report) },
+                        onClearHistory = { ScanHistoryStore.clear(this) },
+                        quarantineCount = quarantineRecords.size,
+                        onOpenQuarantine = { showHistory = false; showQuarantine = true }
+                    )
+                } else if (showQuarantine) {
+                    QuarantineScreen(
+                        records = quarantineRecords,
+                        onBack = { showQuarantine = false },
+                        onAllow = { record ->
+                            QuarantineUserActions.allowFor24Hours(this, record.packageName, record.id)
+                            QuarantineRepository.restore(this)
+                        },
+                        onRestore = { record ->
+                            if (QuarantineHonesty.isFileRecord(record)) {
+                                // Move the bytes back (original path / Downloads) and drop the vault copy.
+                                lifecycleScope.launch {
+                                    val outcome = withContext(Dispatchers.IO) { VaultDeleteFlow.restore(this@MainActivity, record.id) }
+                                    val message = when (outcome) {
+                                        is RestoreOutcome.Restored -> getString(
+                                            when (outcome.destination.kind) {
+                                                RestoreDestination.KIND_ORIGINAL_PATH -> R.string.quarantine_restore_done_original_path
+                                                RestoreDestination.KIND_ORIGINAL_UNCHANGED -> R.string.quarantine_restore_done_original_unchanged
+                                                RestoreDestination.KIND_DOWNLOADS -> R.string.quarantine_restore_done_downloads
+                                                else -> R.string.quarantine_restore_done_app_private
+                                            }
+                                        )
+                                        is RestoreOutcome.Failed -> getString(R.string.quarantine_restore_failed)
+                                    }
+                                    Toast.makeText(this@MainActivity, message, Toast.LENGTH_LONG).show()
+                                    QuarantineRepository.restore(this@MainActivity)
+                                }
+                            } else {
+                                QuarantineUserActions.restore(this, record.id)
+                                QuarantineRepository.restore(this)
+                            }
+                        },
+                        onUninstall = { record -> requestQuarantineUninstall(record) },
+                        onRetry = { record ->
+                            QuarantineUserActions.retry(this, record.id, RootlessCapabilityProvider())
+                            QuarantineRepository.restore(this)
+                        },
+                        onDeleteOriginal = { record ->
+                            runCatching { startActivity(QuarantineCutActivity.intent(this, record.id, QuarantineCutActivity.MODE_CUT)) }
+                        },
+                        onDeleteRecord = { record ->
+                            runCatching { startActivity(QuarantineCutActivity.intent(this, record.id, QuarantineCutActivity.MODE_DELETE_RECORD)) }
+                        }
+                    )
+                } else if (showSettings) {
+                    SettingsScreen(
+                        settings = updateSettings,
+                        versionName = appVersionName(),
+                        versionCode = OtaController.currentVersionCode(this),
+                        autonomyLevel = autonomyLevel,
+                        healthScore = autopilotHealthScore,
+                        quarantineCount = quarantineRecords.size,
+                        capabilityStates = capabilityStates,
+                        onAutoCheckChange = { enabled ->
+                            UpdatePreferences.applyAutoCheck(this, enabled)
+                        },
+                        onMeteredChange = { allowed ->
+                            UpdatePreferences.setMeteredAllowed(this, allowed)
+                        },
+                        onAutonomyChange = { level -> AutopilotSettings.setLevel(this, level) },
+                        onOpenQuarantine = { showSettings = false; showQuarantine = true },
+                        onRequestPermission = { permission -> autopilotPermissionRationale = permission },
+                        onBack = { showSettings = false }
+                    )
+                } else if (showPrivacy) {
+                    PrivacyAdvisorScreen(
+                        state = privacyState,
+                        onBack = { showPrivacy = false },
+                        onRescan = { refreshPrivacy() },
+                        onUninstall = { packageName -> requestUninstall(packageName) }
+                    )
+                } else if (showPhishing) {
+                    PhishingScreen(
+                        blocklist = PhishingStore.blocklist(this),
+                        blocklistState = phishingBlocklistState,
+                        onUpdateList = {
+                            lifecycleScope.launch { PhishingStore.refresh(this@MainActivity) }
+                        },
+                        onAutoPilotEvaluation = { text ->
+                            lifecycleScope.launch {
+                                AutopilotRuntime.evaluate(
+                                    this@MainActivity,
+                                    SecurityEvent.Manual(origin = "phishing_share"),
+                                    SignalRequest(phishingText = text)
+                                )
+                            }
+                        },
+                        onBack = { showPhishing = false }
+                    )
+                } else {
+                    DashboardScreen(
+                        state = state,
+                        otaState = otaState,
+                        defState = defState,
+                        deviceState = deviceState,
+                        protectionState = protectionState,
+                        installedVersionCode = OtaController.currentVersionCode(this),
+                        historyEntries = historyEntries,
+                        onScanApk = { apkPicker.launch(APK_MIME_TYPES) },
+                        onScanDevice = { includeSystem -> queueDeviceScan(includeSystem) },
+                        onUninstall = { packageName -> requestUninstall(packageName) },
+                        onProtectionModeChange = { mode ->
+                            ProtectionSettings.setMode(this, mode)
+                            applyProtectionMode(promptForStorage = true)
+                        },
+                        onProtectionQuietChange = { quiet -> ProtectionSettings.setQuietWhenClean(this, quiet) },
+                        onOpenHistory = { showHistory = true },
+                        storageGranted = storageGranted,
+                        protectionServiceRunning = protectionRunning,
+                        onRequestStorage = { showStorageRationale = true },
+                        onPickYaraRules = { yaraPicker.launch(ANY_MIME_TYPES) },
+                        onPickClamDatabase = { clamPicker.launch(ANY_MIME_TYPES) },
+                        onReloadEngine = { reloadEngine() },
+                        onCancelScan = { ScanController.cancelAll(this) },
+                        onOpenQuarantine = { showQuarantine = true },
+                        onCheckUpdate = { lifecycleScope.launch { OtaController.check(this@MainActivity) } },
+                        onDownloadUpdate = { startDownload() },
+                        onInstallUpdate = { installDownloadedUpdate() },
+                        onCheckDefinitions = { DefinitionsController.enqueueManualCheck(this) },
+                        edrSnapshot = edrSnapshot,
+                        onOpenAccessibilitySettings = { openAccessibilitySettings() },
+                        privacyState = privacyState,
+                        onOpenPrivacy = { openPrivacy() },
+                        onOpenPhishing = { showPhishing = true },
+                        healthSnapshot = healthSnapshot,
+                        onOpenSettings = { showSettings = true }
+                    )
+                }
             }
         }
     }
@@ -84,6 +396,289 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         // Worker baska bir surecten calissa bile sonucui yenile.
         ScanStore.restore(this)
+        OtaStore.restore(this)
+        DefinitionsStore.restore(this)
+        DeviceScanStore.restore(this)
+        ScanHistoryStore.restore(this)
+        QuarantineRepository.restore(this)
+        AutopilotSettings.restore(this)
+        // Kullanici sistem ayarlarindan donmus olabilir (erisim izni, erisilebilirlik...).
+        HealthStore.refresh(this)
+        refreshEdrSnapshot()
+        refreshAutopilotStatus()
+        refreshProtection()
+        QuarantinePendingActionStore.consumeUninstall(this)?.let { pending ->
+            pending.recordId?.let { QuarantineUserActions.markUninstalledAfterUserConfirmation(this, it) }
+        }
+        pendingUninstall?.let { packageName ->
+            pendingUninstall = null
+            // Kullanici sistem ekranindan dondu: paket gercekten gittiyse listeden dus.
+            if (!isPackageInstalled(packageName)) DeviceScanStore.removePackage(this, packageName)
+        }
+    }
+
+    /**
+     * Koruma moduna gore: kurulum kalkaninin dinamik kaydi + "Her zaman acik" servisi.
+     * Servis yalnizca depolama izni varsa baslar; yoksa once neden-gerekli diyalogu.
+     */
+    private fun applyProtectionMode(promptForStorage: Boolean) {
+        val mode = ProtectionSettings.mode(this)
+        if (ProtectionSettings.installShieldEnabled(mode)) {
+            InstallShieldReceiver.register(this)
+        } else {
+            InstallShieldReceiver.unregister(this)
+        }
+        storageGranted = StorageAccess.hasAllFilesAccess(this)
+        if (mode == ProtectionMode.ALWAYS) {
+            if (storageGranted) {
+                RealtimeProtectionService.start(this)
+            } else if (promptForStorage) {
+                // Izin istemeden once amac diyalogu; acilista nag yapmaz, kart uyari gosterir.
+                showStorageRationale = true
+            }
+            // Davranışsal EDR depolama izni gerektirmez; ALWAYS modunun parçasıdır.
+            BehavioralEdrService.start(this)
+        } else {
+            RealtimeProtectionService.stop(this)
+            BehavioralEdrService.stop(this)
+        }
+        protectionRunning = RealtimeProtectionService.running
+    }
+
+    /** Izin/servis durumunu yeniden oku; izin yeni verildiyse servisi baslat. */
+    private fun refreshProtection() {
+        storageGranted = StorageAccess.hasAllFilesAccess(this)
+        if (ProtectionSettings.mode(this) == ProtectionMode.ALWAYS && storageGranted &&
+            !RealtimeProtectionService.running
+        ) {
+            RealtimeProtectionService.start(this)
+        }
+        if (ProtectionSettings.mode(this) == ProtectionMode.ALWAYS && !BehavioralEdrService.running) {
+            BehavioralEdrService.start(this)
+        }
+        protectionRunning = RealtimeProtectionService.running
+    }
+
+    /** Neden-gerekli diyalogu onaylandi: API 30+ sistem ayari, altinda runtime izni. */
+    private fun launchStoragePermission() {
+        if (StorageAccess.usesRuntimePermission) {
+            storagePermissions.launch(StorageAccess.legacyRuntimePermissions)
+            return
+        }
+        for (intent in StorageAccess.settingsIntents(this)) {
+            if (runCatching { startActivity(intent) }.isSuccess) return
+        }
+    }
+
+    /** Sistem kaldirma ekranina donusu izlemek icin (sessiz kaldirma yok). */
+    private var pendingUninstall: String? = null
+
+    private fun queueDeviceScan(includeSystemApps: Boolean) {
+        DeviceScanStore.acceptRationale(this)
+        ScanStore.markQueued(this, getString(R.string.device_scan_queued))
+        val queued = AutopilotRuntime.enqueue(
+            this,
+            SecurityEvent.Manual(origin = "device_scan", includeSystemApps = includeSystemApps)
+        )
+        if (!queued && !ScanController.enqueueDeviceScan(this, includeSystemApps)) {
+            ScanStore.markFailed(this, getString(R.string.stage_failed))
+        }
+    }
+
+    /** EDR karti icin anlik durum (ayar donuslerinde tazelenir). */
+    private fun refreshEdrSnapshot() {
+        edrSnapshot = EdrStatus.snapshot(this)
+    }
+
+    private fun refreshAutopilotStatus() {
+        val capabilities = RootlessCapabilityProvider()
+        capabilityStates = mapOf(
+            AutopilotPermission.BATTERY_EXEMPTION to capabilities.hasCapability(
+                this, org.xsecurity.scanner.autopilot.Capability.BATTERY_EXEMPTION
+            ),
+            AutopilotPermission.OVERLAY to capabilities.hasCapability(
+                this, org.xsecurity.scanner.autopilot.Capability.OVERLAY_WARNING
+            ),
+            AutopilotPermission.USAGE_ACCESS to capabilities.hasCapability(
+                this, org.xsecurity.scanner.autopilot.Capability.USAGE_STATS
+            ),
+            AutopilotPermission.ACCESSIBILITY to capabilities.hasCapability(
+                this, org.xsecurity.scanner.autopilot.Capability.ACCESSIBILITY_ASSIST
+            ),
+            AutopilotPermission.ALL_FILES_ACCESS to StorageAccess.hasDirectDeleteAccess(this)
+        )
+        val definitions = DefinitionsStore.state.value
+        val freshness = maxOf(definitions.lastInstalledAt, definitions.checkedAt)
+        val fresh = definitions.installedDefVersion > 0 &&
+            (freshness == 0L || System.currentTimeMillis() - freshness < AutopilotScheduler.DEFINITIONS_STALE_MILLIS)
+        autopilotHealthScore = AutoPilotHealthScoreV1.calculate(
+            AutoPilotHealthInputs(
+                scannerReady = ScanStore.state.value.engine?.isReady == true,
+                definitionsFresh = fresh,
+                usageAccessGranted = capabilityStates[AutopilotPermission.USAGE_ACCESS] == true,
+                accessibilityAssistGranted = capabilityStates[AutopilotPermission.ACCESSIBILITY] == true
+            )
+        )
+    }
+
+    private fun autopilotPermissionTitle(permission: AutopilotPermission): Int = when (permission) {
+        AutopilotPermission.BATTERY_EXEMPTION -> R.string.autopilot_rationale_battery_title
+        AutopilotPermission.OVERLAY -> R.string.autopilot_rationale_overlay_title
+        AutopilotPermission.USAGE_ACCESS -> R.string.autopilot_rationale_usage_title
+        AutopilotPermission.ACCESSIBILITY -> R.string.autopilot_rationale_accessibility_title
+        AutopilotPermission.ALL_FILES_ACCESS -> R.string.onboarding_all_files_title
+    }
+
+    private fun autopilotPermissionBody(permission: AutopilotPermission): Int = when (permission) {
+        AutopilotPermission.BATTERY_EXEMPTION -> R.string.autopilot_rationale_battery_body
+        AutopilotPermission.OVERLAY -> R.string.autopilot_rationale_overlay_body
+        AutopilotPermission.USAGE_ACCESS -> R.string.autopilot_rationale_usage_body
+        AutopilotPermission.ACCESSIBILITY -> R.string.autopilot_rationale_accessibility_body
+        AutopilotPermission.ALL_FILES_ACCESS -> R.string.onboarding_all_files_body
+    }
+
+    private fun openAutopilotPermissionSettings(permission: AutopilotPermission) {
+        val intent = when (permission) {
+            AutopilotPermission.BATTERY_EXEMPTION -> {
+                val power = getSystemService(POWER_SERVICE) as? android.os.PowerManager
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
+                    power?.isIgnoringBatteryOptimizations(packageName) != true
+                ) {
+                    Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:$packageName"))
+                } else {
+                    Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+                }
+            }
+            AutopilotPermission.OVERLAY -> Intent(
+                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                Uri.parse("package:$packageName")
+            )
+            AutopilotPermission.USAGE_ACCESS -> org.xsecurity.scanner.autopilot.ForegroundAppObserver.usageAccessSettingsIntent()
+            AutopilotPermission.ACCESSIBILITY -> Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+            AutopilotPermission.ALL_FILES_ACCESS -> {
+                launchStoragePermission()
+                return
+            }
+        }
+        runCatching { startActivity(intent) }
+    }
+
+    /**
+     * Antivirus rationale for All Files Access, shown once. With it, a confirmed threat is removed
+     * directly after the user's tap; without it the same tap goes through the Android delete
+     * dialog (graceful fallback), so declining here costs one extra tap per removal, nothing more.
+     */
+    private fun maybeShowAllFilesOnboarding() {
+        if (StorageAccess.hasDirectDeleteAccess(this)) return
+        val prefs = getSharedPreferences(ONBOARDING_PREFS, MODE_PRIVATE)
+        if (prefs.getBoolean(KEY_ALL_FILES_RATIONALE_SHOWN, false)) return
+        prefs.edit().putBoolean(KEY_ALL_FILES_RATIONALE_SHOWN, true).apply()
+        showAllFilesOnboarding = true
+    }
+
+    private fun handleOpenQuarantine(intent: Intent?) {
+        if (intent?.getBooleanExtra(EXTRA_OPEN_QUARANTINE, false) == true) {
+            showHistory = false
+            showSettings = false
+            showPrivacy = false
+            showPhishing = false
+            showQuarantine = true
+            intent.removeExtra(EXTRA_OPEN_QUARANTINE)
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleOpenQuarantine(intent)
+    }
+
+    private fun requestQuarantineUninstall(record: QuarantineRecord) {
+        val intent = QuarantineUserActions.uninstallIntent(this, record.packageName, record.id) ?: return
+        QuarantinePendingActionStore.setUninstall(this, record.packageName, record.id)
+        runCatching { startActivity(intent) }
+    }
+
+    /** Overlay izleyici dugmesi: sistemin Erisilebilirlik ekranini acar. */
+    private fun openAccessibilitySettings() {
+        runCatching { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
+    }
+
+    /** Gizlilik ekrani her acilista yeniden denetlenir (izinler degismis olabilir). */
+    private fun openPrivacy() {
+        showPrivacy = true
+        refreshPrivacy()
+    }
+
+    private fun refreshPrivacy() {
+        lifecycleScope.launch { PrivacyStore.scan(this@MainActivity) }
+    }
+
+    private fun appVersionName(): String = try {
+        val info = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            packageManager.getPackageInfo(packageName, PackageManager.PackageInfoFlags.of(0))
+        } else {
+            @Suppress("DEPRECATION")
+            packageManager.getPackageInfo(packageName, 0)
+        }
+        info.versionName ?: getString(R.string.app_version)
+    } catch (_: Throwable) {
+        getString(R.string.app_version)
+    }
+
+    /** Sistemin kaldirma onay ekranini acar; son karar kullanicinindir. */
+    private fun requestUninstall(packageName: String) {
+        pendingUninstall = packageName
+        runCatching { startActivity(ScanController.uninstallIntent(packageName)) }
+            .onFailure { pendingUninstall = null }
+    }
+
+    /** Tarama gecmisini metin raporu olarak diger uygulamalara paylasir (ACTION_SEND). */
+    private fun shareScanReport(report: String) {
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_SUBJECT, getString(R.string.history_share_subject))
+            putExtra(Intent.EXTRA_TEXT, report)
+        }
+        runCatching {
+            startActivity(Intent.createChooser(intent, getString(R.string.history_share)))
+        }
+    }
+
+    private fun isPackageInstalled(packageName: String): Boolean = try {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            packageManager.getPackageInfo(packageName, PackageManager.PackageInfoFlags.of(0))
+        } else {
+            @Suppress("DEPRECATION")
+            packageManager.getPackageInfo(packageName, 0)
+        }
+        true
+    } catch (_: PackageManager.NameNotFoundException) {
+        false
+    } catch (_: Exception) {
+        true
+    }
+
+    /** Indirme butonu: yalnizca dogrulanmis bir guncelleme varken Worker'i kuyruklar. */
+    private fun startDownload() {
+        val info = OtaStore.state.value.available ?: return
+        OtaController.enqueueDownload(this, info)
+    }
+
+    /**
+     * Kur butonu: indirilmis + dogrulanmis APK icin sistemin paket kurulum ekranini acar.
+     * Uygulama hicbir zaman sessiz kurmaz; izin yoksa kullanici sistem ayarina yonlendirilir.
+     */
+    private fun installDownloadedUpdate() {
+        val path = OtaStore.state.value.downloadedPath ?: return
+        when (val result = OtaController.install(this, File(path))) {
+            is OtaController.Result.NeedsPermission -> {
+                runCatching { startActivity(result.settingsIntent) }
+                OtaStore.error(getString(R.string.ota_install_permission))
+            }
+            is OtaController.Result.Error -> OtaStore.error(result.message)
+            OtaController.Result.InstallPromptLaunched -> Unit // sistem kurulum ekrani acildi
+        }
     }
 
     private fun queueScan(uri: Uri) {
@@ -125,7 +720,10 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch(Dispatchers.IO) {
             val yaraFile = SignatureStore.fileOrNull(this@MainActivity, SignatureStore.Kind.YARA)
             val clamFile = SignatureStore.fileOrNull(this@MainActivity, SignatureStore.Kind.CLAM_AV)
-            val acquired = ScanEngines.acquire(yaraFile, clamFile, force = false)
+            val hashFile = SignatureStore.fileOrNull(this@MainActivity, SignatureStore.Kind.CLAM_HASHES)
+            val communityYara = CommunityStore.enabledYaraFiles(this@MainActivity)
+            val communityHashes = CommunityStore.enabledHashFiles(this@MainActivity)
+            val acquired = ScanEngines.acquire(yaraFile, clamFile, hashFile, communityYara, communityHashes, force = false)
             withContext(Dispatchers.Main) {
                 val engine = acquired.getOrNull()
                 if (engine == null) {
@@ -139,11 +737,13 @@ class MainActivity : ComponentActivity() {
                         EngineInfo.from(
                             engine = engine,
                             yaraPath = yaraFile?.absolutePath,
-                            clamPath = clamFile?.absolutePath
+                            clamPath = clamFile?.absolutePath,
+                            hashPath = hashFile?.absolutePath
                         )
                     )
                     ScanStore.markEngineReady()
                 }
+                refreshAutopilotStatus()
             }
         }
     }
@@ -166,11 +766,16 @@ class MainActivity : ComponentActivity() {
         return null
     }
 
-    private companion object {
+    companion object {
+        /** Opens the Quarantine list directly (notification actions, cut activity). */
+        const val EXTRA_OPEN_QUARANTINE = "open_quarantine"
+        private const val ONBOARDING_PREFS = "onboarding"
+        private const val KEY_ALL_FILES_RATIONALE_SHOWN = "all_files_rationale_shown"
+
         // SAF'ta `.yar`/`.ndb` icin kayitli bir MIME turu yoktur; genis tur listesi
         // verip dogrulamayi parser'a birakiyoruz.
-        val ANY_MIME_TYPES = arrayOf("*/*")
-        val APK_MIME_TYPES = arrayOf(
+        private val ANY_MIME_TYPES = arrayOf("*/*")
+        private val APK_MIME_TYPES = arrayOf(
             "application/vnd.android.package-archive",
             "application/java-archive",
             "application/zip",

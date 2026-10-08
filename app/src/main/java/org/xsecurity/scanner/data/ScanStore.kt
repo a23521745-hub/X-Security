@@ -17,24 +17,29 @@ data class EngineInfo(
     val yaraRules: Int,
     val yaraPatterns: Int,
     val clamSignatures: Int,
+    val hashSignatures: Int = 0,
     val yaraSource: String?,
     val clamSource: String?,
+    val hashSource: String? = null,
     val warnings: List<String>
 ) {
-    val isReady: Boolean get() = yaraPatterns > 0 || clamSignatures > 0
+    val isReady: Boolean get() = yaraPatterns > 0 || clamSignatures > 0 || hashSignatures > 0
 
     companion object {
         fun from(
             engine: org.xsecurity.scanner.engine.ApkScannerEngine,
             yaraPath: String?,
             clamPath: String?,
+            hashPath: String? = null,
             extraWarnings: List<String> = emptyList()
         ): EngineInfo = EngineInfo(
             yaraRules = engine.yaraStats.ruleCount,
             yaraPatterns = engine.yaraPatternCount,
             clamSignatures = engine.clamAvSignatureCount,
+            hashSignatures = engine.hashSignatureCount,
             yaraSource = yaraPath,
             clamSource = clamPath,
+            hashSource = hashPath,
             warnings = engine.warnings + extraWarnings
         )
     }
@@ -47,7 +52,8 @@ data class ScanUiState(
     val engine: EngineInfo? = null,
     val message: String? = null,
     val finishedAt: Long = 0L,
-    val scannedFiles: Int = 0
+    val scannedFiles: Int = 0,
+    val autopilotDecision: String? = null
 )
 
 /**
@@ -90,6 +96,10 @@ object ScanStore {
     fun markFailed(context: Context, message: String) {
         ensureRestored(context)
         _state.value = _state.value.copy(phase = ScanPhase.FAILED, progress = 0f, message = message)
+    }
+
+    fun setAutopilotDecision(decision: String?) {
+        _state.value = _state.value.copy(autopilotDecision = decision)
     }
 
     fun publishEngine(info: EngineInfo?) {

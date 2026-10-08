@@ -1,4 +1,5 @@
 import java.io.File
+import org.gradle.api.tasks.Copy
 
 plugins {
     id("com.android.application")
@@ -12,8 +13,33 @@ val keystorePath = providers.gradleProperty("xsecKeystore").orNull
 val keystoreFile: File? = keystorePath?.let { File(it) }
 val hasSigningMaterial = keystoreFile != null && keystoreFile.isFile
 
+// OTA yapilandirmasi da yalnizca derleme ortamindan (Gradle property / ortam degiskeni)
+// gelir; depoya sunucu adresi ya da dogrulama anahtari sabitlenmez. Public anahtar
+// zaten gizli degildir (istemcide gomulu olur) ama uretim degeri boylece disaridan
+// yonetilir. Bos manifest URL'i = OTA kapali (uygulama "yapilandirilmamis" der).
+val otaManifestUrl = providers.gradleProperty("xsecOtaManifestUrl").orNull
+    ?: System.getenv("XSEC_OTA_MANIFEST_URL") ?: ""
+val otaPublicKeyPem = providers.gradleProperty("xsecOtaPublicKeyPem").orNull
+    ?: System.getenv("XSEC_OTA_PUBLIC_KEY_PEM") ?: ""
+val otaAllowedHosts = providers.gradleProperty("xsecOtaAllowedHosts").orNull
+    ?: System.getenv("XSEC_OTA_ALLOWED_HOSTS") ?: ""
+
+/** BuildConfig String alani icin kacisli Java sabiti. */
+fun javaStringLiteral(value: String): String =
+    "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "") + "\""
+
 android {
     namespace = "org.xsecurity.scanner"
+
+    flavorDimensions += "edition"
+    productFlavors {
+        // Default consumer build; the ROM edition remains a separately opt-in skeleton.
+        create("standard") { dimension = "edition" }
+        create("romEdition") {
+            dimension = "edition"
+            applicationIdSuffix = ".rom"
+        }
+    }
 
     // compileSdk 35: targetSdk 35 (edge-to-edge zorunlulugu) icin gerekli.
     compileSdk = 35
@@ -22,10 +48,15 @@ android {
         applicationId = "org.xsecurity.scanner"
         minSdk = 26
         targetSdk = 35
-        versionCode = 3
-        versionName = "0.91.0-pre-release"
+        versionCode = 19
+        versionName = "0.93.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // OTA istemcisi bu degerleri calisma zamaninda okur (bkz. OtaController).
+        buildConfigField("String", "OTA_MANIFEST_URL", javaStringLiteral(otaManifestUrl))
+        buildConfigField("String", "OTA_PUBLIC_KEY_PEM", javaStringLiteral(otaPublicKeyPem))
+        buildConfigField("String", "OTA_ALLOWED_HOSTS", javaStringLiteral(otaAllowedHosts))
     }
 
     signingConfigs {
@@ -80,6 +111,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     composeOptions {
@@ -107,6 +139,33 @@ android {
     }
 }
 
+// Keep the existing release workflow's unflavored artifact lookup working while
+// publishing a standard-flavor APK into the legacy outputs/apk/release directory.
+val stageStandardReleaseForLegacyWorkflow = tasks.register<Copy>("stageStandardReleaseForLegacyWorkflow") {
+    dependsOn("assembleStandardRelease")
+    from(layout.buildDirectory.dir("outputs/apk/standard/release"))
+    into(layout.buildDirectory.dir("outputs/apk/release"))
+}
+tasks.matching { it.name == "assembleRelease" }.configureEach {
+    finalizedBy(stageStandardReleaseForLegacyWorkflow)
+}
+
+// Preserve CI task names from v16 while ensuring both flavor unit/lint variants run.
+afterEvaluate {
+    val variantUnitTests = listOf("testStandardDebugUnitTest", "testRomEditionDebugUnitTest")
+    val variantLint = listOf("lintStandardDebug", "lintRomEditionDebug")
+    if (tasks.findByName("testDebugUnitTest") == null) {
+        tasks.register("testDebugUnitTest") { dependsOn(variantUnitTests) }
+    } else {
+        tasks.named("testDebugUnitTest") { dependsOn(variantUnitTests) }
+    }
+    if (tasks.findByName("lintDebug") == null) {
+        tasks.register("lintDebug") { dependsOn(variantLint) }
+    } else {
+        tasks.named("lintDebug") { dependsOn(variantLint) }
+    }
+}
+
 dependencies {
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.work:work-runtime-ktx:2.9.0")
@@ -130,5 +189,7 @@ dependencies {
     debugImplementation("androidx.compose.ui:ui-tooling")
 
     testImplementation("junit:junit:4.13.2")
+    // Saf JVM birim testlerinde org.json (Android'de platform ile gelir) kullanabilmek icin.
+    testImplementation("org.json:json:20240303")
     androidTestImplementation("androidx.test.ext:junit:1.1.5")
 }

@@ -305,7 +305,9 @@ class YaraRuleParser(
             if (tail.size >= 3 && tail[0] == "(" && tail[tail.size - 1] == ")") {
                 val selectors = tail.subList(1, tail.size - 1).filter { it != "," }
                 if (selectors.isNotEmpty() && selectors.all { isSelectorToken(it) }) {
-                    val cleaned = selectors.map { stripDollar(it) }
+                    // Yalnizca "$" öneki atilir; sondaki "*" bilinçli olarak korunur —
+                    // `any of ($a*)` önek seçicisinin çözümlenmesi buna bakar.
+                    val cleaned = selectors.map { it.removePrefix("$") }
                     val mode = when {
                         quantifier.equals("any", ignoreCase = true) -> YaraCondition.OfThem.Mode.ANY
                         quantifier.equals("all", ignoreCase = true) -> YaraCondition.OfThem.Mode.ALL

@@ -1,6 +1,7 @@
 package org.xsecurity.scanner.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -25,6 +26,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -35,16 +37,27 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import org.xsecurity.scanner.R
 import org.xsecurity.scanner.engine.ScanResult
 import org.xsecurity.scanner.engine.ThreatMatch
 import org.xsecurity.scanner.data.EngineInfo
+import org.xsecurity.scanner.data.ScanHistoryEntry
 import org.xsecurity.scanner.data.ScanPhase
 import org.xsecurity.scanner.data.ScanUiState
+import org.xsecurity.scanner.definitions.DefinitionsState
+import org.xsecurity.scanner.device.DeviceScanState
+import org.xsecurity.scanner.device.ProtectionMode
+import org.xsecurity.scanner.device.ProtectionState
+import org.xsecurity.scanner.edr.EdrStatusSnapshot
+import org.xsecurity.scanner.health.DeviceHealth
+import org.xsecurity.scanner.ota.OtaState
+import org.xsecurity.scanner.privacy.PrivacyState
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -60,11 +73,37 @@ import java.util.Locale
 @Composable
 fun DashboardScreen(
     state: ScanUiState,
+    otaState: OtaState,
+    defState: DefinitionsState,
+    deviceState: DeviceScanState,
+    protectionState: ProtectionState,
+    installedVersionCode: Long,
+    historyEntries: List<ScanHistoryEntry>,
     onScanApk: () -> Unit,
+    onScanDevice: (includeSystemApps: Boolean) -> Unit,
+    onUninstall: (packageName: String) -> Unit,
+    onProtectionModeChange: (ProtectionMode) -> Unit,
+    onProtectionQuietChange: (Boolean) -> Unit,
+    onOpenHistory: () -> Unit,
+    storageGranted: Boolean,
+    protectionServiceRunning: Boolean,
+    onRequestStorage: () -> Unit,
     onPickYaraRules: () -> Unit,
     onPickClamDatabase: () -> Unit,
     onReloadEngine: () -> Unit,
-    onCancelScan: () -> Unit
+    onCancelScan: () -> Unit,
+    onOpenQuarantine: () -> Unit,
+    onCheckUpdate: () -> Unit,
+    onDownloadUpdate: () -> Unit,
+    onInstallUpdate: () -> Unit,
+    onCheckDefinitions: () -> Unit,
+    edrSnapshot: EdrStatusSnapshot,
+    onOpenAccessibilitySettings: () -> Unit,
+    privacyState: PrivacyState,
+    onOpenPrivacy: () -> Unit,
+    onOpenPhishing: () -> Unit,
+    healthSnapshot: DeviceHealth.Snapshot,
+    onOpenSettings: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -75,11 +114,45 @@ fun DashboardScreen(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Header()
-        StatusCard(state = state, onCancelScan = onCancelScan)
+        Header(onOpenSettings = onOpenSettings)
+        StatusCard(state = state, onCancelScan = onCancelScan, onOpenQuarantine = onOpenQuarantine)
+        HealthCard(snapshot = healthSnapshot)
         LastScanCard(state = state)
         ThreatsCard(result = state.lastResult)
+        DeviceScanCard(
+            state = deviceState,
+            scanBusy = state.isBusy || deviceState.isRunning,
+            onScanAll = onScanDevice,
+            onUninstall = onUninstall
+        )
+        HistoryCard(entries = historyEntries, onOpenHistory = onOpenHistory)
+        ProtectionCard(
+            state = protectionState,
+            onModeChange = onProtectionModeChange,
+            onQuietChange = onProtectionQuietChange,
+            storageGranted = storageGranted,
+            serviceRunning = protectionServiceRunning,
+            onRequestStorage = onRequestStorage
+        )
+        EdrStatusCard(
+            snapshot = edrSnapshot,
+            onOpenAccessibilitySettings = onOpenAccessibilitySettings
+        )
+        PrivacyCard(state = privacyState, onOpen = onOpenPrivacy)
+        PhishingCard(onOpen = onOpenPhishing)
         EngineCard(engine = state.engine, onPickYara = onPickYaraRules, onPickClam = onPickClamDatabase, onReload = onReloadEngine)
+        OtaUpdateCard(
+            state = otaState,
+            installedVersionCode = installedVersionCode,
+            onCheck = onCheckUpdate,
+            onDownload = onDownloadUpdate,
+            onInstall = onInstallUpdate
+        )
+        DefinitionsCard(
+            state = defState,
+            engine = state.engine,
+            onCheck = onCheckDefinitions
+        )
         ScanActionButton(enabled = !state.isBusy, onScanApk = onScanApk)
         Footnote()
     }
@@ -89,23 +162,35 @@ private val ScanUiState.isBusy: Boolean
     get() = phase == ScanPhase.QUEUED || phase == ScanPhase.SCANNING
 
 @Composable
-private fun Header() {
-    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Text(
-            text = stringResource(R.string.app_name),
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold
-        )
-        Text(
-            text = stringResource(R.string.dashboard_subtitle),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+private fun Header(onOpenSettings: () -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Column(
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+            modifier = Modifier.weight(1f)
+        ) {
+            Text(
+                text = stringResource(R.string.app_name),
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = stringResource(R.string.dashboard_subtitle),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        IconButton(onClick = onOpenSettings) {
+            Icon(
+                painter = painterResource(R.drawable.ic_settings_gear),
+                contentDescription = stringResource(R.string.settings_open),
+                modifier = Modifier.size(26.dp)
+            )
+        }
     }
 }
 
 @Composable
-private fun StatusCard(state: ScanUiState, onCancelScan: () -> Unit) {
+private fun StatusCard(state: ScanUiState, onCancelScan: () -> Unit, onOpenQuarantine: () -> Unit) {
     val result0 = state.lastResult
     val palette = when {
         state.phase == ScanPhase.SCANNING || state.phase == ScanPhase.QUEUED -> StatusPalette(
@@ -186,6 +271,17 @@ private fun StatusCard(state: ScanUiState, onCancelScan: () -> Unit) {
                 color = palette.onContainer,
                 textAlign = TextAlign.Center
             )
+            state.autopilotDecision?.let { decision ->
+                Text(decision, style = MaterialTheme.typography.bodyMedium, color = palette.onContainer, textAlign = TextAlign.Center)
+                if (result?.isInfected == true) {
+                    Text(
+                        text = stringResource(R.string.autopilot_open_quarantine),
+                        modifier = Modifier.clickable(onClick = onOpenQuarantine),
+                        color = palette.onContainer,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
             if (state.isBusy) {
                 LinearProgressIndicator(
                     modifier = Modifier
@@ -310,6 +406,94 @@ private fun ThreatRow(threat: ThreatMatch) {
     }
 }
 
+/**
+ * Kompakt "Tarama gecmisi" karti: kayıt sayisi + son tarama satiri; dokununca
+ * [HistoryScreen] acilir. Tum liste o ekranda; burada tek satir ozet.
+ */
+@Composable
+private fun HistoryCard(entries: List<ScanHistoryEntry>, onOpenHistory: () -> Unit) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onOpenHistory),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = stringResource(R.string.history_title),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+            if (entries.isEmpty()) {
+                Text(
+                    text = stringResource(R.string.history_empty),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            } else {
+                val latest = entries.first()
+                val (icon, typeLabel) = historyTypeBadge(latest.type)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = typeLabel,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = latest.title,
+                        style = MaterialTheme.typography.bodyMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    HistoryStatusChip(latest)
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = stringResource(R.string.history_count, entries.size),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = relativeLabel(latest.timestamp, remember { SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault()) }),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun HistoryStatusChip(entry: ScanHistoryEntry) {
+    val (label, color) = when {
+        entry.isThreats ->
+            stringResource(R.string.history_threats_count, entry.threatCount) to MaterialTheme.colorScheme.error
+        entry.isFailed ->
+            stringResource(R.string.history_failed) to MaterialTheme.colorScheme.onSurfaceVariant
+        else ->
+            stringResource(R.string.history_clean) to MaterialTheme.colorScheme.primary
+    }
+    Text(
+        text = label,
+        style = MaterialTheme.typography.labelLarge,
+        color = color,
+        fontWeight = FontWeight.Bold
+    )
+}
+
 @Composable
 private fun EngineCard(
     engine: EngineInfo?,
@@ -336,6 +520,10 @@ private fun EngineCard(
             InfoRow(
                 label = stringResource(R.string.engine_clam_signatures),
                 value = engine.clamSignatures.toString()
+            )
+            InfoRow(
+                label = stringResource(R.string.engine_hash_signatures),
+                value = engine.hashSignatures.toString()
             )
             if (engine.warnings.isNotEmpty()) {
                 WarningsBlock(engine.warnings, MaterialTheme.colorScheme.onSurfaceVariant)
@@ -480,7 +668,8 @@ private fun WarningsBlock(warnings: List<String>, tint: Color) {
     }
 }
 
-private fun formatBytes(bytes: Long): String {
+// internal: HistoryScreen'in detayindaki "taranan veri" satirinda da kullanilir.
+internal fun formatBytes(bytes: Long): String {
     if (bytes <= 0L) return "0 B"
     val units = arrayOf("B", "KB", "MB", "GB", "TB")
     var value = bytes.toDouble()

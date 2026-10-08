@@ -1,0 +1,15 @@
+# X-Security oltalama blok listesi (topluluk guncelleme kaynagi).
+#
+# Bu dosya uygulamadaki "Listeyi guncelle" dugmesinin cektigi adrestir:
+#   https://raw.githubusercontent.com/a23521745-hub/X-Security/main/phishing-blocklist.txt
+# APK'ya gomulu tohum liste (`app/src/main/assets/phishing-blocklist.txt`) ile
+# BIRLESIK kullanilir; indirme basarisiz olursa onceki liste korunur.
+#
+# Bicim: satir basina bir alan adi; `#` sonrasi yorumdur. Eslesme tam alan adi
+# + alt alan adidir. Kayit eklerken lutfen yalnizca dogrulanmis oltalama
+# alan adlarini ekleyin (masum alan adlari YANLIS pozitif uretir).
+#
+# Tohum kayitlar (ayrilmis `.example` — oz-sinama icin):
+kotu-ornek.example
+olta-test.example
+sahte-banka.example

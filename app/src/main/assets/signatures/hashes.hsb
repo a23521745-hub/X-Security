@@ -1,0 +1,62 @@
+# X-Security hash imza veritabani (ClamAV .hsb sozdizimi)
+# Satir formati: <hash>:<boyut>:<isim>
+#   - hash uzunlugu algoritmayi belirler: 32=MD5, 40=SHA-1, 64=SHA-256
+#   - boyut: bayt cinsinden dosya boyutu; -1 veya * = bilinmiyor
+#     (hash eslesmesi tek basina yeterli, boyut sadece ek filtre)
+#
+# Kaynaklar:
+#   - Eicar.Test-File: EICAR antivirus test dosyasinin uc ozeti
+#     (68 baytlik standart test dizisi, herkesce bilinen degerler)
+#   - Android.Stalkerware.*: AssoEchap "stalkerware-indicators" projesi,
+#     https://github.com/AssoEchap/stalkerware-indicators
+#     Ozet: samples.csv (APK tam-dosya SHA-256 ozetleri)
+#     Lisans: CC BY 4.0 — https://creativecommons.org/licenses/by/4.0/
+#     (kaynak belirtilerek yeniden dagitilir)
+#
+# Not: burada her aileden ornek bir secim vardir (~30 imza, 4 aile);
+# kapsamli set tools/definitions/update-hash-db.sh ile CSV'nin tamindan
+# uretilir (binlerce imza) ve OTA kanalindan yayinlanir.
+
+# --- EICAR test dosyasi (68 bayt) ---
+44d88612fea8a8f36de82e1278abb02f:68:Eicar.Test-File
+3395856ce81f2b7382dee72602f798b642f14140:68:Eicar.Test-File
+275a021bbfb6489e54d471899f7db9d1663fc695ec2fe2a2c4538aabf651fd0f:68:Eicar.Test-File
+
+# --- 1TopSpy (com.topspy / com.topspy.system) — Echap samples.csv ---
+2f3bc9ebe8c249f0416f5b0367f34b4b8f6aaa7d351dc5b4912fe2558491b6b7:-1:Android.Stalkerware.1TopSpy
+5e52438f28275dc2a7e83b989e726f86ba53c915b44f126507763850197646f6:-1:Android.Stalkerware.1TopSpy
+6977e6e1050aa884ebc4732859c9c239218847ddd492a86dfdc19fbc3748a109:-1:Android.Stalkerware.1TopSpy
+8d7c87283256621dca3f48887f7a9068b6636124a552cff54924d96e7fbccff0:-1:Android.Stalkerware.1TopSpy
+b1add35a54b77ce30742d18398d9f79b8ffb49e3d39f846381eea3624db598d8:-1:Android.Stalkerware.1TopSpy
+b3566fa1503c6bcb641c7f486f3ea2950d0f83800733bc4fe55bc1246b5fde57:-1:Android.Stalkerware.1TopSpy
+c07b0cbad31ce7e331b161e88f117436be656a2179f5aa37a81f1500141335a1:-1:Android.Stalkerware.1TopSpy
+
+# --- AllTracker (city.russ.alltrackercorp / city.russ.alltrackerfamily) — Echap samples.csv ---
+08938fc634c293560834aa6b2188f4dac07ed35b1198b18b186972ea93aa7ece:-1:Android.Stalkerware.AllTracker
+0e8133c6e9d7d77e8e8e1b226e430a96a73a2edf6b065d6f1caf262120827026:-1:Android.Stalkerware.AllTracker
+0e84e623505f0cf2064f58c7134fb22ad2e21db12768ad4aa4c815b81b1acfd7:-1:Android.Stalkerware.AllTracker
+0f0ffae5d334c0fed88e772750a675f4d3c66fb116e8c9fbbdb444ba679366bf:-1:Android.Stalkerware.AllTracker
+14bb7783317ae3ce9009a93ae19fbafd20b8e21f106fcb5b018f331dbfab710d:-1:Android.Stalkerware.AllTracker
+16df130f595dfc8fded1ea8860e131bf5f1122c65ed798aa6ac9ad0e6b6ba032:-1:Android.Stalkerware.AllTracker
+19e43023d8bd7fc446041fdac8123b356405b4d41a2140d791af5e9d908efe65:-1:Android.Stalkerware.AllTracker
+1c209580b91f1ef1a82613030735bc8f62c3a929579594bd5f26c763dd891831:-1:Android.Stalkerware.AllTracker
+
+# --- GuestSpy — Echap samples.csv ---
+5bbbaff31596d3634439f7a0f29d82d120e482aa0ddc5563835c2a38a22f243d:-1:Android.Stalkerware.GuestSpy
+5c3cbc565510f9d30b09941925d2327b8dd72e8c0de46d27792819daa03d4714:-1:Android.Stalkerware.GuestSpy
+6346a454eeafde43b606b0a615034e57a49cc79c8564f351e9aa87890d96a670:-1:Android.Stalkerware.GuestSpy
+6c7afc7a1b9cfe0c848d54cf561079abf959ed36370e3867c0bcb8625d60bb7c:-1:Android.Stalkerware.GuestSpy
+6e81de3f104586f1ca13cb54b88187bff655fb502a27f91a2019514bcb7d1f0d:-1:Android.Stalkerware.GuestSpy
+6f227d2415e2218adc8b14b50bc4c475e3edbbc81fe6daabe93e7cd9671c944d:-1:Android.Stalkerware.GuestSpy
+7022452a5b8d81e20c5f0adfbf11d01afaa2eada7c55647aa432c9907b066e41:-1:Android.Stalkerware.GuestSpy
+718fa2b662fa30a2d1e56b61e9df1fb6173caad011a82b8678e6173f3c6421c3:-1:Android.Stalkerware.GuestSpy
+
+# --- HelloSpy — Echap samples.csv ---
+056c74dc28215a1846fdc556de6ff80e6db0433abb972dfc72cf78a65c077a7e:-1:Android.Stalkerware.HelloSpy
+0599af4764489034a34c7f00e5bb1c5f04bcbe75c6861e967c58175a9395928c:-1:Android.Stalkerware.HelloSpy
+0e87884b4bc35d6c2ecc57912ccf91dd8ea903818d1ab988c106d9e60b0c93a3:-1:Android.Stalkerware.HelloSpy
+0f6b9e1f728e69e499b82120666dc7119a74b3ede8c8341211815e9d87fdb125:-1:Android.Stalkerware.HelloSpy
+10c4749bcf4e36638c54d5f2e141b7f90a580f670d3f72841fa79e42d275a217:-1:Android.Stalkerware.HelloSpy
+13e0ac75810028bc4a2ee4b810f4fb9eb5c8dbe5ed43e88f4b635f5877475864:-1:Android.Stalkerware.HelloSpy
+15564b1fe7262e02254c639abc08086f92bf8f8a60d765c750ee69e1b7aea541:-1:Android.Stalkerware.HelloSpy
+196c325ea637bf2bf0054e8f1e3683d784a6b6a95c04a4bf2920b0e7e5c0d68c:-1:Android.Stalkerware.HelloSpy

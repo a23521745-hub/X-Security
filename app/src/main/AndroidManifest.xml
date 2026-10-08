@@ -1,21 +1,65 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <!--
-      Kaldirilan izinler:
-       - INTERNET / ACCESS_NETWORK_STATE: tarama tamamiyla yerel; ag kodu yoktu.
-       - QUERY_ALL_PACKAGES: Play'de gerekce tabi, kisitli bir izindi ve kod hic
-         PackageManager kullanmiyordu.
-       - FOREGROUND_SERVICE*: servis katmani kaldirildi (isler artik dogrudan
-         WorkManager ile kuyruklaniyor; API 26+ 'da arka plandan startService
-         IllegalStateException ile cokuyordu).
+      Tarama tamamiyla yereldir; ag erisimi yalnizca OTA guncelleme kontrolu/indirmesi
+      icindir ve org.xsecurity.scanner.ota paketi disina cikmaz.
+       - INTERNET: imzali guncelleme bildirimi (manifest) ve APK indirmesi.
+       - REQUEST_INSTALL_PACKAGES: kullanici "Kur"a bastiginda sistemin paket kurulum
+         ekrani acilir; sessiz/otomatik kurulum yoktur.
+       - QUERY_ALL_PACKAGES: "Kurulu uygulamalari tara" icin cihazdaki TUM paketlerin
+         APK'sini okumak gerekir; <queries> filtresi bilinmeyen stalkerware'i gizlerdi.
+         Liste cihazdan cikmaz. Kaldirma yalnizca sistem onay ekrani uzerinden yapilir.
+       - FOREGROUND_SERVICE(_DATA_SYNC): "Her zaman acik" koruma modunun kalici bildirimli
+         servisi (Download/ izleyici). Yalnizca kullanici bu modu secerse baslar.
+       - MANAGE_EXTERNAL_STORAGE (API 30+) / READ_EXTERNAL_STORAGE (API <=32): paylasilan
+         Download/ klasorundeki yeni .apk dosyalarini gorebilmek icin; SAF ile secilen
+         tek dosya buna gerek duymaz. Uygulama ici neden-gerekli diyalogu olmadan istenmez.
+         Ayni izin, kasaya kopyalanmis bir tehdidin ORIJINAL dosyasinin kullanicinin tek
+         dokunusuyla dogrudan silinmesini saglar (kes-yapistir karantina); izin yoksa ayni
+         dokunus sistemin silme onay diyaloguna yonlendirilir. Sifir dokunusla silme yoktur.
+       - WRITE_EXTERNAL_STORAGE (yalnizca API <=29): ayni dogrudan silme yolu, eski surumler icin.
+       - RECEIVE_BOOT_COMPLETED: "Her zaman acik" secildiyse yeniden baslatmada servisi kurar.
     -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- AutoPilot optional special access; rationale is shown before Settings is opened. -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" tools:ignore="ProtectedPermissions" />
+    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" tools:ignore="ProtectedPermissions" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <uses-permission android:name="android.permission.KILL_BACKGROUND_PROCESSES" />
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+    <!-- API 26-29 only: lets the user's "Delete now" tap remove a vaulted threat's original directly
+         (cut-and-paste quarantine). API 29+ scoped storage routes the same tap through the system
+         delete dialog unless All Files Access (above) is granted. Never used for silent deletion. -->
+    <uses-permission
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="29"
+        tools:ignore="ScopedStorage" />
+    <uses-permission
+        android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
+        tools:ignore="ScopedStorage,ProtectedPermissions" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission
+        android:name="android.permission.QUERY_ALL_PACKAGES"
+        tools:ignore="QueryAllPackagesPermission" />
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Normal izin: arka plan kontrollerinin kotali baglantida calisip
+         calismayacagina karar vermek icin (UpdatePreferences worker kapisi).
+         Kullaniciya sorulmaz, veri okumaz. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <application
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
+        android:networkSecurityConfig="@xml/network_security_config"
+        android:requestLegacyExternalStorage="true"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.XSecurity">
@@ -31,6 +75,145 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Kurulum ani kalkani. Manifest kaydi: sistem paket yayinini arka plandaki
+             uygulamalara iletirse (OEM/eski surum) calisir; API 26+ kisitlamasi icin ayni
+             alici surec ayaktayken dinamik olarak da kaydedilir (InstallShieldReceiver.register).
+             exported=true zorunlu: yayin sistemden gelir. -->
+        <receiver
+            android:name="org.xsecurity.scanner.device.InstallShieldReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.PACKAGE_ADDED" />
+                <action android:name="android.intent.action.PACKAGE_REPLACED" />
+                <data android:scheme="package" />
+            </intent-filter>
+        </receiver>
+
+        <!-- "Her zaman acik" koruma: Download/ izleyen on plan servisi (Android 14+: dataSync). -->
+        <service
+            android:name="org.xsecurity.scanner.device.RealtimeProtectionService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
+        <!-- Rootless davranissal EDR: AppOps kamera/mikrofon izleyici. Ayni ALWAYS
+             yasam dongusunu paylasir; depolama izni gerektirmez. -->
+        <service
+            android:name="org.xsecurity.scanner.edr.BehavioralEdrService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
+        <!-- Overlay/tap-jacking sezgiseli: yalnizca kullanici sistem
+             Ayarlar > Erisilebilirlik ekranindan actiginda calisir. -->
+        <service
+            android:name="org.xsecurity.scanner.edr.AccessibilityBehaviorMonitor"
+            android:exported="true"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/edr_accessibility_config" />
+        </service>
+
+        <!-- AutoPilot sensors: package installs/updates and boot. Existing scan/update work remains in WorkManager. -->
+        <receiver
+            android:name="org.xsecurity.scanner.autopilot.PackageInstallObserver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.PACKAGE_ADDED" />
+                <action android:name="android.intent.action.PACKAGE_REPLACED" />
+                <data android:scheme="package" />
+            </intent-filter>
+        </receiver>
+        <receiver
+            android:name="org.xsecurity.scanner.autopilot.BootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+        <receiver
+            android:name="org.xsecurity.scanner.autopilot.AutopilotActionReceiver"
+            android:exported="false" />
+
+        <activity
+            android:name="org.xsecurity.scanner.autopilot.OverlayWarningActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:label="@string/autopilot_overlay_title"
+            android:launchMode="singleTop" />
+
+        <!-- The one user tap that removes a vaulted threat's original file (cut-and-paste quarantine). -->
+        <activity
+            android:name="org.xsecurity.scanner.quarantine.QuarantineCutActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:label="@string/quarantine_cut_title"
+            android:launchMode="singleTop" />
+
+        <!-- User-enabled package-only foreground sensing plus the explicit, time-limited Settings force-stop assist. -->
+        <service
+            android:name="org.xsecurity.scanner.quarantine.QuarantineAccessibilityService"
+            android:exported="true"
+            android:label="@string/quarantine_accessibility_label"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/quarantine_accessibility_config" />
+        </service>
+
+        <receiver
+            android:name="org.xsecurity.scanner.device.ProtectionBootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Paylasim hedefi: baska uygulamalarin "Paylas" menusunde "X-Security ile
+             tara" olarak gorunur; paylasilan metindeki baglantilari cihazda
+             degerlendirir (ag yok). exported=true zorunlu: cagri disaridan gelir. -->
+        <activity
+            android:name="org.xsecurity.scanner.phishing.PhishingScanActivity"
+            android:exported="true"
+            android:label="@string/phishing_share_label"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+        </activity>
+
+        <!-- Hizli ayar karosu: tek dokunusla kurulu-uygulama taramasi baslatir.
+             exported=true + BIND_QUICK_SETTINGS_TILE zorunlu: sistem baglanir. -->
+        <service
+            android:name="org.xsecurity.scanner.tile.ScanTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_stat_shield"
+            android:label="@string/tile_label"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <!-- Indirilen guncelleme APK'sini sistem kurulum ekranina tek-okuma content URI
+             olarak vermek icin. Yalnizca uygulamanin ota onbellek dizinini paylasir. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.ota-fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/ota_file_paths" />
+        </provider>
     </application>
 
 </manifest>
