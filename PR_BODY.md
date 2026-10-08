@@ -133,10 +133,17 @@ decode it as `false`, the conservative-but-actionable legacy rendering).
 
 ## Verification
 
-* **Local JVM pre-flight** (pure-logic subset + their JVM tests, run with a shim JUnit/org.json
-  and the Kotlin compiler — dev harness, not part of the repo): **286 passed / 0 failed**, 43 test
-  classes, including every P0 regression test above and the untouched definitions/quality,
-  engine, yara, clamav, matcher, ota, phishing and privacy suites.
+* **Local JVM pre-flight** (dev harness, not part of the repo — the same Kotlin **1.9.24**
+  compiler CI uses, shape-only shims for JUnit/org.json/android/androidx, generated `R`):
+  every non-Compose main file (130) + **all 52 unit-test classes** compile, and the tests run
+  **341 passed / 0 failed** — every P0 regression test above plus the untouched
+  definitions/quality, engine, yara, clamav, matcher, ota, phishing, privacy, autopilot and
+  device suites. The Compose/Activity files (`QuarantineScreen`, `DeviceScanCard`,
+  `PrivacyAdvisorScreen`, `MainActivity`) are hand-reviewed; CI compiles them.
+* **CI fix-up in this PR:** the first CI run failed in `compileStandardDebugKotlin` because the
+  v3 label backfill called a 4-argument `SQLiteDatabase.query(...)` overload that does not
+  exist in the Android API; it now uses the documented 7-argument form and applies the
+  `UPDATE`s only after the cursor is closed.
 * **CI** (this PR): `:app:testDebugUnitTest` + `:app:lintDebug` on the merge candidate + the
   signed/unsigned release build — run link is attached at the gate together with the repo head
   and the audit pack.

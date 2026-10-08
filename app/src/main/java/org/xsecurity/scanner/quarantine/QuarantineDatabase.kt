@@ -70,23 +70,34 @@ internal class QuarantineDatabase(context: Context) :
      */
     private fun backfillFileLabels(db: SQLiteDatabase) {
         runCatching {
-            db.query(
+            // Read first, write after the cursor is closed: no UPDATE on the table that is
+            // being iterated. (SQLiteDatabase.query has no 4-argument overload; the 7-argument
+            // form with null groupBy/having/orderBy is the documented one.)
+            val updates = db.query(
                 TABLE_RECORDS,
                 arrayOf("id", "label", "sha256", "vault_file", "source_path", "source_uri"),
                 "package_name = ?",
-                arrayOf(QuarantineHonesty.FILE_VAULT_PACKAGE)
+                arrayOf(QuarantineHonesty.FILE_VAULT_PACKAGE),
+                null,
+                null,
+                null
             ).use { cursor ->
-                while (cursor.moveToNext()) {
-                    val id = cursor.getString(0)
-                    val label = if (cursor.isNull(1)) null else cursor.getString(1)
-                    val sha256 = if (cursor.isNull(2)) null else cursor.getString(2)
-                    val vaultFile = if (cursor.isNull(3)) null else cursor.getString(3)
-                    val sourcePath = if (cursor.isNull(4)) null else cursor.getString(4)
-                    val sourceUri = if (cursor.isNull(5)) null else cursor.getString(5)
-                    val backfilled = RecordLabel.backfill(label, sha256, vaultFile, sourcePath, sourceUri)
-                        ?: continue
-                    db.execSQL("UPDATE $TABLE_RECORDS SET label = ? WHERE id = ?", arrayOf(backfilled, id))
+                buildList {
+                    while (cursor.moveToNext()) {
+                        val id = cursor.getString(0)
+                        val label = if (cursor.isNull(1)) null else cursor.getString(1)
+                        val sha256 = if (cursor.isNull(2)) null else cursor.getString(2)
+                        val vaultFile = if (cursor.isNull(3)) null else cursor.getString(3)
+                        val sourcePath = if (cursor.isNull(4)) null else cursor.getString(4)
+                        val sourceUri = if (cursor.isNull(5)) null else cursor.getString(5)
+                        val backfilled = RecordLabel.backfill(label, sha256, vaultFile, sourcePath, sourceUri)
+                            ?: continue
+                        add(id to backfilled)
+                    }
                 }
+            }
+            for ((id, backfilled) in updates) {
+                db.execSQL("UPDATE $TABLE_RECORDS SET label = ? WHERE id = ?", arrayOf<Any>(backfilled, id))
             }
         }
     }
