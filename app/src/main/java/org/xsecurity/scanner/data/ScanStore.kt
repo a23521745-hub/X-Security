@@ -40,7 +40,13 @@ data class EngineInfo(
             yaraSource = yaraPath,
             clamSource = clamPath,
             hashSource = hashPath,
-            warnings = engine.warnings + extraWarnings
+            // P0 false-positive brake, logged on every engine surface: rule IDs the denylist
+            // dropped at load are named here (the merged stats keep them in skippedRuleNames).
+            warnings = engine.yaraStats.skippedRuleNames
+                .filter { org.xsecurity.scanner.yara.RuleDenylist.isDenied(it) }
+                .distinct()
+                .map { org.xsecurity.scanner.yara.RuleDenylist.problem(it) } +
+                engine.warnings + extraWarnings
         )
     }
 }

@@ -36,11 +36,16 @@ object QuarantineRepository {
         restoreInfo: String? = null,
         residue: OriginalResidue? = null,
         sourceUri: String? = null,
-        sourcePath: String? = null
+        sourcePath: String? = null,
+        sizeBytes: Long? = null,
+        scanOrigin: String? = null
     ): QuarantineRecord = QuarantineRecord(
         id = UUID.randomUUID().toString(),
         packageName = packageName,
-        label = label.ifBlank { packageName },
+        // A blank file label must never fall back to the pseudo package name ("file-vault").
+        label = label.ifBlank {
+            if (packageName == QuarantineHonesty.FILE_VAULT_PACKAGE) RecordLabel.UNKNOWN_FILENAME else packageName
+        },
         sha256 = sha256,
         verdict = verdict,
         engine = engine,
@@ -51,12 +56,45 @@ object QuarantineRepository {
         restoreInfo = restoreInfo,
         residue = residue,
         sourceUri = sourceUri,
-        sourcePath = sourcePath
+        sourcePath = sourcePath,
+        sizeBytes = sizeBytes,
+        scanOrigin = scanOrigin
     )
 
     fun insert(context: Context, record: QuarantineRecord) = synchronized(lock) {
         db(context).save(record)
         publish(context)
+    }
+
+    /**
+     * RECORD DEDUP (P0): the newest file record with the same `sha256 + sourcePath`
+     * (or `sha256 + sourceUri` when no path is known), or null. Package records are never
+     * deduplicated against file records.
+     */
+    fun findFileRecordByIdentity(
+        context: Context,
+        sha256: String?,
+        sourcePath: String?,
+        sourceUri: String?
+    ): QuarantineRecord? = synchronized(lock) {
+        if (sha256.isNullOrBlank()) return@synchronized null
+        RecordDedup.findExisting(
+            db(context).all().filter { it.isFileRecord },
+            sha256,
+            sourcePath,
+            sourceUri
+        )
+    }
+
+    /**
+     * Update-in-place for a re-scanned case (same identity, new timestamps/state). The record id
+     * is preserved, so the UI keeps showing one row; the superseded vault copy is deleted by the
+     * caller only after the new copy verified.
+     */
+    fun saveReobserved(context: Context, record: QuarantineRecord): QuarantineRecord = synchronized(lock) {
+        db(context).save(record)
+        publish(context)
+        record
     }
 
     fun transition(

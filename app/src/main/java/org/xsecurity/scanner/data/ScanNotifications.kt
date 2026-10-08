@@ -9,6 +9,7 @@ import android.content.Intent
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import org.xsecurity.scanner.R
+import org.xsecurity.scanner.autopilot.SystemPackageTreatment
 import org.xsecurity.scanner.device.AppScanEntry
 import org.xsecurity.scanner.engine.ScanResult
 import org.xsecurity.scanner.engine.ScanStatus
@@ -107,15 +108,20 @@ object ScanNotifications {
                 .setContentText(body)
                 .setStyle(NotificationCompat.BigTextStyle().bigText(body))
         } else {
+            // P0 emergency brake: system / updated-system packages are reported, never actionable.
+            val notice = context.getString(R.string.scan_result_system_package_notice)
             val body = infected.take(4).joinToString("\n") { entry ->
-                "${entry.label} (${entry.packageName}): " + entry.threats.take(2).joinToString(", ") { it.name }
+                val line = "${entry.label} (${entry.packageName}): " +
+                    entry.threats.take(2).joinToString(", ") { it.name }
+                if (SystemPackageTreatment.isSafelisted(entry.isSystemPackage)) "$line — $notice" else line
             }
             builder.setContentTitle(context.getString(R.string.notif_device_threats_title, infected.size))
                 .setContentText(body)
                 .setStyle(NotificationCompat.BigTextStyle().bigText(body))
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
                 .setCategory(NotificationCompat.CATEGORY_ALARM)
-            uninstallAction(context, infected.first().packageName)?.let { builder.addAction(it) }
+            infected.firstOrNull { SystemPackageTreatment.allowsRemovalActions(it.isSystemPackage) }
+                ?.let { actionable -> uninstallAction(context, actionable.packageName)?.let { builder.addAction(it) } }
         }
         notify(context, builder.build())
     }
@@ -127,8 +133,16 @@ object ScanNotifications {
      */
     fun showInstallThreat(context: Context, entry: AppScanEntry) {
         val names = entry.threats.take(3).joinToString(", ") { it.name }
+        // P0 emergency brake: an updated-system package can be flagged here too — report only.
+        val safelistedSystem = SystemPackageTreatment.isSafelisted(entry.isSystemPackage)
         val body = context.getString(R.string.notif_shield_threat_body, entry.label, entry.packageName, names) +
-            "\n\n" + context.getString(R.string.notif_shield_password_advice)
+            "\n\n" + context.getString(R.string.notif_shield_password_advice) +
+            if (safelistedSystem) {
+                "\n\n" + context.getString(R.string.scan_result_system_package_notice) +
+                    " — " + context.getString(R.string.scan_result_system_package_detail)
+            } else {
+                ""
+            }
         val builder = base(context)
             .setContentTitle(context.getString(R.string.notif_shield_threat_title, entry.label))
             .setContentText(body)
@@ -139,7 +153,9 @@ object ScanNotifications {
             .setAutoCancel(true)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
-        uninstallAction(context, entry.packageName)?.let { builder.addAction(it) }
+        if (SystemPackageTreatment.allowsRemovalActions(entry.isSystemPackage)) {
+            uninstallAction(context, entry.packageName)?.let { builder.addAction(it) }
+        }
         notifyOn(context, shieldNotificationId(entry.packageName), builder.build())
     }
 
