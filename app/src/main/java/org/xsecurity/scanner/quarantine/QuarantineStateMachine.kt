@@ -26,7 +26,17 @@ data class QuarantineRecord(
     /** Resolved absolute path of the original when known (needed for cut + move-back restore). */
     val sourcePath: String? = null,
     /** Outcome code of the most recent cut attempt (see [CutResultCodes]); null before the first tap. */
-    val cutResult: String? = null
+    val cutResult: String? = null,
+    /**
+     * Size of the original file as seen when it was staged (bytes). Null for legacy rows and for
+     * locations whose size could not be read; the UI then shows the localized "unknown".
+     */
+    val sizeBytes: Long? = null,
+    /**
+     * Where the scan was triggered from ([QuarantineFormat.ORIGIN_DOWNLOAD_WATCH] /
+     * `ORIGIN_FILE_PICKER` / `ORIGIN_UNKNOWN`). Null only on legacy rows.
+     */
+    val scanOrigin: String? = null
 ) {
     val isFileRecord: Boolean get() = packageName == QuarantineHonesty.FILE_VAULT_PACKAGE
 }

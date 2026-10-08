@@ -66,21 +66,61 @@ object VaultDeleteFlow {
             return null
         }
         val source = SourceLocation.resolve(appContext, event.sourceUri, scanned)
-        val record = QuarantineRepository.newRecord(
-            packageName = QuarantineHonesty.FILE_VAULT_PACKAGE,
-            label = (source.displayName ?: scanned.name).take(120).ifBlank { "Scanned file" },
-            sha256 = stored.sha256,
-            verdict = "KNOWN_BAD",
-            engine = event.engine.ifBlank { "unknown" },
-            vaultFileName = stored.fileName,
-            restoreInfo = "encrypted_file_vault",
-            residue = OriginalResidue.ORIGINAL_PRESENT,
-            sourceUri = source.uri,
-            sourcePath = source.path
+        // Real file name (real extension) from the ORIGINAL location; never the staged copy name
+        // (`<sha256>.apk`) or a vault entry name — see RecordLabel.
+        val label = RecordLabel.derive(source.path, source.uri)
+            ?: source.displayName?.takeIf { !RecordLabel.isPlaceholder(it, stored.sha256, stored.fileName) }
+            ?: RecordLabel.UNKNOWN_FILENAME
+        val sizeBytes = scanned.length().takeIf { it > 0L }
+        val scanOrigin = QuarantineFormat.normalizeOrigin(event.origin)
+
+        // RECORD DEDUP (P0): the same bytes from the same location are the same case. Re-scanning
+        // updates that row (new timestamps/state, new vault copy) instead of appending a second one.
+        val existing = QuarantineRepository.findFileRecordByIdentity(
+            appContext, stored.sha256, source.path, source.uri
         )
-        QuarantineRepository.insert(appContext, record)
-        QuarantineRepository.transition(appContext, record.id, QuarantineState.PENDING, QuarantineActor.AUTOMATION)
-        QuarantineRepository.transition(appContext, record.id, QuarantineState.QUARANTINED, QuarantineActor.AUTOMATION)
+        val now = System.currentTimeMillis()
+        val record = if (existing != null) {
+            // The superseded vault copy is only dropped once the new one verified above.
+            existing.vaultFileName
+                ?.takeIf { it != stored.fileName }
+                ?.let { FileVault.delete(appContext, it) }
+            QuarantineRepository.saveReobserved(
+                appContext,
+                RecordDedup.reobserved(
+                    existing = existing,
+                    sha256 = stored.sha256,
+                    label = label,
+                    engine = event.engine,
+                    sizeBytes = sizeBytes,
+                    scanOrigin = scanOrigin,
+                    vaultFileName = stored.fileName,
+                    sourcePath = source.path,
+                    sourceUri = source.uri,
+                    nowMillis = now
+                )
+            )
+        } else {
+            val created = QuarantineRepository.newRecord(
+                packageName = QuarantineHonesty.FILE_VAULT_PACKAGE,
+                label = label,
+                sha256 = stored.sha256,
+                verdict = "KNOWN_BAD",
+                engine = event.engine.ifBlank { "unknown" },
+                nowMillis = now,
+                vaultFileName = stored.fileName,
+                restoreInfo = "encrypted_file_vault",
+                residue = OriginalResidue.ORIGINAL_PRESENT,
+                sourceUri = source.uri,
+                sourcePath = source.path,
+                sizeBytes = sizeBytes,
+                scanOrigin = scanOrigin
+            )
+            QuarantineRepository.insert(appContext, created)
+            QuarantineRepository.transition(appContext, created.id, QuarantineState.PENDING, QuarantineActor.AUTOMATION)
+            QuarantineRepository.transition(appContext, created.id, QuarantineState.QUARANTINED, QuarantineActor.AUTOMATION)
+            created
+        }
         if (source.uri == null && source.path == null) {
             QuarantineRepository.updateResidue(
                 appContext, record.id, OriginalResidue.ORIGINAL_PRESENT, CutResultCodes.FAILED_LOCATION_UNKNOWN

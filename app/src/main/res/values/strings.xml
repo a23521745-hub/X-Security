@@ -408,7 +408,6 @@
     <string name="quarantine_state">State: %1$s</string>
     <string name="quarantine_engine">Signal engine: %1$s</string>
     <string name="quarantine_detected">Detected: %1$s</string>
-    <string name="quarantine_hash">SHA-256: %1$s…</string>
     <string name="quarantine_failed">Best-effort action failed: %1$s</string>
     <string name="quarantine_restore">Restore</string>
     <string name="quarantine_retry">Retry soft quarantine</string>
@@ -486,4 +485,32 @@
     <string name="settings_all_files_access_title">All Files Access (threat removal)</string>
     <string name="settings_all_files_access_desc_granted">Granted: a confirmed threat’s original file is removed directly after your Delete now tap.</string>
     <string name="settings_all_files_access_desc_missing">Not granted: each Delete now tap goes through the Android delete confirmation instead. Optional.</string>
+
+    <!-- P0 record identity: the list shows the scanned file's REAL name (its own extension),
+         path, size and scan date; the SHA-256 only appears in the detail view. -->
+    <string name="quarantine_file_path">Path: %1$s</string>
+    <string name="quarantine_file_size">Size: %1$s</string>
+    <string name="quarantine_unknown_file">Unknown file</string>
+    <string name="quarantine_value_unknown">unknown</string>
+    <string name="quarantine_details_open">Details</string>
+    <string name="quarantine_detail_title">Record details</string>
+    <string name="quarantine_detail_close">Close</string>
+    <string name="quarantine_detail_name">File name: %1$s</string>
+    <string name="quarantine_detail_path">Path: %1$s</string>
+    <string name="quarantine_detail_size">Size: %1$s</string>
+    <string name="quarantine_detail_date">Scan date: %1$s</string>
+    <string name="quarantine_detail_verdict">Verdict: %1$s</string>
+    <string name="quarantine_detail_engine">Signal engine: %1$s</string>
+    <string name="quarantine_detail_sha256">SHA-256: %1$s</string>
+    <string name="quarantine_detail_residue">Original: %1$s</string>
+    <string name="quarantine_detail_vault_id">Vault entry: %1$s</string>
+    <string name="quarantine_detail_origin">Scan origin: %1$s</string>
+    <string name="quarantine_origin_download_watch">download watcher (realtime)</string>
+    <string name="quarantine_origin_file_picker">file picker (user)</string>
+    <string name="quarantine_origin_unknown">unknown</string>
+
+    <!-- P0 emergency brake: a verdict on a system / updated-system package is a report, not an
+         action. This notice replaces every Remove/Quarantine control on scan-result surfaces. -->
+    <string name="scan_result_system_package_notice">System app — no action taken</string>
+    <string name="scan_result_system_package_detail">X-Security never uninstalls or quarantines system or updated-system apps; a system package can only be flagged for review.</string>
 </resources>

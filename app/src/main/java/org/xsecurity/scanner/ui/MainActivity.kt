@@ -32,6 +32,7 @@ import org.xsecurity.scanner.autopilot.AutopilotScheduler
 import org.xsecurity.scanner.autopilot.AutopilotSettings
 import org.xsecurity.scanner.autopilot.AutonomyLevel
 import org.xsecurity.scanner.autopilot.RootlessCapabilityProvider
+import org.xsecurity.scanner.autopilot.SystemPackageSafelist
 import org.xsecurity.scanner.autopilot.SecurityEvent
 import org.xsecurity.scanner.autopilot.SignalRequest
 import org.xsecurity.scanner.data.EngineInfo
@@ -594,6 +595,12 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun requestQuarantineUninstall(record: QuarantineRecord) {
+        // P0 emergency brake: a system / updated-system package is never uninstalled or
+        // quarantined from here; the record stays a report.
+        if (SystemPackageSafelist.isSystemPackage(this, record.packageName)) {
+            Toast.makeText(this, getString(R.string.scan_result_system_package_notice), Toast.LENGTH_LONG).show()
+            return
+        }
         val intent = QuarantineUserActions.uninstallIntent(this, record.packageName, record.id) ?: return
         QuarantinePendingActionStore.setUninstall(this, record.packageName, record.id)
         runCatching { startActivity(intent) }
@@ -628,6 +635,12 @@ class MainActivity : ComponentActivity() {
 
     /** Sistemin kaldirma onay ekranini acar; son karar kullanicinindir. */
     private fun requestUninstall(packageName: String) {
+        // P0 emergency brake (defense in depth): even if a caller missed the UI treatment, a
+        // system / updated-system package never reaches the system uninstall screen from here.
+        if (SystemPackageSafelist.isSystemPackage(this, packageName)) {
+            Toast.makeText(this, getString(R.string.scan_result_system_package_notice), Toast.LENGTH_LONG).show()
+            return
+        }
         pendingUninstall = packageName
         runCatching { startActivity(ScanController.uninstallIntent(packageName)) }
             .onFailure { pendingUninstall = null }

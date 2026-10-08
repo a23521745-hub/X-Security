@@ -63,6 +63,12 @@ class ApkScanWorker(
         val historyType = if (isRealtimeTrigger) ScanHistoryType.REALTIME else ScanHistoryType.FILE
         val historyTrigger =
             if (isRealtimeTrigger) ScanHistoryStore.TRIGGER_DOWNLOAD_WATCH else ScanHistoryStore.TRIGGER_FILE_PICKER
+        // Record identity: where this scan came from, shown in the quarantine detail view.
+        val scanOrigin = if (isRealtimeTrigger) {
+            org.xsecurity.scanner.quarantine.QuarantineFormat.ORIGIN_DOWNLOAD_WATCH
+        } else {
+            org.xsecurity.scanner.quarantine.QuarantineFormat.ORIGIN_FILE_PICKER
+        }
 
         ScanNotifications.ensureChannel(context)
         ScanStore.markScanning(context)
@@ -120,7 +126,8 @@ class ApkScanWorker(
                     sha256 = result.sha256,
                     verdict = verdict,
                     engine = result.threats.map { it.engine }.distinct().sorted().joinToString(",").ifBlank { "signature_set" },
-                    sourceUri = sourceUri
+                    sourceUri = sourceUri,
+                    origin = scanOrigin
                 )
             )
             if (verdict != org.xsecurity.scanner.autopilot.SecuritySignal.Verdict.KNOWN_BAD) {
@@ -143,7 +150,8 @@ class ApkScanWorker(
                     sha256 = result.sha256,
                     verdict = org.xsecurity.scanner.autopilot.SecuritySignal.Verdict.UNKNOWN,
                     engine = "unavailable",
-                    sourceUri = sourceUri
+                    sourceUri = sourceUri,
+                    origin = scanOrigin
                 )
             )
         }

@@ -79,6 +79,20 @@ class DeviceScanSummaryTest {
     }
 
     @Test
+    fun systemPackageFlagIsCarriedIntoScanResults() {
+        // P0 emergency brake: the UI can only say "system app — no action" if the flag survives
+        // the merge.
+        val infectedResult = listOf(infected("/a/base.apk", "Stalker.A"))
+        assertTrue(
+            DeviceScanSummary.mergeEntry(app.copy(flags = InstalledApp.FLAG_SYSTEM), infectedResult).isSystemPackage
+        )
+        assertTrue(
+            DeviceScanSummary.mergeEntry(app.copy(flags = InstalledApp.FLAG_UPDATED_SYSTEM_APP), infectedResult).isSystemPackage
+        )
+        assertFalse(DeviceScanSummary.mergeEntry(app, infectedResult).isSystemPackage)
+    }
+
+    @Test
     fun summaryWithNothingScannableIsFailedNotClean() {
         val entries = listOf(DeviceScanSummary.mergeEntry(app, emptyList()))
         val result = DeviceScanSummary.toScanResult(entries, 1L, "x")

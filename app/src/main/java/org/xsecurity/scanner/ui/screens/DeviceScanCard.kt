@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
@@ -37,6 +38,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import org.xsecurity.scanner.R
+import org.xsecurity.scanner.autopilot.SystemPackageTreatment
 import org.xsecurity.scanner.device.AppScanEntry
 import org.xsecurity.scanner.device.DeviceScanPhase
 import org.xsecurity.scanner.device.DeviceScanState
@@ -52,6 +54,8 @@ import java.util.Locale
  *    aciklanir; veri cihazdan cikmaz.
  *  - Tespit edilen uygulamalar icin "Kaldir" sistem kaldirma ekranini acar; uygulama
  *    hicbir zaman sessiz kaldirma yapmaz (bu mumkun degildir ve denenmez).
+ *  - P0 ACIL FREN: sistem / guncellenmis sistem paketleri ([SystemPackageTreatment]) yalnizca
+ *    "sistem uygulamasi, islem yok" olarak gosterilir; kaldirma dugmesi HIC cizilmez.
  */
 @Composable
 fun DeviceScanCard(
@@ -203,11 +207,14 @@ fun DeviceScanCard(
 
 @Composable
 private fun InfectedAppRow(entry: AppScanEntry, onUninstall: (String) -> Unit) {
+    // P0 emergency brake: a flagged system / updated-system package is shown as a report only.
+    val safelistedSystem = SystemPackageTreatment.isSafelisted(entry.isSystemPackage)
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .background(
-                MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.35f),
+                if (safelistedSystem) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                else MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.35f),
                 RoundedCornerShape(12.dp)
             )
             .padding(horizontal = 12.dp, vertical = 10.dp),
@@ -215,10 +222,10 @@ private fun InfectedAppRow(entry: AppScanEntry, onUninstall: (String) -> Unit) {
     ) {
         Row(verticalAlignment = Alignment.Top) {
             Icon(
-                imageVector = Icons.Filled.Warning,
+                imageVector = if (safelistedSystem) Icons.Filled.Info else Icons.Filled.Warning,
                 contentDescription = null,
                 modifier = Modifier.size(20.dp),
-                tint = MaterialTheme.colorScheme.error
+                tint = if (safelistedSystem) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.error
             )
             Spacer(modifier = Modifier.width(10.dp))
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -236,15 +243,30 @@ private fun InfectedAppRow(entry: AppScanEntry, onUninstall: (String) -> Unit) {
                 }
             }
         }
-        Text(
-            text = stringResource(R.string.device_scan_advice),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        OutlinedButton(onClick = { onUninstall(entry.packageName) }) {
-            Icon(imageVector = Icons.Filled.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
-            Spacer(modifier = Modifier.width(6.dp))
-            Text(stringResource(R.string.action_uninstall))
+        if (safelistedSystem) {
+            // "Sistem uygulaması — işlem yok": never Remove, never quarantine.
+            Text(
+                text = stringResource(R.string.scan_result_system_package_notice),
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Text(
+                text = stringResource(R.string.scan_result_system_package_detail),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        } else {
+            Text(
+                text = stringResource(R.string.device_scan_advice),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            OutlinedButton(onClick = { onUninstall(entry.packageName) }) {
+                Icon(imageVector = Icons.Filled.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(stringResource(R.string.action_uninstall))
+            }
         }
     }
 }
