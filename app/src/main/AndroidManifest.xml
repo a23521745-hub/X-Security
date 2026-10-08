@@ -16,6 +16,10 @@
        - MANAGE_EXTERNAL_STORAGE (API 30+) / READ_EXTERNAL_STORAGE (API <=32): paylasilan
          Download/ klasorundeki yeni .apk dosyalarini gorebilmek icin; SAF ile secilen
          tek dosya buna gerek duymaz. Uygulama ici neden-gerekli diyalogu olmadan istenmez.
+         Ayni izin, kasaya kopyalanmis bir tehdidin ORIJINAL dosyasinin kullanicinin tek
+         dokunusuyla dogrudan silinmesini saglar (kes-yapistir karantina); izin yoksa ayni
+         dokunus sistemin silme onay diyaloguna yonlendirilir. Sifir dokunusla silme yoktur.
+       - WRITE_EXTERNAL_STORAGE (yalnizca API <=29): ayni dogrudan silme yolu, eski surumler icin.
        - RECEIVE_BOOT_COMPLETED: "Her zaman acik" secildiyse yeniden baslatmada servisi kurar.
     -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
@@ -29,6 +33,13 @@
     <uses-permission
         android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
+    <!-- API 26-29 only: lets the user's "Delete now" tap remove a vaulted threat's original directly
+         (cut-and-paste quarantine). API 29+ scoped storage routes the same tap through the system
+         delete dialog unless All Files Access (above) is granted. Never used for silent deletion. -->
+    <uses-permission
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="29"
+        tools:ignore="ScopedStorage" />
     <uses-permission
         android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
         tools:ignore="ScopedStorage,ProtectedPermissions" />
@@ -132,6 +143,14 @@
             android:excludeFromRecents="true"
             android:exported="false"
             android:label="@string/autopilot_overlay_title"
+            android:launchMode="singleTop" />
+
+        <!-- The one user tap that removes a vaulted threat's original file (cut-and-paste quarantine). -->
+        <activity
+            android:name="org.xsecurity.scanner.quarantine.QuarantineCutActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:label="@string/quarantine_cut_title"
             android:launchMode="singleTop" />
 
         <!-- User-enabled package-only foreground sensing plus the explicit, time-limited Settings force-stop assist. -->

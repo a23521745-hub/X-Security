@@ -34,6 +34,10 @@ system installer. The same signed channel also delivers **signature database
   test-keys build, ADB enabled). No network, no uploads.
 - **Settings** — background update-check preferences (automatic checks,
   metered-network gate); manual checks always work.
+- **Cut-and-paste file quarantine** — a known-bad file is copied into an
+  AES-GCM vault (Android Keystore key), the copy is verified, and the original is
+  removed **only after your one in-app tap** ("Delete now"). See
+  [Quarantine honesty](#quarantine-cut-and-paste-and-the-honesty-rule).
 
 ## What the engine actually does
 
@@ -119,6 +123,48 @@ consumed.
   a successful scan; stale copies are purged.
 - `WorkManager` with `ExistingWorkPolicy.KEEP`, no foreground service. Network access
   exists **only** for the signed updater described below; the scanner itself is offline.
+
+## Quarantine: cut-and-paste and the honesty rule
+
+File quarantine is a real *move*, not a copy that leaves the threat in place:
+
+1. **Stage (automation, non-destructive).** After a known-bad verdict the dispatcher
+   calls `VaultDeleteFlow.stage`: the scanned bytes are encrypted into
+   `filesDir/quarantine-vault/<id>.xsv`, the entry is decrypted-and-hashed again
+   (`FileVault.verify`) and the record is created `QUARANTINED` with residue
+   **`ORIGINAL_PRESENT`** plus the original's location (`sourceUri`/`sourcePath`,
+   private DB only — never the audit log). The user's file is not touched. This is
+   all L2 automation is allowed to do.
+2. **Cut (one user tap, never zero-tap).** "Delete now" (ongoing notification,
+   Quarantine screen, `QuarantineCutActivity`) runs `VaultCutEngine.cut`:
+   the vault copy must verify, the original must still hash to what was scanned,
+   then the first permitted route is used — direct `File.delete` when the path is
+   app-private or **All Files Access** (API 30+) / `WRITE_EXTERNAL_STORAGE`
+   (API ≤ 29) is granted; a SAF `deleteDocument` when a write grant is alive;
+   otherwise the *same tap* is routed through the system dialog
+   (`MediaStore.createDeleteRequest` on 30+, the `RecoverableSecurityException`
+   prompt on 29). Only after the platform reports success and the file is no longer
+   visible does the residue become **`ORIGINAL_REMOVED`**.
+3. **Denied / failed.** The record stays `QUARANTINED` + `ORIGINAL_PRESENT` with a
+   result code (`denied_by_user`, `permission_missing`, `location_unknown`, …); the
+   notification keeps offering "Delete now" / "Şimdi Sil" and the cut screen offers
+   Retry, the All Files Access setting, or the Downloads app.
+4. **Restore** decrypts to an app-private scratch file, checks the hash, moves the
+   bytes back to the original path (public Downloads via MediaStore, then the app's
+   Downloads folder as fallbacks), deletes the vault copy — exactly one plaintext
+   copy remains — and transitions to `RESTORED` (user action only). Deleting a record
+   whose original is still present offers to delete the original too.
+
+**Honesty rule (release-blocking).** UI and notifications must never say
+"quarantined"/"contained" while the original is on the device. `QuarantineHonesty`
+maps every record to a display state; `ORIGINAL_PRESENT` (and legacy rows without a
+residue) can only render as *"copy in vault — original still on device"*.
+`QuarantineStringsHonestyTest` enforces this on the real EN/TR `strings.xml`
+(symmetric key sets, forbidden claims, required "still on device" wording), and
+`QuarantineHonestyTest`/`VaultCutEngineTest` cover the state logic, the
+vault→system-dialog flow, the denial/retry path, and byte-exact restore without
+duplicates. All Files Access is requested once during onboarding with the antivirus
+rationale; declining only costs one extra tap per removal.
 
 ## Over-the-air updates
 

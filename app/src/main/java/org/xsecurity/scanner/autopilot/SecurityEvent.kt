@@ -60,12 +60,18 @@ sealed class SecurityEvent(open val occurredAtMillis: Long) {
         override val type = Type.MANUAL
     }
 
-    /** Ephemeral completed file scan metadata; path/hash never enter the durable audit record. */
+    /**
+     * Ephemeral completed file scan metadata; path/hash never enter the durable audit record.
+     * [path] is the scanned bytes (usually our app-private staged copy); [sourceUri] is where the
+     * user's ORIGINAL lives so cut-and-paste quarantine can remove it after the user's tap.
+     * Null means the original location is unknown and the record stays ORIGINAL_PRESENT.
+     */
     data class FileScan(
         val path: String,
         val sha256: String?,
         val verdict: SecuritySignal.Verdict,
         val engine: String,
+        val sourceUri: String? = null,
         override val occurredAtMillis: Long = System.currentTimeMillis()
     ) : SecurityEvent(occurredAtMillis) {
         override val type = Type.FILE_SCAN

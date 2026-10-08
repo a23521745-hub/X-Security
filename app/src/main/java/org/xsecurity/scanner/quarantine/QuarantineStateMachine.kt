@@ -18,8 +18,18 @@ data class QuarantineRecord(
     val failureCode: String? = null,
     val vaultFileName: String? = null,
     val restoreInfo: String? = null,
-    val bypassUntilMillis: Long? = null
-)
+    val bypassUntilMillis: Long? = null,
+    /** File-vault records only: is the original file still on the device? See [QuarantineHonesty]. */
+    val residue: OriginalResidue? = null,
+    /** Original location as seen at scan time (content:// or file:// URI string); app-private DB only. */
+    val sourceUri: String? = null,
+    /** Resolved absolute path of the original when known (needed for cut + move-back restore). */
+    val sourcePath: String? = null,
+    /** Outcome code of the most recent cut attempt (see [CutResultCodes]); null before the first tap. */
+    val cutResult: String? = null
+) {
+    val isFileRecord: Boolean get() = packageName == QuarantineHonesty.FILE_VAULT_PACKAGE
+}
 
 sealed class QuarantineTransitionResult {
     data class Accepted(val record: QuarantineRecord) : QuarantineTransitionResult()

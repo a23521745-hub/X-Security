@@ -1,68 +1,95 @@
-# fix + feat: repair broken engine/OTA code and upgrade to a professional OTA pipeline
+# feat(quarantine): true cut-and-paste file quarantine with an enforced honesty rule
 
-This branch does two things:
+Phase 1 lead item. Until now a known-bad file was *copied* into the encrypted vault and the
+record was shown as "quarantined" while the original stayed exactly where it was (the
+E2E-proven gap: the dispatcher only ever saw our staged copy in `cacheDir/scans/`, never the
+user's file). This PR turns the vault into a real move and makes it impossible for the UI to
+claim otherwise.
 
-1. **Repairs the broken tree** — the last commit left the pure-Kotlin engine and OTA
-   layers uncompilable (missing APIs, mismatched constructors, wrong filter types).
-2. **Upgrades the updater to a professional OTA pipeline** — resumable verified
-   downloads, Ed25519 support, extended manifest schema, background checks via
-   WorkManager, and fail-safe error handling with fallback behaviour.
+## What changes
 
-## Part 1 — breakages found and fixed (all confirmed by compiling the sources)
+### Flow (`VaultDeleteFlow` + pure `VaultCutEngine`)
 
-| Breakage | Symptom | Fix |
-| --- | --- | --- |
-| `HexPatternCodec.looksUnsupported()` and `Decoded.length` missing | `ClamAvDatabaseParser` + `YaraRuleParser` did not compile | restored both (detects `*`/`\|n-m\|`/`(a\|b)`/`[n-m]` syntax and reports it as unsupported instead of silently dropping signatures) |
-| `YaraString` was an old, incompatible class | `YaraRuleParser` couldn't construct strings (`bytes`/`isText`/`ascii`/`wide`/`nocase` params didn't exist), `YaraScanner`/`ApkScannerEngine` couldn't call `variants()`/`ignoreCase()` | rewrote it with the parser/scanner contract + correct YARA `ascii`/`wide` variant semantics (incl. wide-mask interleaving) |
-| `BytePatternMatcher` lost its `maxBytesToScan` constructor parameter | `YaraScanner`/`ClamAvScanner` 3-arg constructor calls failed to compile | restored the parameter; `scan()` now defaults to it (per-scanner limits work again); default re-aligned with the documented 512 MiB guard |
-| `positionFilter` type mismatch | `ClamAvScanner` indexed the signature list with a `BytePattern` | filter now receives the pattern **id**, consistent with `matchedIds`/`positions` |
-| `consumed` flag leaked across scans | reusing a matcher (same rules, new file) found nothing; a filtered-out first occurrence masked later valid ones | candidates are reset at the start of every `scan()` |
-| `any of ($a*)` selector lost its `*` | prefix selectors never matched anything | the parser keeps the trailing `*`; only the `$` prefix is stripped |
-| `PackageInfo.longVersionCode` used without an API-28 guard | `NewApi` lint failure (fatal in CI) + `NoSuchMethodError` crash on Android 8.x devices | guarded with `Build.VERSION.SDK_INT >= P`, falling back to the deprecated `versionCode` |
-| CI-generated `update.json` used `url`/`sha256` field names and was never signed | the app would reject every CI-published manifest (schema mismatch + missing signature) | CI now emits the real schema (`apkUrl`, `apkSha256`, `apkSizeBytes`, `minSdk`, `forceUpdate`, `changelog`) and signs it with `XSEC_OTA_SIGNING_KEY` |
-| `YaraRuleParserTest.escapeSequences…` asserted 4 bytes for `"A\tb\x90C"` | internally inconsistent expectation (the literal `b` cannot vanish) | test corrected to 5 bytes (YARA reference behaviour) |
+1. **Stage — automation, non-destructive.** `ActionDispatcher` → `VaultDeleteFlow.stage`:
+   `FileVault.store` → the entry is decrypted and re-hashed (`FileVault.verify`; also checks
+   the scanned hash) → record `QUARANTINED` + **`ORIGINAL_PRESENT`** with the original's
+   `sourceUri`/`sourcePath` (private DB only). L2 may do nothing more than this; the
+   notification says *"Threat copied to vault — original still on device"* with a
+   **Delete now / Şimdi Sil** action.
+2. **Cut — exactly one user tap, never zero-tap.** `QuarantineCutActivity` (notification
+   action or Quarantine screen) → `VaultCutEngine.cut`:
+   * vault copy must verify, original must still hash to what was scanned (else
+     `original_changed_since_scan`, nothing deleted);
+   * **All Files Access** (API 30+) / `WRITE_EXTERNAL_STORAGE` (API ≤ 29) or an
+     app-private path ⇒ silent direct delete after our in-app tap, no system dialog
+     (owner amendment);
+   * SAF write grant alive ⇒ `DocumentsContract.deleteDocument`;
+   * otherwise the same tap goes through `MediaStore.createDeleteRequest` (30+) or the
+     `RecoverableSecurityException` prompt (29); the engine suspends with
+     `NeedsUserConfirmation(IntentSender)` and resumes in `completeUserConfirmation`.
+   * After any claimed success the file must no longer be visible
+     (`still_present_after_confirmation` otherwise) → residue **`ORIGINAL_REMOVED`**.
+3. **Denied / failed** ⇒ record stays `QUARANTINED` + `ORIGINAL_PRESENT` with a result
+   code; the ongoing notification keeps offering **Delete now**; the cut screen offers
+   Retry / Grant All Files Access / Open Downloads. Pending originals are re-notified on
+   app start and boot.
+4. **Restore** = decrypt to app-private scratch → hash check → move bytes back to the
+   original path (MediaStore Downloads, then the app's Downloads folder as fallbacks; if the
+   original is still there with the same hash nothing is written) → delete scratch → delete
+   the vault copy → `RESTORED` (USER_ACTION, enforced by the state machine). No duplicates.
+5. **Delete record** offers to delete the original first when it is still present; the
+   vault copy is only dropped after that succeeds (or the user chooses "record only").
 
-## Part 2 — professional OTA pipeline
+### Honesty rule (release-blocking)
 
-1. **Cryptographic signature verification** (`SignatureVerifier`, renamed from
-   `RsaVerifier`): manifest bytes must verify against the embedded key before parsing.
-   Algorithms are selected from the key type — **RSA-2048/`SHA256withRSA`** (default,
-   all devices) or **Ed25519** (modern devices). Fail-closed everywhere; signature
-   mismatch = hard rejection.
-2. **Resilient download manager** (`ApkDownloader`): HTTP `Range: bytes=N-` +
-   `If-Range: <etag>` resume (`206` → append, `200` → representation changed → restart,
-   `416` on a complete part → verify-only). Downloads stream into a `.part` file and
-   are only atomically renamed into place after SHA-256 + size verification; network
-   interruptions keep the partial file for the retry, integrity failures delete it.
-   WorkManager retries with exponential backoff.
-3. **Background service & notifications**: daily network-constrained update check
-   (`OtaCheckWorker`, `PeriodicWorkRequest`) and the download job run via WorkManager —
-   no foreground service, no polling. Progress is shown transparently as a percent
-   progress-bar notification, with ready/error notifications afterwards.
-4. **Version protocol (JSON schema)**: `versionCode`, `versionName`, `apkUrl`,
-   `apkSha256`, `apkSizeBytes`, `minSdk` (device below it never sees the update),
-   `forceUpdate` (server-marked mandatory update, shown prominently in the UI) and
-   `changelog` (detailed notes; `releaseNotes` still supported). All fields validated.
-5. **Error handling & fallback**: every stage reports user-readable state instead of
-   crashing (workers wrap their whole body, `Throwable`-safe); the installer
-   re-verifies the file hash right before the system prompt and offers a clean
-   re-download if the cached file was corrupted; no failure path can remove or break
-   the currently installed version.
+* `QuarantineRecord` gains `residue` (`ORIGINAL_PRESENT` / `ORIGINAL_REMOVED`), `sourceUri`,
+  `sourcePath`, `cutResult` (DB v2, additive `ALTER TABLE`; legacy file rows have `NULL`
+  residue which is read as **present** — nothing was ever removed before).
+* `QuarantineHonesty.displayState` is the single mapping record → wording;
+  `FILE_QUARANTINED_ORIGINAL_REMOVED` is the only state allowed to say "quarantined".
+* `QuarantineWording` pins the string keys; `QuarantineStringsHonestyTest` parses the real
+  EN/TR `strings.xml`: symmetric key sets, `ORIGINAL_PRESENT` texts must say the original is
+  still on the device and may not contain quarantined/contained (TR: karantinaya alındı /
+  karantinada / dosya kaldırıldı…), `ORIGINAL_REMOVED` texts must say the original was removed.
+* The old generic "Known threat contained" notification is no longer used for files.
 
-Also: version bumped to `0.93.0` (versionCode 5), a fresh development OTA keypair +
-newly signed sample manifest (`changelog`/`forceUpdate` demonstrated), READMEs
-updated, and the CI workflow fixed to emit + sign a valid manifest.
+### Plumbing
 
-## Test plan
+* `ScanController.enqueueFromUri` forwards the original's URI (`KEY_SOURCE_URI`) and takes a
+  persistable SAF grant (released on clean/unknown verdicts and on give-up);
+  `ApkScanWorker` → `SecurityEvent.FileScan.sourceUri` (in-process only, still never
+  serialized). The Download watcher already passes `file://` URIs, so Download Shield reuses
+  the flow unchanged.
+* `SourceLocator` (pure) maps `file://`, `externalstorage.documents`, `downloads.documents`
+  (`raw:` / `msf:` / legacy ids), `media.documents` and `content://media` URIs to paths /
+  MediaStore ids; the Android port falls back to a `_data` lookup + media scan.
+* `FileVault.verify/delete/exists`; `StorageAccess.hasDirectDeleteAccess`;
+  `WRITE_EXTERNAL_STORAGE` (`maxSdkVersion=29`) declared; one-time onboarding dialog with the
+  antivirus rationale for All Files Access + a Settings row (`AutopilotPermission.ALL_FILES_ACCESS`);
+  graceful fallback to the system dialog when declined.
+* Quarantine screen shows the honest state + residue line + hint, **Delete now**, Restore,
+  Delete record; `MainActivity` restores file records through the real move-back.
 
-- [x] All JVM unit tests pass (100 tests, incl. 15 new: Ed25519 verification, resume
-      decisions, file re-verification, forceUpdate/changelog parsing, minSdk gating).
-- [x] `SignatureVerifier` + `UpdateInfo` verified against the committed signed sample
-      manifest using the app's own code paths.
-- [x] CI: `testDebugUnitTest` + `lintDebug` (fatal `MissingClass`/`NewApi`) + release
-      build + signed manifest publication (fixed pipeline staged in
-      `.github/ci/` — activating it needs one `git mv` with a `workflows`-enabled
-      account; the push bot cannot touch `.github/workflows/`).
-- [ ] On-device: check → download (kill mid-download → resume) → verify → Install;
-      tampered manifest/APK rejection; unknown-sources routing.
-- [ ] Configure a real allowlisted host + production keypair before release.
+## Tests
+
+JVM (`:app:testDebugUnitTest`):
+* `QuarantineHonestyTest` — every state × residue × record kind: a full claim implies
+  `ORIGINAL_REMOVED`; legacy `null` residue is present; transitions preserve the new fields.
+* `VaultCutPolicyTest` — route matrix (All Files Access ⇒ direct first; none ⇒ system dialog;
+  API 29 prompt; app-private always direct; no route ⇒ honest reason, never silent).
+* `VaultCutEngineTest` (fakes + temp files) — vault → system delete request → removed only after
+  consent; denial keeps `ORIGINAL_PRESENT` + `denied_by_user` and retry succeeds; direct delete
+  without any dialog; unverifiable vault / changed original never delete; restore moves bytes
+  back (one plaintext copy, scratch + vault gone), no second copy when the original is still
+  present, Downloads fallback; delete-record semantics; package records rejected.
+* `SourceLocatorTest`, `QuarantineStringsHonestyTest`.
+
+Instrumentation: `FileScanDispatchTest` now asserts non-destructive staging
+(`ORIGINAL_PRESENT`, fixture untouched), the direct cut + byte-exact restore on an app-private
+file, and that a hash mismatch is not vaulted; `FileVaultRoundTripTest` covers
+`verify`/`delete`.
+
+The sandbox cannot run Gradle (no SDK / blocked Maven hosts); the pure files and tests were
+compiled and run with a standalone Kotlin 1.9.24 compiler, and the Android-side files were
+type-checked against the API 35 `android.jar`. Compose screens were reviewed by hand — CI is the
+gate for them.

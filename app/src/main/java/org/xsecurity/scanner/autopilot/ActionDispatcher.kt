@@ -6,8 +6,9 @@ import org.xsecurity.scanner.data.UpdatePreferences
 import org.xsecurity.scanner.definitions.DefinitionsController
 import org.xsecurity.scanner.ota.OtaController
 import org.xsecurity.scanner.quarantine.QuarantineCoordinator
-import org.xsecurity.scanner.quarantine.QuarantineRepository
+import org.xsecurity.scanner.quarantine.QuarantineFileNotifications
 import org.xsecurity.scanner.quarantine.QuarantineState
+import org.xsecurity.scanner.quarantine.VaultDeleteFlow
 
 /** Executes policy outcomes only after the corresponding audit record is durable. */
 class ActionDispatcher(
@@ -46,29 +47,18 @@ class ActionDispatcher(
             }
             PolicyAction.BLOCK_AND_QUARANTINE -> {
                 if (event is SecurityEvent.FileScan) {
-                    val stored = runCatching {
-                        org.xsecurity.scanner.quarantine.FileVault.store(
-                            appContext, java.io.File(event.path), "f-${java.util.UUID.randomUUID()}"
-                        )
-                    }.getOrNull()
-                    if (stored == null) {
+                    // Cut-and-paste quarantine, staging half: automation only ever copies the
+                    // bytes into the encrypted vault (verified) and records ORIGINAL_PRESENT.
+                    // The original is removed solely by the user's "Delete now" tap
+                    // (VaultDeleteFlow.cut), never here, at any autonomy level.
+                    val record = VaultDeleteFlow.stage(appContext, event)
+                    if (record == null || record.state != QuarantineState.QUARANTINED) {
                         appendActionFailure(appContext, event, signals, autonomy, "file_vault_failed")
                         AutopilotNotifications.showDecision(appContext, event, PolicyDecision(PolicyAction.ASK_USER, "file_vault_failed", notify = true))
                         return Result.ACTION_FAILED
                     }
-                    val record = QuarantineRepository.newRecord(
-                        packageName = "file-vault",
-                        label = java.io.File(event.path).name.take(120).ifBlank { "Scanned file" },
-                        sha256 = stored.sha256,
-                        verdict = "KNOWN_BAD",
-                        engine = event.engine.ifBlank { "unknown" },
-                        vaultFileName = stored.fileName,
-                        restoreInfo = "encrypted_file_vault"
-                    )
-                    QuarantineRepository.insert(appContext, record)
-                    QuarantineRepository.transition(appContext, record.id, QuarantineState.PENDING, org.xsecurity.scanner.quarantine.QuarantineActor.AUTOMATION)
-                    QuarantineRepository.transition(appContext, record.id, QuarantineState.QUARANTINED, org.xsecurity.scanner.quarantine.QuarantineActor.AUTOMATION)
-                    AutopilotNotifications.showDecision(appContext, event, decision)
+                    // Honest wording: "copy saved, original still on device" + Delete now action.
+                    QuarantineFileNotifications.showStaged(appContext, record)
                     return Result.EXECUTED
                 }
                 val packageName = event.packageName
@@ -107,6 +97,8 @@ class ActionDispatcher(
                 AutopilotScheduler.schedule(context)
                 OtaController.schedulePeriodicCheck(context)
                 DefinitionsController.schedulePeriodicCheck(context)
+                // Originals still awaiting the user's tap must stay visible across reboots.
+                runCatching { VaultDeleteFlow.refreshPendingNotifications(context) }
             }
             is SecurityEvent.ScanDue -> {
                 val accepted = ScanController.enqueueDeviceScan(context, includeSystemApps = false)

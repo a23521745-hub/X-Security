@@ -24,7 +24,11 @@ internal class QuarantineDatabase(context: Context) :
                 failure_code TEXT,
                 vault_file TEXT,
                 restore_info TEXT,
-                bypass_until INTEGER
+                bypass_until INTEGER,
+                residue TEXT,
+                source_uri TEXT,
+                source_path TEXT,
+                cut_result TEXT
             )""".trimIndent()
         )
         db.execSQL(
@@ -38,7 +42,14 @@ internal class QuarantineDatabase(context: Context) :
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        // Future schema changes must be additive/migrated; never clear audit/quarantine data here.
+        // Schema changes are additive; never clear audit/quarantine data here.
+        if (oldVersion < 2) {
+            // v2: cut-and-paste quarantine. Legacy file rows have NULL residue, which the honesty
+            // layer reads as ORIGINAL_PRESENT (nothing was ever removed before v2).
+            for (column in listOf("residue", "source_uri", "source_path", "cut_result")) {
+                runCatching { db.execSQL("ALTER TABLE $TABLE_RECORDS ADD COLUMN $column TEXT") }
+            }
+        }
     }
 
     fun save(record: QuarantineRecord) {
@@ -118,6 +129,10 @@ internal class QuarantineDatabase(context: Context) :
         put("vault_file", vaultFileName)
         put("restore_info", restoreInfo)
         if (bypassUntilMillis == null) putNull("bypass_until") else put("bypass_until", bypassUntilMillis)
+        put("residue", residue?.name)
+        put("source_uri", sourceUri)
+        put("source_path", sourcePath)
+        put("cut_result", cutResult)
     }
 
     private fun android.database.Cursor.record(): QuarantineRecord {
@@ -136,7 +151,11 @@ internal class QuarantineDatabase(context: Context) :
             failureCode = nullableString("failure_code"),
             vaultFileName = nullableString("vault_file"),
             restoreInfo = nullableString("restore_info"),
-            bypassUntilMillis = if (isNull(bypassIndex)) null else getLong(bypassIndex)
+            bypassUntilMillis = if (isNull(bypassIndex)) null else getLong(bypassIndex),
+            residue = nullableString("residue")?.let { value -> OriginalResidue.values().firstOrNull { it.name == value } },
+            sourceUri = nullableString("source_uri"),
+            sourcePath = nullableString("source_path"),
+            cutResult = nullableString("cut_result")
         )
     }
 
@@ -147,7 +166,7 @@ internal class QuarantineDatabase(context: Context) :
 
     companion object {
         private const val DATABASE_NAME = "autopilot-quarantine.db"
-        private const val DATABASE_VERSION = 1
+        private const val DATABASE_VERSION = 2
         private const val TABLE_RECORDS = "quarantine_records"
         private const val TABLE_BYPASSES = "quarantine_bypasses"
     }

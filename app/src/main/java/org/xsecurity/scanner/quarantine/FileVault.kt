@@ -24,6 +24,7 @@ object FileVault {
     private const val TRANSFORMATION = "AES/GCM/NoPadding"
     private val magic = byteArrayOf('X'.code.toByte(), 'S'.code.toByte(), 'V'.code.toByte(), '1'.code.toByte())
     private val keyLock = Any()
+    private val VAULT_NAME = Regex("[A-Za-z0-9-]{1,80}\\.xsv")
 
     data class StoredFile(val fileName: String, val sha256: String)
 
@@ -72,10 +73,51 @@ object FileVault {
     /** Decrypts only to a caller-owned app-private file; the vault entry is retained. */
     @Throws(IOException::class)
     fun restoreTo(context: Context, fileName: String, destination: File) {
-        require(fileName.matches(Regex("[A-Za-z0-9-]{1,80}\\.xsv"))) { "invalid vault file name" }
+        destination.parentFile?.let { if (!it.isDirectory && !it.mkdirs()) throw IOException("restore directory unavailable") }
+        try {
+            FileOutputStream(destination).use { output ->
+                decrypt(context, fileName) { buffer, count -> output.write(buffer, 0, count) }
+                output.fd.sync()
+            }
+        } catch (error: Exception) {
+            runCatching { destination.delete() }
+            if (error is IOException) throw error
+            throw IOException("vault decryption failed", error)
+        }
+    }
+
+    /**
+     * Streams the entry through decryption (GCM tag included) and SHA-256 without writing plaintext
+     * anywhere. True only when the entry decrypts cleanly and, if given, matches [expectedSha256].
+     * This is the gate before an original is ever removed.
+     */
+    fun verify(context: Context, fileName: String, expectedSha256: String?): Boolean {
+        val digest = MessageDigest.getInstance("SHA-256")
+        return try {
+            decrypt(context, fileName) { buffer, count -> digest.update(buffer, 0, count) }
+            val actual = digest.digest().toHex()
+            expectedSha256 == null || actual.equals(expectedSha256, ignoreCase = true)
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    fun exists(context: Context, fileName: String): Boolean =
+        fileName.matches(VAULT_NAME) && File(vaultDirectory(context), fileName).isFile
+
+    /** Removes the encrypted entry; true when it no longer exists afterwards. */
+    fun delete(context: Context, fileName: String): Boolean {
+        if (!fileName.matches(VAULT_NAME)) return false
+        val entry = File(vaultDirectory(context), fileName)
+        if (!entry.exists()) return true
+        return entry.delete() || !entry.exists()
+    }
+
+    @Throws(IOException::class)
+    private fun decrypt(context: Context, fileName: String, sink: (ByteArray, Int) -> Unit) {
+        require(fileName.matches(VAULT_NAME)) { "invalid vault file name" }
         val source = File(vaultDirectory(context), fileName)
         if (!source.isFile) throw IOException("vault entry unavailable")
-        destination.parentFile?.let { if (!it.isDirectory && !it.mkdirs()) throw IOException("restore directory unavailable") }
         try {
             BufferedInputStream(FileInputStream(source)).use { input ->
                 val header = ByteArray(magic.size)
@@ -88,19 +130,15 @@ object FileVault {
                 val cipher = Cipher.getInstance(TRANSFORMATION)
                 cipher.init(Cipher.DECRYPT_MODE, secretKey(), javax.crypto.spec.GCMParameterSpec(128, iv))
                 CipherInputStream(input, cipher).use { decrypted ->
-                    FileOutputStream(destination).use { output ->
-                        val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-                        while (true) {
-                            val count = decrypted.read(buffer)
-                            if (count < 0) break
-                            output.write(buffer, 0, count)
-                        }
-                        output.fd.sync()
+                    val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                    while (true) {
+                        val count = decrypted.read(buffer)
+                        if (count < 0) break
+                        if (count > 0) sink(buffer, count)
                     }
                 }
             }
         } catch (error: Exception) {
-            runCatching { destination.delete() }
             if (error is IOException) throw error
             throw IOException("vault decryption failed", error)
         }
