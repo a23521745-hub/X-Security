@@ -2,6 +2,7 @@ package org.xsecurity.scanner.quarantine
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -91,6 +92,39 @@ class QuarantineStringsHonestyTest {
             QuarantineWording.notificationKeys(present.copy(residue = OriginalResidue.ORIGINAL_REMOVED)).first
         )
         assertEquals(QuarantineWording.KEY_NOTIF_STAGED_TITLE, QuarantineWording.notificationKeys(present.copy(residue = null)).first)
+    }
+
+    @Test
+    fun identityAndDetailKeysExistInBothLanguages() {
+        // P0: the list shows real name/path/size/date; every identity field of the detail
+        // view exists in EN and TR, and the origin vocabulary covers all origin values.
+        for (key in QuarantineWording.recordIdentityKeys + QuarantineFormat.originKeys.values) {
+            assertTrue("EN missing $key", en.containsKey(key))
+            assertTrue("TR missing $key", tr.containsKey(key))
+        }
+        for (origin in listOf(
+            QuarantineFormat.ORIGIN_DOWNLOAD_WATCH,
+            QuarantineFormat.ORIGIN_FILE_PICKER,
+            QuarantineFormat.ORIGIN_UNKNOWN,
+            null
+        )) {
+            val key = QuarantineFormat.originKey(origin)
+            assertTrue("missing origin text for '$origin'", en.containsKey(key) && tr.containsKey(key))
+        }
+        // Detail must name the SHA-256 explicitly (that is the only place the hash is shown).
+        assertTrue(en.getValue(QuarantineWording.KEY_DETAIL_SHA256).contains("SHA-256"))
+        for (key in QuarantineWording.recordIdentityKeys) {
+            assertTrue("empty text for $key", en.getValue(key).isNotBlank() && tr.getValue(key).isNotBlank())
+        }
+    }
+
+    @Test
+    fun byteSizeFormattingIsReadableAndNeverNegative() {
+        assertEquals("512 B", QuarantineFormat.formatBytes(512L, java.util.Locale.US))
+        assertEquals("1.5 KB", QuarantineFormat.formatBytes(1536L, java.util.Locale.US))
+        assertEquals("2.0 MB", QuarantineFormat.formatBytes(2L * 1024L * 1024L, java.util.Locale.US))
+        assertNull(QuarantineFormat.formatBytes(null))
+        assertNull(QuarantineFormat.formatBytes(-1L))
     }
 
     private fun strings(path: String): Map<String, String> {

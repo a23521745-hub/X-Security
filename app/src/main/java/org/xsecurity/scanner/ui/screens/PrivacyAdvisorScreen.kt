@@ -34,6 +34,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import org.xsecurity.scanner.R
+import org.xsecurity.scanner.autopilot.SystemPackageTreatment
 import org.xsecurity.scanner.privacy.PrivacyItem
 import org.xsecurity.scanner.privacy.PrivacyPhase
 import org.xsecurity.scanner.privacy.PrivacyRisk
@@ -244,13 +245,29 @@ private fun PrivacyRow(item: PrivacyItem, onUninstall: (packageName: String) -> 
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            // Sistem uygulamalari da listelenir; kaldirma karari sistemindir
-            // (devre disi birakma/kaldirma secenegi sistem ekraninda belirir).
-            TextButton(
-                onClick = { onUninstall(item.packageName) },
-                modifier = Modifier.align(Alignment.End)
-            ) {
-                Text(stringResource(R.string.action_uninstall))
+            // P0 ACIL FREN: sistem / guncellenmis sistem paketleri yalnizca raporlanir;
+            // [Kaldir] dugmesi HIC cizilmez (bkz. SystemPackageTreatment). Kaldirma
+            // cagrisi ayrica MainActivity'de tekrar denetlenir (savunma katmani).
+            if (SystemPackageTreatment.isSafelisted(item.isSystem)) {
+                Text(
+                    text = stringResource(R.string.scan_result_system_package_notice),
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.align(Alignment.Start)
+                )
+                Text(
+                    text = stringResource(R.string.scan_result_system_package_detail),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            } else {
+                TextButton(
+                    onClick = { onUninstall(item.packageName) },
+                    modifier = Modifier.align(Alignment.End)
+                ) {
+                    Text(stringResource(R.string.action_uninstall))
+                }
             }
         }
     }

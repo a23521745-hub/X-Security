@@ -176,6 +176,7 @@ object DeviceScanStore {
         item.put("threats", threats)
         item.put("bytes", entry.bytesScanned)
         item.put("duration", entry.durationMillis)
+        item.put("systemPackage", entry.isSystemPackage)
         return item
     }
 
@@ -206,7 +207,10 @@ object DeviceScanStore {
             errorMessage = item.optString("error").ifEmpty { null },
             versionName = item.optString("version").ifEmpty { null },
             bytesScanned = item.optLong("bytes"),
-            durationMillis = item.optLong("duration")
+            durationMillis = item.optLong("duration"),
+            // Older caches have no flag; false keeps the previous (actionable) rendering for
+            // those rows, never the reverse.
+            isSystemPackage = item.optBoolean("systemPackage", false)
         )
     }.getOrNull()
 

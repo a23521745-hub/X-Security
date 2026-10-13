@@ -1,10 +1,10 @@
 package org.xsecurity.scanner.privacy
 
 import android.content.Context
-import android.content.pm.ApplicationInfo
 import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
 import android.os.Build
+import org.xsecurity.scanner.autopilot.SystemPackageSafelist
 
 /**
  * PackageManager -> verilmis hassas izinler (ince Android sarmalayici).
@@ -57,7 +57,9 @@ object PrivacyScanner {
             out += GrantedApp(
                 packageName = packageName,
                 label = label,
-                isSystem = (appInfo.flags and ApplicationInfo.FLAG_SYSTEM) != 0,
+                // P0: tek ortak kural — sistem VE guncellenmis sistem paketleri ayni
+                // "islem yok" muamelesini gorur (bkz. SystemPackageSafelist).
+                isSystem = SystemPackageSafelist.isSystemFlags(appInfo.flags),
                 grantedPermissions = granted
             )
         }

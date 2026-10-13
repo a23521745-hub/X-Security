@@ -16,7 +16,13 @@ class YaraRuleSet(
     val approximateConditions: Int = 0,
     /** Yalnizca `filesize`/`uint16` gibi desteklenmeyen kosullari olan, tamamen atlanan kurallar. */
     val skippedRuleNames: List<String> = emptyList(),
-    val problems: List<String> = emptyList()
+    val problems: List<String> = emptyList(),
+    /**
+     * P0 false-positive brake: rule IDs dropped by [RuleDenylist] at load time. These are
+     * INTENTIONAL skips (not a parse loss) and are also listed in [skippedRuleNames] so the
+     * merged engine statistics keep reporting them.
+     */
+    val deniedRuleNames: List<String> = emptyList()
 ) {
     val ruleCount: Int get() = rules.size
     val isPartial: Boolean

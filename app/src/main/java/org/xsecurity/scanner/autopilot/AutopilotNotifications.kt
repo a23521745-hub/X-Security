@@ -87,7 +87,11 @@ object AutopilotNotifications {
 
         val userMayAct = decision.action == PolicyAction.ASK_USER ||
             decision.action == PolicyAction.BLOCK_AND_QUARANTINE
-        if (userMayAct && !packageName.isNullOrBlank() && !event.isSystemPackage) {
+        // P0 emergency brake: the event flag AND the authoritative safelist must both clear
+        // before a Remove / 24h-allow action is offered.
+        val systemPackage = event.isSystemPackage ||
+            (!packageName.isNullOrBlank() && SystemPackageSafelist.isSystemPackage(context, packageName))
+        if (userMayAct && !packageName.isNullOrBlank() && !systemPackage) {
             builder.addAction(
                 R.drawable.ic_stat_shield,
                 context.getString(R.string.autopilot_allow_24h),

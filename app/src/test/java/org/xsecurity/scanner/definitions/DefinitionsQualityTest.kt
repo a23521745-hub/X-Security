@@ -13,6 +13,7 @@ import org.xsecurity.scanner.core.Digest
 import org.xsecurity.scanner.engine.ApkScannerEngine
 import org.xsecurity.scanner.engine.ScanResult
 import org.xsecurity.scanner.engine.ScanStatus
+import org.xsecurity.scanner.yara.RuleDenylist
 import org.xsecurity.scanner.yara.YaraRuleParser
 import java.io.File
 import java.io.FileOutputStream
@@ -48,8 +49,16 @@ class DefinitionsQualityTest {
         assertEquals("unparsable kural olmamali", 0, set.unparsableRules)
         assertEquals("desteklenmeyen string sozdizimi olmamali", 0, set.unsupportedStrings)
         assertEquals("approximate condition olmamali", 0, set.approximateConditions)
-        assertTrue("atlanan kural olmamali", set.skippedRuleNames.isEmpty())
-        assertTrue(set.problems.isEmpty())
+        // P0 emergency brake: the only skips allowed are denylist skips, and they must be
+        // reported (rule ID listed in problems), never silent.
+        assertTrue("atlanan kural yalnizca denylist olmali: ${set.skippedRuleNames}", set.skippedRuleNames.all { RuleDenylist.isDenied(it) })
+        assertTrue("problem satirlari yalnizca denylist olmali: ${set.problems}", set.problems.all { it.startsWith(RuleDenylist.PROBLEM_PREFIX) })
+        assertTrue("olay kurali (Accessibility_Overlay) aktif olmamali", set.rules.none { it.name == "Android_Suspicious_Accessibility_Overlay_Combo" })
+        assertTrue(
+            "olay kurali denylist raporunda gorunmeli",
+            set.deniedRuleNames.contains("Android_Suspicious_Accessibility_Overlay_Combo") &&
+                set.problems.any { it.contains("Android_Suspicious_Accessibility_Overlay_Combo") }
+        )
     }
 
     @Test

@@ -31,6 +31,25 @@ object QuarantineWording {
     const val KEY_CUT_RESULT_DENIED = "quarantine_cut_result_denied"
     const val KEY_CUT_RESULT_FAILED = "quarantine_cut_result_failed"
 
+    // Record identity: the list shows the real file name/path/size; the hash only lives in detail.
+    const val KEY_LIST_PATH = "quarantine_file_path"
+    const val KEY_LIST_SIZE = "quarantine_file_size"
+    const val KEY_UNKNOWN_FILE = "quarantine_unknown_file"
+    const val KEY_VALUE_UNKNOWN = "quarantine_value_unknown"
+    const val KEY_DETAILS_OPEN = "quarantine_details_open"
+    const val KEY_DETAIL_TITLE = "quarantine_detail_title"
+    const val KEY_DETAIL_CLOSE = "quarantine_detail_close"
+    const val KEY_DETAIL_NAME = "quarantine_detail_name"
+    const val KEY_DETAIL_PATH = "quarantine_detail_path"
+    const val KEY_DETAIL_SIZE = "quarantine_detail_size"
+    const val KEY_DETAIL_DATE = "quarantine_detail_date"
+    const val KEY_DETAIL_VERDICT = "quarantine_detail_verdict"
+    const val KEY_DETAIL_ENGINE = "quarantine_detail_engine"
+    const val KEY_DETAIL_SHA256 = "quarantine_detail_sha256"
+    const val KEY_DETAIL_RESIDUE = "quarantine_detail_residue"
+    const val KEY_DETAIL_VAULT_ID = "quarantine_detail_vault_id"
+    const val KEY_DETAIL_ORIGIN = "quarantine_detail_origin"
+
     // Why the original is still there (shown next to "Delete now")
     const val KEY_HINT_DENIED = "quarantine_cut_hint_denied"
     const val KEY_HINT_PERMISSION = "quarantine_cut_hint_permission"
@@ -68,7 +87,17 @@ object QuarantineWording {
         KEY_HINT_VAULT, KEY_HINT_STILL_PRESENT, KEY_HINT_DELETE_FAILED, KEY_HINT_AWAITING
     )
 
-    val allKeys: Set<String> = originalPresentKeys + originalRemovedKeys + hintKeys + setOf(KEY_ACTION_DELETE_NOW, KEY_ACTION_OPEN_QUARANTINE)
+    /** Record identity list/detail texts (P0: real name/path/size in the list; hash only in detail). */
+    val recordIdentityKeys: Set<String> = setOf(
+        KEY_LIST_PATH, KEY_LIST_SIZE, KEY_UNKNOWN_FILE, KEY_VALUE_UNKNOWN,
+        KEY_DETAILS_OPEN, KEY_DETAIL_TITLE, KEY_DETAIL_CLOSE, KEY_DETAIL_NAME, KEY_DETAIL_PATH,
+        KEY_DETAIL_SIZE, KEY_DETAIL_DATE, KEY_DETAIL_VERDICT, KEY_DETAIL_ENGINE, KEY_DETAIL_SHA256,
+        KEY_DETAIL_RESIDUE, KEY_DETAIL_VAULT_ID, KEY_DETAIL_ORIGIN
+    )
+
+    val allKeys: Set<String> = originalPresentKeys + originalRemovedKeys + hintKeys +
+        recordIdentityKeys + QuarantineFormat.originKeys.values +
+        setOf(KEY_ACTION_DELETE_NOW, KEY_ACTION_OPEN_QUARANTINE)
 
     /** Key for the state line of a file record; null for states that keep the legacy label. */
     fun stateKey(display: QuarantineDisplayState): String? = when (display) {

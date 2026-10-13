@@ -52,6 +52,7 @@ class YaraRuleParser(
         val rules = ArrayList<YaraRule>()
         val problems = ArrayList<String>()
         val skipped = ArrayList<String>()
+        val denied = ArrayList<String>()
         var unparsable = 0
         var unsupportedStrings = 0
         var approximate = 0
@@ -75,9 +76,19 @@ class YaraRuleParser(
                     if (word == "rule") {
                         when (val outcome = parseRule(cursor)) {
                             is RuleOutcome.Ok -> {
-                                rules += outcome.rule
-                                unsupportedStrings += outcome.unsupportedStrings
-                                if (outcome.rule.approximateCondition) approximate++
+                                if (RuleDenylist.isDenied(outcome.rule.name)) {
+                                    // P0 false-positive brake: the rule is dropped at LOAD time
+                                    // (whatever file it came from) and reported, never silently.
+                                    denied += outcome.rule.name
+                                    skipped += outcome.rule.name
+                                    if (problems.size < MAX_PROBLEMS) {
+                                        problems += RuleDenylist.problem(outcome.rule.name)
+                                    }
+                                } else {
+                                    rules += outcome.rule
+                                    unsupportedStrings += outcome.unsupportedStrings
+                                    if (outcome.rule.approximateCondition) approximate++
+                                }
                             }
                             is RuleOutcome.Failed -> {
                                 unparsable++
@@ -99,7 +110,7 @@ class YaraRuleParser(
             }
         }
 
-        return YaraRuleSet(rules, unparsable, unsupportedStrings, approximate, skipped, problems)
+        return YaraRuleSet(rules, unparsable, unsupportedStrings, approximate, skipped, problems, denied)
     }
 
     // --- Kural govdesi ------------------------------------------------------

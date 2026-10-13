@@ -28,7 +28,9 @@ internal class QuarantineDatabase(context: Context) :
                 residue TEXT,
                 source_uri TEXT,
                 source_path TEXT,
-                cut_result TEXT
+                cut_result TEXT,
+                size_bytes INTEGER,
+                scan_origin TEXT
             )""".trimIndent()
         )
         db.execSQL(
@@ -48,6 +50,54 @@ internal class QuarantineDatabase(context: Context) :
             // layer reads as ORIGINAL_PRESENT (nothing was ever removed before v2).
             for (column in listOf("residue", "source_uri", "source_path", "cut_result")) {
                 runCatching { db.execSQL("ALTER TABLE $TABLE_RECORDS ADD COLUMN $column TEXT") }
+            }
+        }
+        if (oldVersion < 3) {
+            // v3: record identity (P0). `size_bytes`/`scan_origin` are new fields; labels that are
+            // only a vault name / staged copy name / hash are backfilled from the recorded original
+            // location, so the list shows the real file name with the file's own extension.
+            for (column in listOf("size_bytes INTEGER", "scan_origin TEXT")) {
+                runCatching { db.execSQL("ALTER TABLE $TABLE_RECORDS ADD COLUMN $column") }
+            }
+            backfillFileLabels(db)
+        }
+    }
+
+    /**
+     * Backfill of legacy file-record labels (v3). Only rows whose label is a placeholder are
+     * touched, and only when the original location yields a real filename; nothing else is read
+     * or rewritten. Uses the same pure rule as the live path ([RecordLabel]).
+     */
+    private fun backfillFileLabels(db: SQLiteDatabase) {
+        runCatching {
+            // Read first, write after the cursor is closed: no UPDATE on the table that is
+            // being iterated. (SQLiteDatabase.query has no 4-argument overload; the 7-argument
+            // form with null groupBy/having/orderBy is the documented one.)
+            val updates = db.query(
+                TABLE_RECORDS,
+                arrayOf("id", "label", "sha256", "vault_file", "source_path", "source_uri"),
+                "package_name = ?",
+                arrayOf(QuarantineHonesty.FILE_VAULT_PACKAGE),
+                null,
+                null,
+                null
+            ).use { cursor ->
+                buildList {
+                    while (cursor.moveToNext()) {
+                        val id = cursor.getString(0)
+                        val label = if (cursor.isNull(1)) null else cursor.getString(1)
+                        val sha256 = if (cursor.isNull(2)) null else cursor.getString(2)
+                        val vaultFile = if (cursor.isNull(3)) null else cursor.getString(3)
+                        val sourcePath = if (cursor.isNull(4)) null else cursor.getString(4)
+                        val sourceUri = if (cursor.isNull(5)) null else cursor.getString(5)
+                        val backfilled = RecordLabel.backfill(label, sha256, vaultFile, sourcePath, sourceUri)
+                            ?: continue
+                        add(id to backfilled)
+                    }
+                }
+            }
+            for ((id, backfilled) in updates) {
+                db.execSQL("UPDATE $TABLE_RECORDS SET label = ? WHERE id = ?", arrayOf<Any>(backfilled, id))
             }
         }
     }
@@ -133,6 +183,8 @@ internal class QuarantineDatabase(context: Context) :
         put("source_uri", sourceUri)
         put("source_path", sourcePath)
         put("cut_result", cutResult)
+        if (sizeBytes == null) putNull("size_bytes") else put("size_bytes", sizeBytes)
+        put("scan_origin", scanOrigin)
     }
 
     private fun android.database.Cursor.record(): QuarantineRecord {
@@ -155,7 +207,9 @@ internal class QuarantineDatabase(context: Context) :
             residue = nullableString("residue")?.let { value -> OriginalResidue.values().firstOrNull { it.name == value } },
             sourceUri = nullableString("source_uri"),
             sourcePath = nullableString("source_path"),
-            cutResult = nullableString("cut_result")
+            cutResult = nullableString("cut_result"),
+            sizeBytes = nullableLong("size_bytes"),
+            scanOrigin = nullableString("scan_origin")
         )
     }
 
@@ -164,9 +218,14 @@ internal class QuarantineDatabase(context: Context) :
         return if (isNull(index)) null else getString(index)
     }
 
+    private fun android.database.Cursor.nullableLong(column: String): Long? {
+        val index = getColumnIndexOrThrow(column)
+        return if (isNull(index)) null else getLong(index)
+    }
+
     companion object {
         private const val DATABASE_NAME = "autopilot-quarantine.db"
-        private const val DATABASE_VERSION = 2
+        private const val DATABASE_VERSION = 3
         private const val TABLE_RECORDS = "quarantine_records"
         private const val TABLE_BYPASSES = "quarantine_bypasses"
     }

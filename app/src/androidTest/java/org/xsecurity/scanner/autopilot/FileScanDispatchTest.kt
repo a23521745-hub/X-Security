@@ -103,6 +103,36 @@ class FileScanDispatchTest {
         }
     }
 
+    @Test fun rescanningTheSameFileUpdatesTheSameRecordInsteadOfAddingASecondRow() {
+        // P0 record dedup: same sha256 + same sourcePath => UPDATE, never a second row.
+        val engine = "YARA-dedup-${System.nanoTime()}"
+        val fixture = File(context.cacheDir, "dispatch-dedup-${System.nanoTime()}").apply { writeText("dedup fixture") }
+        try {
+            val sha = Digest.sha256Hex(fixture)
+            assertEquals(ActionDispatcher.Result.EXECUTED, dispatchKnownBad(fixture, sha, engine))
+            val first = recordFor(engine)!!
+
+            assertEquals(ActionDispatcher.Result.EXECUTED, dispatchKnownBad(fixture, sha, engine))
+
+            QuarantineRepository.restore(context)
+            val matching = QuarantineRepository.records.value.filter {
+                it.packageName == "file-vault" && it.sourcePath == fixture.absolutePath
+            }
+            assertEquals("rescan must not create a second record: $matching", 1, matching.size)
+            val updated = matching.single()
+            assertEquals(first.id, updated.id)
+            assertEquals(QuarantineState.QUARANTINED, updated.state)
+            assertEquals(OriginalResidue.ORIGINAL_PRESENT, updated.residue)
+            assertTrue(updated.updatedAtMillis >= first.updatedAtMillis)
+            // Record identity: the row keeps the real file name and its size, not a hash.
+            assertEquals(fixture.name, updated.label)
+            assertEquals(fixture.length(), updated.sizeBytes)
+            assertTrue(FileVault.verify(context, updated.vaultFileName!!, updated.sha256))
+        } finally {
+            fixture.delete()
+        }
+    }
+
     @Test fun fileWhoseHashNoLongerMatchesTheScanIsNotVaulted() {
         val engine = "YARA-mismatch-${System.nanoTime()}"
         val fixture = File(context.cacheDir, "dispatch-mismatch-${System.nanoTime()}").apply { writeText("changed after scan") }

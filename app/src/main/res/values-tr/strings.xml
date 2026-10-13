@@ -408,7 +408,6 @@
     <string name="quarantine_state">Durum: %1$s</string>
     <string name="quarantine_engine">Sinyal motoru: %1$s</string>
     <string name="quarantine_detected">Tespit: %1$s</string>
-    <string name="quarantine_hash">SHA-256: %1$s…</string>
     <string name="quarantine_failed">En iyi çaba işlemi başarısız: %1$s</string>
     <string name="quarantine_restore">Geri yükle</string>
     <string name="quarantine_retry">Yumuşak karantinayı yeniden dene</string>
@@ -486,4 +485,32 @@
     <string name="settings_all_files_access_title">Tüm dosyalara erişim (tehdit kaldırma)</string>
     <string name="settings_all_files_access_desc_granted">Verildi: doğrulanmış bir tehdidin orijinal dosyası Şimdi Sil dokunuşunuzdan sonra doğrudan kaldırılır.</string>
     <string name="settings_all_files_access_desc_missing">Verilmedi: her Şimdi Sil dokunuşu bunun yerine Android silme onayından geçer. İsteğe bağlı.</string>
+
+    <!-- P0 kayıt kimliği: liste, taranan dosyanın GERÇEK adını (kendi uzantısıyla), yolunu,
+         boyutunu ve tarama tarihini gösterir; SHA-256 yalnızca ayrıntı görünümünde çıkar. -->
+    <string name="quarantine_file_path">Yol: %1$s</string>
+    <string name="quarantine_file_size">Boyut: %1$s</string>
+    <string name="quarantine_unknown_file">Bilinmeyen dosya</string>
+    <string name="quarantine_value_unknown">bilinmiyor</string>
+    <string name="quarantine_details_open">Ayrıntılar</string>
+    <string name="quarantine_detail_title">Kayıt ayrıntıları</string>
+    <string name="quarantine_detail_close">Kapat</string>
+    <string name="quarantine_detail_name">Dosya adı: %1$s</string>
+    <string name="quarantine_detail_path">Yol: %1$s</string>
+    <string name="quarantine_detail_size">Boyut: %1$s</string>
+    <string name="quarantine_detail_date">Tarama tarihi: %1$s</string>
+    <string name="quarantine_detail_verdict">Hüküm: %1$s</string>
+    <string name="quarantine_detail_engine">Sinyal motoru: %1$s</string>
+    <string name="quarantine_detail_sha256">SHA-256: %1$s</string>
+    <string name="quarantine_detail_residue">Orijinal: %1$s</string>
+    <string name="quarantine_detail_vault_id">Kasa kaydı: %1$s</string>
+    <string name="quarantine_detail_origin">Tarama kaynağı: %1$s</string>
+    <string name="quarantine_origin_download_watch">indirme izleyici (gerçek zamanlı)</string>
+    <string name="quarantine_origin_file_picker">dosya seçici (kullanıcı)</string>
+    <string name="quarantine_origin_unknown">bilinmiyor</string>
+
+    <!-- P0 acil fren: sistem / güncellenmiş sistem paketi için hüküm bir rapordur, eylem değil.
+         Bu metin tarama sonuç ekranlarındaki tüm Kaldır/Karantina düğmelerinin yerini alır. -->
+    <string name="scan_result_system_package_notice">Sistem uygulaması — işlem yok</string>
+    <string name="scan_result_system_package_detail">Sistem veya güncellenmiş sistem uygulamaları için işlem yok: kaldırma ve karantina uygulanmaz; böyle bir paket yalnızca incelenmek üzere işaretlenir.</string>
 </resources>

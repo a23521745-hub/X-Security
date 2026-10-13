@@ -19,7 +19,13 @@ data class AppScanEntry(
     val errorMessage: String? = null,
     val versionName: String? = null,
     val bytesScanned: Long = 0L,
-    val durationMillis: Long = 0L
+    val durationMillis: Long = 0L,
+    /**
+     * P0 false-positive brake: system / updated-system package (`FLAG_SYSTEM` /
+     * `FLAG_UPDATED_SYSTEM_APP`). Scan-result UI must never offer Remove/Quarantine for it.
+     * Defaults to false for entries decoded from older caches.
+     */
+    val isSystemPackage: Boolean = false
 ) {
     val isInfected: Boolean get() = threats.isNotEmpty()
     val isFailed: Boolean get() = status == ScanStatus.FAILED
@@ -53,7 +59,10 @@ object DeviceScanSummary {
             errorMessage = failed.firstNotNullOfOrNull { it.errorMessage },
             versionName = app.versionName,
             bytesScanned = results.sumOf { it.bytesScanned },
-            durationMillis = results.sumOf { it.durationMillis }
+            durationMillis = results.sumOf { it.durationMillis },
+            // System and updated-system apps are carried into the UI so it can show the
+            // "no action" treatment instead of a Remove button.
+            isSystemPackage = app.isSystem || app.isUpdatedSystem
         )
     }
 

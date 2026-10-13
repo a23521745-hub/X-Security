@@ -72,6 +72,11 @@ sealed class SecurityEvent(open val occurredAtMillis: Long) {
         val verdict: SecuritySignal.Verdict,
         val engine: String,
         val sourceUri: String? = null,
+        /**
+         * Where the scan was triggered from (download watcher / file picker). Shown as the
+         * record's "scan origin" in the quarantine detail view; a code, never content.
+         */
+        val origin: String? = null,
         override val occurredAtMillis: Long = System.currentTimeMillis()
     ) : SecurityEvent(occurredAtMillis) {
         override val type = Type.FILE_SCAN
