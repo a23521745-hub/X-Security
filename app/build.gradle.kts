@@ -48,7 +48,7 @@ android {
         applicationId = "org.xsecurity.scanner"
         minSdk = 26
         targetSdk = 35
-        versionCode = 19
+        versionCode = 20
         versionName = "0.93.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
