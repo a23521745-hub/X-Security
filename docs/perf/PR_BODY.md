@@ -77,7 +77,7 @@ egress only; Google Maven/Gradle hosts unreachable), so every number is labelled
 | Smooth 400-app scroll | 30× fewer binder calls (J4) + lazy rows; **owner phone smoke test pending** |
 | Cold start p50 < 2 s | cold-start disk/DB/scheduling off main (F3/F3b/F3c, order proof in audit §2a); **owner phone smoke test pending** |
 | StrictMode-clean debug | StrictMode enabled in debug (`penaltyLog`); every main-thread disk/DB/asset call found in the startup path moved; **owner smoke test on a debug build pending** |
-| Suite green | 14 new regression locks (`SystemPackageCacheTest`, `ProgressCoalescerTest`); **CI green** on this branch — run [38478814170](https://github.com/a23521745-hub/X-Security/actions/runs/38478814170) (code commit) and [38479725828](https://github.com/a23521745-hub/X-Security/actions/runs/38479725828) (docs commit); the rebased head's own run is linked on the checks page |
+| Suite green | 14 new regression locks (`SystemPackageCacheTest`, `ProgressCoalescerTest`); **CI green on the rebased head `e0530b7`** — run [38536642671](https://github.com/a23521745-hub/X-Security/actions/runs/38536642671): `Run Unit Tests` ✓, `Run Android Lint Checks` ✓, `Build Release APK` ✓ (pre-rebase runs: [38478814170](https://github.com/a23521745-hub/X-Security/actions/runs/38478814170), [38479725828](https://github.com/a23521745-hub/X-Security/actions/runs/38479725828)) |
 
 ### Owner phone smoke test (replaces `device-probe.sh` for this gate)
 

@@ -114,7 +114,7 @@ the `mutableStateOf` assignments stay on main).
 | Smooth 400-app scroll | structural fix shipped ([JVM] 30× fewer binder calls, lazy rows); **owner phone smoke test pending** | F2/F4 + §4b |
 | Cold start p50 < 2 s | cold-start disk/DB/scheduling path cleared (J1 + F3/F3b/F3c + §2a); **owner phone smoke test pending** | F3 + §4b |
 | StrictMode-clean debug | StrictMode (`penaltyLog`) enabled in debug; every main-thread disk/DB/asset call found in the startup path moved; **owner smoke test on a debug build pending** | F6 + F3 + §4b |
-| Suite green | 14 new regression locks (`SystemPackageCacheTest`, `ProgressCoalescerTest`); CI green on the code commit and on the docs commit of this branch (run URLs in §6) | CI |
+| Suite green | 14 new regression locks (`SystemPackageCacheTest`, `ProgressCoalescerTest`); **CI green on the rebased head** — run [38536642671](https://github.com/a23521745-hub/X-Security/actions/runs/38536642671) (`Run Unit Tests` ✓, `Run Android Lint Checks` ✓, `Build Release APK` ✓) | CI |
 
 ### 4a. What the JVM harness can and cannot say
 
@@ -161,10 +161,14 @@ counters); it is simply not required to close this gate.
   **`git diff origin/main..HEAD --stat`** / `git diff origin/main..HEAD`, which is exact after the
   rebase onto `8cebdfc`.
 * This branch was rebased onto `8cebdfc` so it is based on the *updated* main, as required.
-* CI (unit tests + Android lint + release APK build, all green):
-  * code commit (pre-rebase) — run [38478814170](https://github.com/a23521745-hub/X-Security/actions/runs/38478814170)
-  * docs commit (pre-rebase) — run [38479725828](https://github.com/a23521745-hub/X-Security/actions/runs/38479725828)
-  * the rebased head's own run is linked from the PR checks page and quoted in the gate message.
+* CI — unit tests + Android lint + release APK build, **all green**:
+  * rebased branch head `e0530b7` (perf commit `9a10b52` + this docs commit) — run
+    [38536642671](https://github.com/a23521745-hub/X-Security/actions/runs/38536642671):
+    `Calculate Version` ✓, `Run Unit Tests` ✓, `Run Android Lint Checks` ✓, `Build Release APK` ✓
+  * pre-rebase runs of the same content (kept for traceability):
+    [38478814170](https://github.com/a23521745-hub/X-Security/actions/runs/38478814170),
+    [38479725828](https://github.com/a23521745-hub/X-Security/actions/runs/38479725828)
+  * a docs-only follow-up commit gets its own run; it is linked from the PR checks page.
 
 ## 7. Scope discipline
 
