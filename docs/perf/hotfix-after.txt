@@ -1,0 +1,35 @@
+== X-Security perf harness (JVM 25.0.2) ==
+repo: /home/user/X-Security
+signature files: yara=3211B ndb=1847B hsb=4462B
+
+== engine load (production parsers, bundled database) ==
+  run 1: 75.1 ms  allocated=3.7 MB  fingerprint=/home/user/X-Sec
+  run 2: 4.5 ms  allocated=0.2 MB  fingerprint=/home/user/X-Sec
+  run 3: 3.8 ms  allocated=0.2 MB  fingerprint=/home/user/X-Sec
+
+== scan throughput (streaming matcher + APK/ZIP entry scan) ==
+  raw 64 MiB: status=CLEAN bytesScanned=134217728 median=566.3 ms throughput=226.0 MB/s allocated=0.5 MB
+  zip/apk 8 MiB: status=THREATS_FOUND bytesScanned=25500102 median=110.3 ms throughput=220.4 MB/s allocated=1.2 MB
+
+== baseline mechanism counts (the two list/notification offenders) ==
+  quarantine list: 400 rows x 30 recompositions
+    PackageManager queries before hoisting: 12000 (one per row per recomposition)
+  device scan: 400 apps
+    progress publications before coalescing: 400 (notification + full list republish)
+
+== optimization mechanisms (production classes, JVM) ==
+  quarantine list: 400 rows x 30 recompositions
+    baseline PackageManager queries : 12000
+    after    PackageManager queries : 400 (cache hits 11600, entries 400)
+    reduction                       : 30.0x
+    cache overhead for 400 x 30 answers: 3.78 ms total (JVM, no binder)
+  400-app scan progress publications
+    baseline (one per app)          : 400
+    after    (5% step + 500 ms floor): 21
+    duplicate final publish           : false (false = 100% posted exactly once)
+    total publishes including start   : 22
+  sanity: blank package is fail-safe=true, first publish=true
+
+== note ==
+  device rows (cold start p50, jank, PSS, wakeups/hour) are produced by tools/perf/device-probe.sh
+  local artifacts: /tmp/xsec-perf/corpus-64m.bin (67108864 B), /tmp/xsec-perf/corpus.apk
