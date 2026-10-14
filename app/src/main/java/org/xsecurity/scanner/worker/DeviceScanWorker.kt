@@ -14,6 +14,7 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import org.xsecurity.scanner.R
 import org.xsecurity.scanner.community.CommunityStore
+import org.xsecurity.scanner.core.ProgressCoalescer
 import org.xsecurity.scanner.data.EngineInfo
 import org.xsecurity.scanner.data.ScanHistoryEntry
 import org.xsecurity.scanner.data.ScanHistoryStore
@@ -148,6 +149,7 @@ class DeviceScanWorker(
         }
 
         val completed = AtomicInteger(0)
+        val progressGate = ProgressCoalescer()
         val dispatcher = Dispatchers.IO.limitedParallelism(scanParallelism())
         try {
             coroutineScope {

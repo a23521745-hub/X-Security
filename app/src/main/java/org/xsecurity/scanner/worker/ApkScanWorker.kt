@@ -8,6 +8,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.xsecurity.scanner.R
+import org.xsecurity.scanner.core.ProgressCoalescer
 import org.xsecurity.scanner.data.EngineInfo
 import org.xsecurity.scanner.data.ScanController
 import org.xsecurity.scanner.data.ScanHistoryEntry
@@ -96,13 +97,14 @@ class ApkScanWorker(
         val engineInfo = EngineInfo.from(engine, yaraFile?.absolutePath, clamFile?.absolutePath, hashFile?.absolutePath)
         ScanStore.publishEngine(engineInfo)
 
-        var lastNotifiedPercent = -1
+        // PERF audit: ayni kapi (5% adim + 500 ms taban) tek dosya taramasinda da gecerlidir;
+        // ilk olcum ve 100% her zaman yayinlanir, ara adimlar ayni kaliyor.
+        val progressGate = ProgressCoalescer(minPercentStep = PROGRESS_NOTIFY_STEP, minIntervalMillis = 500L)
         val result = try {
             engine.scan(staged) { fraction ->
                 ScanStore.setProgress(fraction)
                 val percent = (fraction * 100f).toInt()
-                if (percent - lastNotifiedPercent >= PROGRESS_NOTIFY_STEP || percent >= 100) {
-                    lastNotifiedPercent = percent
+                if (progressGate.shouldPublish(percent, 100)) {
                     ScanNotifications.showProgress(context, displayName, fraction)
                 }
             }

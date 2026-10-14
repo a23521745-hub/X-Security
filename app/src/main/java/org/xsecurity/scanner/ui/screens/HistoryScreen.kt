@@ -16,8 +16,9 @@ import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.List
@@ -238,13 +239,16 @@ fun HistoryScreen(
                 }
             }
         } else {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState()),
+            // PERF: gecmis listesi (<=200 kayit) non-lazy Column'da tum satirlari kuruyordu;
+            // LazyColumn + kararli anahtar ile yalnizca gorunur satirlar kurulur.
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                filtered.forEachIndexed { index, entry ->
+                itemsIndexed(
+                    items = filtered,
+                    key = { index, entry -> "${entry.timestamp}-$index" }
+                ) { index, entry ->
                     HistoryRow(
                         entry = entry,
                         expanded = index == expandedIndex,
