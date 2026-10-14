@@ -16,6 +16,8 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.Dispatchers
@@ -67,6 +69,7 @@ import org.xsecurity.scanner.engine.ScanEngines
 import org.xsecurity.scanner.ota.OtaController
 import org.xsecurity.scanner.ota.OtaNotifications
 import org.xsecurity.scanner.ota.OtaStore
+import org.xsecurity.scanner.perf.PerfProbe
 import org.xsecurity.scanner.ui.screens.DashboardScreen
 import org.xsecurity.scanner.ui.screens.HistoryScreen
 import org.xsecurity.scanner.ui.screens.PhishingScreen
@@ -143,41 +146,43 @@ class MainActivity : ComponentActivity() {
         // ikon rengini arka plana gore seciyor (eski kod status bar'i koyu boyaya
         // koyu ikonla ciziyordu).
         enableEdgeToEdge()
+        // Debug-only: StrictMode (penaltyLog) + stage timings; no-op in release builds.
+        PerfProbe.installDebugProbes()
 
-        SignatureStore.ensureBundledDefaults(this)
+        // Bildirim kanallari yalnizca IPC'dir (disk okuma yok): ana dizide kalir.
         ScanNotifications.ensureChannel(this)
         OtaNotifications.ensureChannel(this)
-        ScanStore.restore(this)
-        OtaStore.restore(this)
-        DefinitionsStore.restore(this)
-        DeviceScanStore.restore(this)
-        ScanHistoryStore.restore(this)
-        ProtectionSettings.restore(this)
-        UpdatePreferences.restore(this)
-        EdrAlertStore.restore(this)
-        PhishingStore.restore(this)
-        HealthStore.refresh(this)
-        AutopilotSettings.restore(this)
-        QuarantineRepository.restore(this)
         AutopilotNotifications.ensureChannels(this)
-        refreshEdrSnapshot()
-        refreshAutopilotStatus()
-        applyProtectionMode(promptForStorage = false)
-        requestNotificationPermissionIfNeeded()
-        maybeShowAllFilesOnboarding()
+
+        // COLD START (perf audit): this block used to open SQLite, decode up to 400 device-scan
+        // entries / 200 history entries, parse the phishing list from assets and stat the su paths
+        // ON THE MAIN THREAD. All of it only publishes StateFlow state, so it now runs on
+        // Dispatchers.IO; the UI keeps its previous default state for the few milliseconds until
+        // the flows publish (same values, same order).
+        val launchRestoreStartedAt = PerfProbe.markStart()
+        lifecycleScope.launch {
+            val probe = withContext(Dispatchers.IO) {
+                val restored = restoreLaunchState()
+                // WorkManager kaydi (DB/IPC): eskiden de restore'DAN SONRA cagriliyordu, simdi
+                // ayni sirada fakat ana dizide degil. Existing WorkManager schedulers remain the
+                // owner of OTA/definition checks.
+                AutopilotScheduler.schedule(this@MainActivity)
+                OtaController.schedulePeriodicCheck(this@MainActivity)
+                DefinitionsController.schedulePeriodicCheck(this@MainActivity)
+                restored
+            }
+            PerfProbe.markEnd("cold_start_restore", launchRestoreStartedAt)
+            refreshStartupUi(probe)
+            // Motor yuklemesi restore'DAN SONRA: ilk kurulumda gomulu imza dosyalarini yazan adim
+            // (SignatureStore.ensureBundledDefaults) tamamlanmis olur — eski sira korunur ve
+            // motorun dosyalari gormeden yuklenmeye calismasi yarisi ortadan kalkar.
+            reloadEngine()
+        }
         handleOpenQuarantine(intent)
         // Originals still waiting for the user's "Delete now" tap stay visible after restarts.
         lifecycleScope.launch(Dispatchers.IO) {
             runCatching { VaultDeleteFlow.refreshPendingNotifications(this@MainActivity) }
         }
-        // Existing WorkManager schedulers remain the owner of OTA/definition checks.
-        AutopilotScheduler.schedule(this)
-        // Gunluk imzali guncelleme kontrolu (yalnizca ag bagliyken; bildirim sessiz).
-        OtaController.schedulePeriodicCheck(this)
-        // Gunluk imzali TANIM paketi kontrolu (ayni anahtar/kanal; kurulum otomatik).
-        DefinitionsController.schedulePeriodicCheck(this)
-        CommunityStore.publish(this)
-        reloadEngine()
 
         setContent {
             XSecurityTheme {
@@ -193,6 +198,13 @@ class MainActivity : ComponentActivity() {
                 val phishingBlocklistState by PhishingStore.state.collectAsState()
                 val quarantineRecords by QuarantineRepository.records.collectAsState()
                 val autonomyLevel by AutopilotSettings.autonomy.collectAsState()
+                // PackageManager sorgusu bir recomposition isi degildir: surec basina bir kez
+                // cozulur (once her recomposition'da bir binder cagrisi yapiliyordu).
+                val installedVersionCode = remember { OtaController.currentVersionCode(this) }
+                // Oltalama listesi asset/dosyadan okunur: ana dizide degil, IO'da isitilir.
+                val phishingBlocklist by produceState(initialValue = emptySet(), key1 = this) {
+                    value = withContext(Dispatchers.IO) { PhishingStore.blocklist(this@MainActivity) }
+                }
                 // Sistem geri dongusu alt ekranlardan dashboard'a doner.
                 BackHandler(enabled = showHistory) { showHistory = false }
                 BackHandler(enabled = showSettings) { showSettings = false }
@@ -309,7 +321,7 @@ class MainActivity : ComponentActivity() {
                     SettingsScreen(
                         settings = updateSettings,
                         versionName = appVersionName(),
-                        versionCode = OtaController.currentVersionCode(this),
+                        versionCode = installedVersionCode,
                         autonomyLevel = autonomyLevel,
                         healthScore = autopilotHealthScore,
                         quarantineCount = quarantineRecords.size,
@@ -334,7 +346,7 @@ class MainActivity : ComponentActivity() {
                     )
                 } else if (showPhishing) {
                     PhishingScreen(
-                        blocklist = PhishingStore.blocklist(this),
+                        blocklist = phishingBlocklist,
                         blocklistState = phishingBlocklistState,
                         onUpdateList = {
                             lifecycleScope.launch { PhishingStore.refresh(this@MainActivity) }
@@ -357,7 +369,7 @@ class MainActivity : ComponentActivity() {
                         defState = defState,
                         deviceState = deviceState,
                         protectionState = protectionState,
-                        installedVersionCode = OtaController.currentVersionCode(this),
+                        installedVersionCode = installedVersionCode,
                         historyEntries = historyEntries,
                         onScanApk = { apkPicker.launch(APK_MIME_TYPES) },
                         onScanDevice = { includeSystem -> queueDeviceScan(includeSystem) },
@@ -395,21 +407,20 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        // Worker baska bir surecten calissa bile sonucui yenile.
-        ScanStore.restore(this)
-        OtaStore.restore(this)
-        DefinitionsStore.restore(this)
-        DeviceScanStore.restore(this)
-        ScanHistoryStore.restore(this)
-        QuarantineRepository.restore(this)
-        AutopilotSettings.restore(this)
-        // Kullanici sistem ayarlarindan donmus olabilir (erisim izni, erisilebilirlik...).
-        HealthStore.refresh(this)
-        refreshEdrSnapshot()
-        refreshAutopilotStatus()
-        refreshProtection()
-        QuarantinePendingActionStore.consumeUninstall(this)?.let { pending ->
-            pending.recordId?.let { QuarantineUserActions.markUninstalledAfterUserConfirmation(this, it) }
+        // Worker baska bir surecten calissa bile sonucui yenile. Disk/DB okumasi ana dizide
+        // yapilmaz (perf audit): ayni cagrilar IO'da kosar, ardindan sistem probe'lari ana dizide
+        // tazelenir.
+        lifecycleScope.launch {
+            val pending = withContext(Dispatchers.IO) {
+                restoreResumedState()
+                // Prefs okuma/yazma: ana dizide degil (StrictMode).
+                QuarantinePendingActionStore.consumeUninstall(this@MainActivity)
+            }
+            // Kullanici sistem ayarlarindan donmus olabilir (erisim izni, erisilebilirlik...).
+            refreshEdrSnapshot()
+            refreshAutopilotStatus()
+            refreshProtection()
+            pending?.recordId?.let { QuarantineUserActions.markUninstalledAfterUserConfirmation(this@MainActivity, it) }
         }
         pendingUninstall?.let { packageName ->
             pendingUninstall = null
@@ -417,6 +428,56 @@ class MainActivity : ComponentActivity() {
             if (!isPackageInstalled(packageName)) DeviceScanStore.removePackage(this, packageName)
         }
     }
+
+    /**
+     * Cold-start state publication (onCreate). Every call here only reads disk/DB/assets and
+     * publishes StateFlow/bellege state — never touches a View or a Compose state — so it is safe
+     * on [Dispatchers.IO]. Order mirrors the old main-thread sequence.
+     */
+    private fun restoreLaunchState(): LaunchProbe {
+        SignatureStore.ensureBundledDefaults(this)
+        ScanStore.restore(this)
+        OtaStore.restore(this)
+        DefinitionsStore.restore(this)
+        DeviceScanStore.restore(this)
+        ScanHistoryStore.restore(this)
+        ProtectionSettings.restore(this)
+        UpdatePreferences.restore(this)
+        EdrAlertStore.restore(this)
+        PhishingStore.restore(this)
+        HealthStore.refresh(this)
+        AutopilotSettings.restore(this)
+        QuarantineRepository.restore(this)
+        CommunityStore.publish(this)
+        return LaunchProbe(showAllFilesOnboarding = consumeAllFilesOnboarding())
+    }
+
+    /** onResume half: the exact set of stores that were re-read on every resume before. */
+    private fun restoreResumedState() {
+        ScanStore.restore(this)
+        OtaStore.restore(this)
+        DefinitionsStore.restore(this)
+        DeviceScanStore.restore(this)
+        ScanHistoryStore.restore(this)
+        QuarantineRepository.restore(this)
+        AutopilotSettings.restore(this)
+        HealthStore.refresh(this)
+    }
+
+    /**
+     * Main-thread half of the cold start: probes that read system settings / start services and
+     * publish Compose state (they must not be assigned from a background thread).
+     */
+    private fun refreshStartupUi(probe: LaunchProbe) {
+        refreshEdrSnapshot()
+        refreshAutopilotStatus()
+        applyProtectionMode(promptForStorage = false)
+        requestNotificationPermissionIfNeeded()
+        if (probe.showAllFilesOnboarding) showAllFilesOnboarding = true
+    }
+
+    /** Result of the IO half of startup, consumed by the main-thread half. */
+    private class LaunchProbe(val showAllFilesOnboarding: Boolean)
 
     /**
      * Koruma moduna gore: kurulum kalkaninin dinamik kaydi + "Her zaman acik" servisi.
@@ -569,12 +630,12 @@ class MainActivity : ComponentActivity() {
      * directly after the user's tap; without it the same tap goes through the Android delete
      * dialog (graceful fallback), so declining here costs one extra tap per removal, nothing more.
      */
-    private fun maybeShowAllFilesOnboarding() {
-        if (StorageAccess.hasDirectDeleteAccess(this)) return
+    private fun consumeAllFilesOnboarding(): Boolean {
+        if (StorageAccess.hasDirectDeleteAccess(this)) return false
         val prefs = getSharedPreferences(ONBOARDING_PREFS, MODE_PRIVATE)
-        if (prefs.getBoolean(KEY_ALL_FILES_RATIONALE_SHOWN, false)) return
+        if (prefs.getBoolean(KEY_ALL_FILES_RATIONALE_SHOWN, false)) return false
         prefs.edit().putBoolean(KEY_ALL_FILES_RATIONALE_SHOWN, true).apply()
-        showAllFilesOnboarding = true
+        return true
     }
 
     private fun handleOpenQuarantine(intent: Intent?) {

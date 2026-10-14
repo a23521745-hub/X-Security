@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -38,8 +40,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import org.xsecurity.scanner.R
-import org.xsecurity.scanner.autopilot.SystemPackageSafelist
 import org.xsecurity.scanner.autopilot.SystemPackageTreatment
+import org.xsecurity.scanner.ui.rememberSystemPackageCache
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -56,8 +58,9 @@ import java.util.Locale
  * ("Details"), which shows every stored field.
  *
  * Emergency brake (P0): a record whose package is a system / updated-system package
- * ([SystemPackageSafelist]) offers no Remove/Quarantine/Retry control — only the
- * "system app — no action taken" notice and metadata deletion.
+ * (`SystemPackageSafelist`, answered through a hoisted [rememberSystemPackageCache]) offers no
+ * Remove/Quarantine/Retry control — only the "system app — no action taken" notice and metadata
+ * deletion.
  */
 @Composable
 fun QuarantineScreen(
@@ -71,7 +74,12 @@ fun QuarantineScreen(
     onDeleteRecord: (QuarantineRecord) -> Unit = {}
 ) {
     val context = LocalContext.current
-    val formatter = SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault())
+    // Hoisted out of the row composable: the system-package answer is a PackageManager binder
+    // call, and it used to run once per record on every recomposition of the list.
+    val systemPackages = rememberSystemPackageCache()
+    // Micro-fix (same pattern as the other list screens): the formatter was allocated on every
+    // recomposition of this list.
+    val formatter = remember { SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault()) }
     var detailRecord by remember { mutableStateOf<QuarantineRecord?>(null) }
     Column(
         modifier = Modifier
@@ -101,11 +109,11 @@ fun QuarantineScreen(
         if (records.isEmpty()) {
             Text(stringResource(R.string.quarantine_empty), modifier = Modifier.padding(16.dp))
         } else {
-            Column(
-                modifier = Modifier.verticalScroll(rememberScrollState()),
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                records.forEach { record ->
+                items(records, key = { record -> record.id }) { record ->
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(16.dp),
@@ -118,7 +126,7 @@ fun QuarantineScreen(
                         val unknown = stringResource(R.string.quarantine_value_unknown)
                         // P0 emergency brake: system / updated-system packages are a report, not an action.
                         val safelistedSystem = !isFile && SystemPackageTreatment.isSafelisted(
-                            SystemPackageSafelist.isSystemPackage(context, record.packageName)
+                            systemPackages.isSystem(record.packageName)
                         )
                         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             // Real file name (its own extension) — never a vault name or a hash.

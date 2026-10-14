@@ -12,9 +12,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.filled.Lock
@@ -184,13 +184,14 @@ fun PrivacyAdvisorScreen(
                 )
             }
             else -> {
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .verticalScroll(rememberScrollState()),
+                // PERF: bu liste 400 uygulamaya kadar cikabiliyor ve non-lazy Column kaydirma
+                // sirasinda TUM satirlari kuruyordu; artik yalnizca gorunur satirlar kurulur ve
+                // paket adi kararli anahtardir (recomposition'da satir kimligi korunur).
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    state.items.forEach { item ->
+                    items(state.items, key = { item -> item.packageName }) { item ->
                         PrivacyRow(item = item, onUninstall = onUninstall)
                     }
                 }
