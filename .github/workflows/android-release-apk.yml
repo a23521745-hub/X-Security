@@ -84,6 +84,38 @@ jobs:
       - name: Run Unit Tests
         run: ./gradlew --no-daemon :app:testDebugUnitTest
 
+      - name: Report failed test names
+        # Kirmizi CI'da basarisiz testin ADINI annotation olarak yazar (ALI-18:
+        # log/artifact erisimi kisitli ortamlarda kor tani icin). Gradle JUnit
+        # XML'lerini okur; yeni action/permission gerektirmez (stdlib python3).
+        # Yesil kosularda calismaz (failure kosulu).
+        if: failure()
+        run: |
+          python3 - <<'PYEOF'
+          import glob, os, xml.etree.ElementTree as ET
+          hits = 0
+          for path in sorted(glob.glob('app/build/test-results/testDebugUnitTest/*.xml')):
+              try:
+                  root = ET.parse(path).getroot()
+              except Exception as exc:
+                  print(f"::warning::could not parse {path}: {exc}")
+                  continue
+              for tc in root.iter('testcase'):
+                  for tag in ('failure', 'error'):
+                      bad = tc.find(tag)
+                      if bad is None:
+                          continue
+                      classname = tc.get('classname') or '?'
+                      testfile = 'app/src/test/java/' + classname.replace('.', '/') + '.kt'
+                      if not os.path.isfile(testfile):
+                          testfile = path
+                      msg = (bad.get('message') or tag).strip().splitlines()
+                      msg = msg[0][:500] if msg else tag
+                      print(f"::error file={testfile},title=FAIL {classname}#{tc.get('name')}::{msg}")
+                      hits += 1
+          print(f"reported {hits} failed test(s)")
+          PYEOF
+
       - name: Run Android Lint Checks
         run: ./gradlew --no-daemon :app:lintDebug
 
