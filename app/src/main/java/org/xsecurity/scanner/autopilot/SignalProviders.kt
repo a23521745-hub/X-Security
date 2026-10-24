@@ -50,7 +50,8 @@ class ScannerVerdictProvider(
         fun classify(results: List<ScanResult>): SecuritySignal = when {
             results.any { it.status == org.xsecurity.scanner.engine.ScanStatus.THREATS_FOUND || it.threats.isNotEmpty() } ->
                 signal(SecuritySignal.Verdict.KNOWN_BAD, SecuritySignal.Risk.HIGH, "signature_match")
-            results.isNotEmpty() && results.all { it.isComplete && !it.isInfected } ->
+            // ALI-18 review: kismi tarama KNOWN_GOOD'a dusmez; eksik kanit UNKNOWN'dur.
+            results.isNotEmpty() && results.all { it.isComplete && !it.isInfected && !it.partialScan } ->
                 signal(SecuritySignal.Verdict.KNOWN_GOOD, SecuritySignal.Risk.LOW, "complete_scan_no_match")
             else -> signal(SecuritySignal.Verdict.UNKNOWN, SecuritySignal.Risk.HIGH, "scan_incomplete")
         }

@@ -33,6 +33,7 @@ import org.xsecurity.scanner.engine.ApkScannerEngine
 import org.xsecurity.scanner.engine.ScanEngines
 import org.xsecurity.scanner.engine.ScanResult
 import org.xsecurity.scanner.engine.ScanStatus
+import org.xsecurity.scanner.ota.OtaController
 import java.io.File
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -127,13 +128,16 @@ class DeviceScanWorker(
             InstalledAppPolicy.Options(includeSystemApps = includeSystem, selfPackage = context.packageName)
         )
 
-        // Onbellek: parmak izi + surum + guncelleme zamani uyunan uygulamalar bu turde
-        // yeniden taranmaz (girdileri onceden taranmis halini tasir).
+        // Onbellek: parmak izi + tarayici surumu + paket surumu + guncelleme zamani
+        // uyusan uygulamalar bu turde yeniden taranmaz (ALI-18 review: motor
+        // mantigi uygulama guncellemesiyle degisebilir, imza ayni kalsa bile).
+        val scannerVersion = OtaController.currentVersionCode(context)
         val cacheFile = DeviceScanCache.file(context)
         val cache = DeviceScanCache.load(cacheFile)
         val cacheHits = HashMap<String, AppScanEntry>()
         for (app in targets) {
-            DeviceScanCache.hitFor(cache, engine.fingerprint, app)?.let { cacheHits[app.packageName] = it }
+            DeviceScanCache.hitFor(cache, engine.fingerprint, scannerVersion, app)
+                ?.let { cacheHits[app.packageName] = it }
         }
 
         val displayName = context.getString(R.string.device_scan_result_name, targets.size)
@@ -200,7 +204,10 @@ class DeviceScanWorker(
                     )
             )
         }
-        runCatching { DeviceScanCache.save(cacheFile, DeviceScanCache.Snapshot(engine.fingerprint, freshCache)) }
+        runCatching {
+            val snapshot = DeviceScanCache.Snapshot(engine.fingerprint, freshCache, scannerVersion)
+            DeviceScanCache.save(cacheFile, snapshot)
+        }
 
         DeviceScanStore.publish(context, entries, cachedCount = cacheHits.size)
         ScanStore.publishResult(context, summary)

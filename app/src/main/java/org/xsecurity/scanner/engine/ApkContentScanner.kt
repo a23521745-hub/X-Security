@@ -66,6 +66,12 @@ object ApkContentScanner {
         var bytesRead: Long = 0L
             private set
 
+        override fun read(): Int {
+            val one = ByteArray(1)
+            val read = read(one, 0, 1)
+            return if (read < 0) -1 else one[0].toInt() and 0xFF
+        }
+
         override fun read(b: ByteArray, off: Int, len: Int): Int {
             if (bytesRead >= maxBytes) {
                 // Cap doldu: altta okunmamis veri kaldi mi?
@@ -146,21 +152,47 @@ object ApkContentScanner {
         }
 
         try {
-            val all = zip.entries().toList().filter { !it.isDirectory }
-            val ordered = all.sortedWith(compareBy { entry: ZipEntry -> priorityRank(entry.name) })
+            // ALI-18 review: merkez dizin bellekte tumden listelenmez; tek geciste
+            // en iyi ilk-N (oncelik, sira) adayi tutulur. Secim semantigi aynidir,
+            // bellek en fazla maxEntries ZipEntry referansi tutar.
+            val top = ArrayList<Triple<Int, Int, ZipEntry>>(maxEntries.coerceAtMost(384).coerceAtLeast(0))
+            var seq = 0
+            var overflow = 0
+            val zipEntries = zip.entries()
+            while (zipEntries.hasMoreElements()) {
+                val entry = zipEntries.nextElement()
+                if (entry.isDirectory) continue
+                val candidate = Triple(priorityRank(entry.name), seq++, entry)
+                if (top.size < maxEntries) {
+                    top += candidate
+                } else if (maxEntries <= 0) {
+                    overflow++
+                } else {
+                    var worst = 0
+                    for (i in 1 until top.size) {
+                        val a = top[i]
+                        val b = top[worst]
+                        if (a.first > b.first || (a.first == b.first && a.second > b.second)) worst = i
+                    }
+                    val beaten = top[worst]
+                    if (candidate.first < beaten.first ||
+                        (candidate.first == beaten.first && candidate.second < beaten.second)
+                    ) {
+                        top[worst] = candidate
+                    }
+                    overflow++
+                }
+            }
+            val ordered = top.sortedWith(compareBy({ it.first }, { it.second })).map { it.third }
 
-            val chosen = ArrayList<EntrySource>(minOf(ordered.size, maxEntries))
+            val chosen = ArrayList<EntrySource>(minOf(ordered.size, maxEntries).coerceAtLeast(0))
             val problems = ArrayList<String>()
             var planned = 0L
             var skippedLarge = 0
             var skippedBudget = 0
-            var skippedCount = 0
+            var skippedCount = overflow
 
             for (entry in ordered) {
-                if (chosen.size >= maxEntries) {
-                    skippedCount++
-                    continue
-                }
                 val size = entry.size // -1 = bildirilmemis
                 if (size > maxEntryBytes) {
                     skippedLarge++

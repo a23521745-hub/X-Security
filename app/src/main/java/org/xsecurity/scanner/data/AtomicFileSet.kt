@@ -75,6 +75,32 @@ object AtomicFileSet {
         }
     }
 
+    data class RecoverOutcome(val recovered: List<String>, val ambiguous: List<String>)
+
+    /**
+     * Yarim kalmis takasin izlerini toparlar (process/OS cokmesi sonrasi,
+     * ALI-18 review).
+     *
+     * - Hedef YOK + yedek VAR: kesin durum, yedek geri yuklenir.
+     * - Hedef VAR + yedek VAR: belirsiz (son takas tamamlanip yedek silinememis
+     *   olabilir); karar cagiranin oracle'ina birakilir, isimler raporlanir.
+     */
+    fun recover(directory: File, names: Collection<String>): RecoverOutcome {
+        val recovered = ArrayList<String>()
+        val ambiguous = ArrayList<String>()
+        for (name in names) {
+            val target = File(directory, name)
+            val backup = File(directory, name + BACKUP_SUFFIX)
+            if (!backup.isFile) continue
+            if (!target.isFile) {
+                if (backup.renameTo(target)) recovered += name
+            } else {
+                ambiguous += name
+            }
+        }
+        return RecoverOutcome(recovered, ambiguous)
+    }
+
     private fun rollback(
         directory: File,
         backedUp: List<Pair<File, File>>,

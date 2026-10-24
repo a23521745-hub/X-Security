@@ -136,4 +136,56 @@ class AtomicFileSetTest {
             dir.deleteRecursively()
         }
     }
+
+    @Test
+    fun recoverRestoresMissingTargetFromBackup_ALI18review() {
+        val dir = workDir()
+        try {
+            // Cokme senaryosu: hedef kayip, yedek duruyor.
+            File(dir, "rules.yar.bak").writeText("OLD-YARA")
+
+            val outcome = AtomicFileSet.recover(dir, listOf("rules.yar", "signatures.ndb"))
+
+            assertEquals(listOf("rules.yar"), outcome.recovered)
+            assertTrue(outcome.ambiguous.isEmpty())
+            assertEquals("OLD-YARA", File(dir, "rules.yar").readText())
+            assertFalse(File(dir, "rules.yar.bak").exists())
+        } finally {
+            dir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun recoverReportsAmbiguousAndLeavesDecisionToCaller_ALI18review() {
+        val dir = workDir()
+        try {
+            File(dir, "rules.yar").writeText("CURRENT")
+            File(dir, "rules.yar.bak").writeText("BACKUP")
+
+            val outcome = AtomicFileSet.recover(dir, listOf("rules.yar"))
+
+            assertTrue(outcome.recovered.isEmpty())
+            assertEquals(listOf("rules.yar"), outcome.ambiguous)
+            // Karar oracle'in: dosyalara dokunulmaz.
+            assertEquals("CURRENT", File(dir, "rules.yar").readText())
+            assertEquals("BACKUP", File(dir, "rules.yar.bak").readText())
+        } finally {
+            dir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun recoverIsNoopOnCleanDirectory_ALI18review() {
+        val dir = workDir()
+        try {
+            File(dir, "rules.yar").writeText("CURRENT")
+
+            val outcome = AtomicFileSet.recover(dir, listOf("rules.yar"))
+
+            assertTrue(outcome.recovered.isEmpty())
+            assertTrue(outcome.ambiguous.isEmpty())
+        } finally {
+            dir.deleteRecursively()
+        }
+    }
 }

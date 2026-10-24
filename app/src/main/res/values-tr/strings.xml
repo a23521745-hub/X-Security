@@ -90,6 +90,8 @@
     <string name="notif_shield_password_advice">Bu uygulamayı siz kurmadıysanız veya stalkerware’den şüpheleniyorsanız önemli parolalarınızı başka bir cihazdan değiştirin ve hesap oturumlarınızı gözden geçirin.</string>
     <string name="notif_shield_clean_title">Yeni uygulama tarandı</string>
     <string name="notif_shield_clean_body">%1$s (%2$s) kurulumdan hemen sonra tarandı; eşleşen imza yok.</string>
+    <string name="notif_shield_partial_title">Yeni uygulama kısmen tarandı</string>
+    <string name="notif_shield_partial_body">%1$s (%2$s) kurulumdan sonra ancak kısmen taranabildi; bazı alanlar doğrulanamadığı için temiz sayılmaz. Tam kapsama için el ile tarama yapın.</string>
     <string name="notif_shield_failed_title">Yeni uygulama taranamadı</string>
     <string name="notif_shield_failed_body">%1$s: %2$s</string>
     <string name="shield_result_name">Kurulum kalkanı: %1$s</string>

@@ -55,6 +55,10 @@ object DefinitionsController {
     suspend fun checkAndInstall(context: Context): Outcome = withContext(Dispatchers.IO) {
         val appContext = context.applicationContext
 
+        // ALI-18 review: onceki kurulumda process coktuysa yarim seti toparla
+        // (ag'a cikmadan, dosya-yerel ve ucuz).
+        runCatching { SignatureStore.recoverInterruptedInstall(appContext) }
+
         DefinitionsStore.checking()
         val config = currentConfig(appContext)
         if (!config.isConfigured) {
@@ -135,14 +139,17 @@ object DefinitionsController {
             // ALI-18 #2: (1) trial-load — efektif set (staged + degismeyen aktif
             // dosyalar) motor tarafindan yuklenebiliyor mu? Aktif sete dokunmadan
             // dogrulanir; yuklenemeyen set kurulmaz.
+            val effYara = staged[SignatureStore.Kind.YARA]
+                ?: SignatureStore.fileOrNull(appContext, SignatureStore.Kind.YARA)
+            val effClam = staged[SignatureStore.Kind.CLAM_AV]
+                ?: SignatureStore.fileOrNull(appContext, SignatureStore.Kind.CLAM_AV)
+            val effHash = staged[SignatureStore.Kind.CLAM_HASHES]
+                ?: SignatureStore.fileOrNull(appContext, SignatureStore.Kind.CLAM_HASHES)
             val trial = runCatching {
                 ApkScannerEngine.load(
-                    staged[SignatureStore.Kind.YARA]
-                        ?: SignatureStore.fileOrNull(appContext, SignatureStore.Kind.YARA),
-                    staged[SignatureStore.Kind.CLAM_AV]
-                        ?: SignatureStore.fileOrNull(appContext, SignatureStore.Kind.CLAM_AV),
-                    staged[SignatureStore.Kind.CLAM_HASHES]
-                        ?: SignatureStore.fileOrNull(appContext, SignatureStore.Kind.CLAM_HASHES),
+                    effYara,
+                    effClam,
+                    effHash,
                     CommunityStore.enabledYaraFiles(appContext),
                     CommunityStore.enabledHashFiles(appContext)
                 )
@@ -155,11 +162,23 @@ object DefinitionsController {
                 DefinitionsStore.error(message)
                 return@withContext Outcome.Error(message)
             }
-            trial.getOrThrow().let { trialEngine ->
-                trialYaraRules = trialEngine.yaraStats.ruleCount
-                trialClamSignatures = trialEngine.clamAvSignatureCount
-                trialHashSignatures = trialEngine.hashSignatureCount
+            val trialEngine = trial.getOrThrow()
+            // ALI-18 review: "motor acildi" yetmez — dosyasi olan her katman
+            // KULLANILABILIR sayida kural/imza vermeli (sessizce olen katmanla
+            // guncelleme kabul edilmez).
+            checkEffectiveUsability(
+                trialEngine,
+                hasYaraFile = effYara != null,
+                hasClamFile = effClam != null,
+                hasHashFile = effHash != null
+            )?.let { reason ->
+                staged.values.forEach { runCatching { it.delete() } }
+                DefinitionsStore.error(reason)
+                return@withContext Outcome.Error(reason)
             }
+            trialYaraRules = trialEngine.yaraStats.ruleCount
+            trialClamSignatures = trialEngine.clamAvSignatureCount
+            trialHashSignatures = trialEngine.hashSignatureCount
 
             // (2) Atomik kurulum: ya hep ya hic. Hatada eski set + prefs korunur.
             val installError = SignatureStore.installSetFromDownload(
@@ -206,6 +225,32 @@ object DefinitionsController {
         }
 
         Outcome.Installed(manifest.defVersion)
+    }
+
+    /**
+     * Efektif sette dosyasi bulunan her katmanin trial motorunda KULLANILABILIR
+     * sayida kural/imza urettigini dogrular (ALI-18 review).
+     *
+     * Saf fonksiyondur (Context yok) — birim testi `DefinitionsUsabilityTest`'tedir.
+     *
+     * @return sorun yoksa `null`, varsa kullaniciya gosterilebilir neden.
+     */
+    internal fun checkEffectiveUsability(
+        engine: ApkScannerEngine,
+        hasYaraFile: Boolean,
+        hasClamFile: Boolean,
+        hasHashFile: Boolean
+    ): String? {
+        if (hasYaraFile && engine.yaraRules.isEmpty()) {
+            return "Definitions update rejected: YARA layer carries no usable rules."
+        }
+        if (hasClamFile && engine.clamAvSignatureCount <= 0) {
+            return "Definitions update rejected: ClamAV layer carries no usable signatures."
+        }
+        if (hasHashFile && engine.hashSignatureCount <= 0) {
+            return "Definitions update rejected: hash layer carries no usable signatures."
+        }
+        return null
     }
 
     /**

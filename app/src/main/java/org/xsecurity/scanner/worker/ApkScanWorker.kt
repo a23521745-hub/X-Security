@@ -122,7 +122,9 @@ class ApkScanWorker(
         if (result.isComplete) {
             val verdict = when {
                 result.threats.isNotEmpty() -> org.xsecurity.scanner.autopilot.SecuritySignal.Verdict.KNOWN_BAD
-                result.status == org.xsecurity.scanner.engine.ScanStatus.CLEAN -> org.xsecurity.scanner.autopilot.SecuritySignal.Verdict.KNOWN_GOOD
+                // ALI-18 review: kismi tarama "bilinen temiz" degildir — kanit eksik,
+                // hukmu UNKNOWN (tuzaga dusme: rozet gostermek yetmez, otomasyon da bilmeli).
+                result.status == org.xsecurity.scanner.engine.ScanStatus.CLEAN && !result.partialScan -> org.xsecurity.scanner.autopilot.SecuritySignal.Verdict.KNOWN_GOOD
                 else -> org.xsecurity.scanner.autopilot.SecuritySignal.Verdict.UNKNOWN
             }
             val autoResult = org.xsecurity.scanner.autopilot.AutopilotRuntime.evaluate(

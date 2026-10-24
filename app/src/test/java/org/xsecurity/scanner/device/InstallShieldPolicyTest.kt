@@ -73,6 +73,29 @@ class InstallShieldPolicyTest {
     }
 
     @Test
+    fun partialScanIsNeverReportedAsClean() {
+        val partial = AppScanEntry("p", "P", ScanStatus.CLEAN, partialScan = true)
+        assertEquals(
+            InstallShieldPolicy.Alert.PARTIAL_INFO,
+            InstallShieldPolicy.alertFor(partial, quietWhenClean = false)
+        )
+        assertEquals(
+            "sessiz mod kismi sonucu gizleyemez",
+            InstallShieldPolicy.Alert.PARTIAL_INFO,
+            InstallShieldPolicy.alertFor(partial, quietWhenClean = true)
+        )
+        // Tehdit + kismi: tehdit one cikar (bilgi kaybi yok, kismi bayragi girdide durur).
+        val partialInfected = AppScanEntry(
+            "q", "Q", ScanStatus.THREATS_FOUND,
+            threats = listOf(ThreatMatch("YARA", "X")), partialScan = true
+        )
+        assertEquals(
+            InstallShieldPolicy.Alert.THREAT,
+            InstallShieldPolicy.alertFor(partialInfected, quietWhenClean = true)
+        )
+    }
+
+    @Test
     fun protectionModeParsingAndShieldGate() {
         assertEquals(ProtectionMode.INSTALL_ONLY, ProtectionSettings.parseMode(null))
         assertEquals(ProtectionMode.INSTALL_ONLY, ProtectionSettings.parseMode("garbage"))

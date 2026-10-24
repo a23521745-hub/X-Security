@@ -185,8 +185,10 @@ class ClamAvScanner(
                     ?: "ZIP entry '${source.name}' exceeded the per-entry limit."
                 truncated = true
             } catch (error: Exception) {
+                // ALI-18 review: okunamayan girdi = kismi tarama (rozet icin bayrak sart).
                 warnings += "ZIP entry '${source.name}' could not be scanned" +
                     " (${error.message ?: error.javaClass.simpleName})."
+                truncated = true
                 sourceScanned = 0L
             }
             entriesScanned += sourceScanned

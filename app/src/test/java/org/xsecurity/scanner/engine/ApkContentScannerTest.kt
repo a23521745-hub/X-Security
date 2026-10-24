@@ -253,4 +253,21 @@ class ApkContentScannerTest {
         )
         assertTrue(outcome.truncated)
     }
+
+    @Test
+    fun topNSelectionKeepsPriorityOrderWithBoundedMemory_ALI18review() {
+        val apk = zipFile(".apk") { zip ->
+            repeat(40) { i -> putDeflated(zip, "assets/junk-$i.bin", ByteArray(64) { 'J'.code.toByte() }) }
+            putDeflated(zip, "classes.dex", "REALDEX".toByteArray())
+        }
+        val (sources, notes) = ApkContentScanner.withEntries(apk, maxEntries = 8) { s, n -> s to n }
+
+        // 41 girdi, cap 8: dex (rank 0) arsiv sonunda olmasina ragmen secilmeli.
+        assertEquals(8, sources.size)
+        assertEquals("classes.dex", sources.first().name)
+        assertTrue(
+            "asim raporlanmali: ${notes.problems}",
+            notes.problems.any { it.contains("entry-count limit") }
+        )
+    }
 }

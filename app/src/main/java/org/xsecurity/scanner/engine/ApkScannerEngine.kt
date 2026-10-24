@@ -80,11 +80,12 @@ class ApkScannerEngine private constructor(
      *   app-private bir snapshot kopyasi uzerinden yapilir (paylasimli depolamada
      *   baska uygulamalarin eszamanli yazmasina karsi). `null` ise dosya
      *   dogrudan taranir ama pre/post kimlik karsilastirmasi yine uygulanir.
+     *   (`onProgress` sonda tutulur ki mevcut `scan(x) { ... }` cagrilari calissin.)
      */
     fun scan(
         apkFile: File,
-        onProgress: (fraction: Float) -> Unit = {},
-        snapshotDir: File? = null
+        snapshotDir: File? = null,
+        onProgress: (fraction: Float) -> Unit = {}
     ): ScanResult {
         if (!apkFile.isFile) {
             return ScanResult.failed(
@@ -97,15 +98,21 @@ class ApkScannerEngine private constructor(
             return ScanResult.failed(apkFile.absolutePath, "No signature layer was loaded", warnings)
         }
 
-        // Tarama kimligi basta yakalanir.
+        // Tarama kimligi basta yakalanir. Kimlik kurulamiyorsa tarama yok:
+        // dogrulanamayan icerige verdict verilmez (fail-closed, ALI-18 review).
         val preSize = apkFile.length()
         val preModified = apkFile.lastModified()
         val preSha = runCatching { Digest.sha256Hex(apkFile) }.getOrNull()
+            ?: return ScanResult.failed(
+                apkFile.absolutePath,
+                "Scan identity could not be established; file not scanned.",
+                warnings
+            )
 
         val snapshot = snapshotDir
             ?.takeIf { !isUnderDir(apkFile, it) }
             ?.let { dir ->
-                stageSnapshot(apkFile, dir, preSize, preModified).getOrElse { error ->
+                stageSnapshot(apkFile, dir, preSize, preModified, preSha).getOrElse { error ->
                     return ScanResult.failed(
                         apkFile.absolutePath,
                         error.message ?: "Scan staging failed",
@@ -130,21 +137,30 @@ class ApkScannerEngine private constructor(
         }
     }
 
-    /** Taramadan sonra orijinalin kimligi degisti mi? (boyut + mtime hizli yol, hash kesin hukum.) */
-    private fun postChanged(file: File, preSize: Long, preModified: Long, preSha: String?): Boolean {
+    /**
+     * Taramadan sonra orijinalin kimligi degisti mi? (boyut + mtime hizli yol,
+     * hash kesin hukum.) Son hash okunamazsa degisiklik VAR sayilir
+     * (fail-closed: dogrulanamayan sonuc cop sayilir).
+     */
+    private fun postChanged(file: File, preSize: Long, preModified: Long, preSha: String): Boolean {
         if (file.length() != preSize || file.lastModified() != preModified) return true
-        if (preSha != null) {
-            val postSha = runCatching { Digest.sha256Hex(file) }.getOrNull()
-            if (postSha != null && postSha != preSha) return true
-        }
-        return false
+        val postSha = runCatching { Digest.sha256Hex(file) }.getOrNull() ?: return true
+        return postSha != preSha
     }
 
     /**
-     * [source]'u [dir] altina kopyalar; kopya penceresi sirasinda orijinal
-     * degisirse yirtik kopya birakmadan hata doner.
+     * [source]'u [dir] altina kopyalar ve kopyanin hash'ini baslangic kimligiyle
+     * karsilastirir (ALI-18 review: boyut+mtime ayni kalip icerik kaymissa bile
+     * yakalanir). Kopya penceresi sirasinda orijinal degisirse veya kopya
+     * tutmazsa yirtik kopya birakmadan hata doner.
      */
-    private fun stageSnapshot(source: File, dir: File, preSize: Long, preModified: Long): Result<File> {
+    private fun stageSnapshot(
+        source: File,
+        dir: File,
+        preSize: Long,
+        preModified: Long,
+        preSha: String
+    ): Result<File> {
         return runCatching {
             dir.mkdirs()
             val copy = File.createTempFile("xsec-scan-", ".bin", dir)
@@ -158,6 +174,11 @@ class ApkScannerEngine private constructor(
             if (source.length() != preSize || source.lastModified() != preModified) {
                 runCatching { copy.delete() }
                 throw java.io.IOException("Scan invalidated: file changed while being staged for scanning.")
+            }
+            val copySha = runCatching { Digest.sha256Hex(copy) }.getOrNull()
+            if (copySha == null || copySha != preSha) {
+                runCatching { copy.delete() }
+                throw java.io.IOException("Scan invalidated: staged copy does not match scan identity.")
             }
             copy
         }

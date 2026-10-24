@@ -3,6 +3,7 @@ package org.xsecurity.scanner.data
 import android.content.Context
 import android.net.Uri
 import org.xsecurity.scanner.core.Digest
+import org.xsecurity.scanner.engine.ApkScannerEngine
 import org.xsecurity.scanner.engine.ScanEngines
 import java.io.File
 import java.io.IOException
@@ -145,6 +146,47 @@ object SignatureStore {
             is AtomicFileSet.Outcome.RolledBack ->
                 "Definitions update was rolled back and the previous set was kept (${outcome.reason})."
         }
+    }
+
+    /**
+     * Onceki kurulumda process coktuysa yarim seti toparlar (ALI-18 review):
+     * hedefi kayip yedekler geri yuklenir; hedef+yedek birlikte varsa oracle
+     * (mevcut set yuklenebiliyor mu?) karar verir — yukleniyorsa yedek bayattir,
+     * yuklenemiyorsa eski sete donulur.
+     *
+     * @return toparlanan/belirsiz bir durum bulunduysa `true`.
+     */
+    fun recoverInterruptedInstall(context: Context): Boolean {
+        val directory = directory(context)
+        val names = Kind.values().map { it.fileName }
+        val outcome = AtomicFileSet.recover(directory, names)
+        if (outcome.ambiguous.isEmpty()) return outcome.recovered.isNotEmpty()
+
+        val currentLoads = runCatching {
+            ApkScannerEngine.load(
+                fileOrNull(context, Kind.YARA),
+                fileOrNull(context, Kind.CLAM_AV),
+                fileOrNull(context, Kind.CLAM_HASHES)
+            ).isSuccess
+        }.getOrDefault(false)
+        if (currentLoads) {
+            // Yeni set saglam; yedekler onceki committen kalma bayat artiklar.
+            outcome.ambiguous.forEach { name ->
+                runCatching { File(directory, name + AtomicFileSet.BACKUP_SUFFIX).delete() }
+            }
+        } else {
+            // Mevcut set olu; yedeklerdeki eski sete don (bulunabilen kadariyla).
+            outcome.ambiguous.forEach { name ->
+                runCatching {
+                    val target = File(directory, name)
+                    val backup = File(directory, name + AtomicFileSet.BACKUP_SUFFIX)
+                    if (target.isFile) target.delete()
+                    if (backup.isFile) backup.renameTo(target)
+                }
+            }
+            ScanEngines.invalidate()
+        }
+        return true
     }
 
     fun clear(context: Context, kind: Kind) {
