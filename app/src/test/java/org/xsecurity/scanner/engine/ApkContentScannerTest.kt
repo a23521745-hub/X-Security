@@ -3,7 +3,6 @@ package org.xsecurity.scanner.engine
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
-import org.junit.Assert.fail
 import org.junit.Test
 import org.xsecurity.scanner.yara.YaraRuleParser
 import org.xsecurity.scanner.yara.YaraScanner
@@ -187,8 +186,8 @@ class ApkContentScannerTest {
     }
 
     @Test
-    fun cappedStreamPassesFullReadsAndThrowsOnCapBreach_ALI18_3() {
-        // Cap alti okuma: sessiz, tam.
+    fun cappedStreamPassesFullReadsAndFlagsCapBreach_ALI18_3() {
+        // Cap alti okuma: sessiz, tam, bayrak kalkmaz.
         val small = ByteArray(100) { it.toByte() }
         val ok = ApkContentScanner.CappedInputStream(ByteArrayInputStream(small), 1024L, "small.bin")
         val buf = ByteArray(200)
@@ -200,24 +199,22 @@ class ApkContentScannerTest {
         }
         assertEquals(100, total)
         assertEquals(100L, ok.bytesRead)
+        assertFalse(ok.capBreached)
 
-        // Cap asimi + altta veri: raporlu hata (girdi adi + limit mesajda).
+        // Cap asimi + altta veri: istisna YOK (bulunan eslesmeler korunur),
+        // temiz EOF + bayrak. Raporu matchBundle bayraga bakarak uretir.
         val big = ByteArray(3000) { 'J'.code.toByte() }
         val capped = ApkContentScanner.CappedInputStream(ByteArrayInputStream(big), 1024L, "junk.bin")
         val out = ByteArray(4096)
         var read = 0
-        try {
-            while (true) {
-                val r = capped.read(out, read, out.size - read)
-                if (r < 0) break
-                read += r
-            }
-            fail("cap asimi EntryCapExceededException firlatmali")
-        } catch (expected: ApkContentScanner.EntryCapExceededException) {
-            assertTrue(expected.message.orEmpty().contains("junk.bin"))
-            assertTrue(expected.message.orEmpty().contains("per-entry limit"))
+        while (true) {
+            val r = capped.read(out, read, out.size - read)
+            if (r < 0) break
+            read += r
         }
         assertEquals(1024, read)
+        assertEquals(1024L, capped.bytesRead)
+        assertTrue(capped.capBreached)
     }
 
     @Test
@@ -234,14 +231,14 @@ class ApkContentScannerTest {
         ).rules
         val compiled = YaraScanner().compile(rules)
 
-        val (sources, _) = ApkContentScanner.withEntries(
+        // Kaynak akislari yalnizca withEntries blogu icinde gecerlidir (ZipFile
+        // blok sonunda kapanir); eslestirme blok icinde yapilmalidir.
+        val (sources, outcome) = ApkContentScanner.withEntries(
             apk,
             budget = 64 * 1024L,
             maxEntryBytes = 32 * 1024L
-        ) { s, n -> s to n }
+        ) { s, _ -> s to YaraScanner().matchBundle(compiled, apk, s, 64 * 1024L) }
         assertEquals(listOf("classes9.dex", "assets/tail.bin"), sources.map { it.name })
-
-        val outcome = YaraScanner().matchBundle(compiled, apk, sources, 64 * 1024L)
 
         assertTrue(
             "kuyruktaki EICAR yakalanmali; eslesen: ${outcome.matches.map { it.ruleName }}",
