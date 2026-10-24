@@ -89,17 +89,33 @@ jobs:
         # log/artifact erisimi kisitli ortamlarda kor tani icin). Gradle JUnit
         # XML'lerini okur; yeni action/permission gerektirmez (stdlib python3).
         # Yesil kosularda calismaz (failure kosulu).
+        # v2: her durumda ozet annotation yazar — XML yoksa derleme/gorev
+        # hatasi, 0 hata varsa test-disi basarisizlik demektir.
         if: failure()
         run: |
           python3 - <<'PYEOF'
           import glob, os, xml.etree.ElementTree as ET
+          xmls = sorted(glob.glob('app/build/test-results/**/*.xml', recursive=True))
+          print(f"::notice::junit xml files found: {len(xmls)}")
+          if not xmls:
+              have_dir = os.path.isdir('app/build/test-results')
+              print("::error::NO JUnit XML found at app/build/test-results "
+                    f"(dir exists: {have_dir}). The failure is a COMPILATION or "
+                    "task error, not a test assertion.")
+          total = fails = errs = skips = 0
           hits = 0
-          for path in sorted(glob.glob('app/build/test-results/testDebugUnitTest/*.xml')):
+          for path in xmls:
               try:
                   root = ET.parse(path).getroot()
               except Exception as exc:
                   print(f"::warning::could not parse {path}: {exc}")
                   continue
+              suites = [root] if root.tag == 'testsuite' else list(root.iter('testsuite'))
+              for s in suites:
+                  total += int(s.get('tests', 0))
+                  fails += int(s.get('failures', 0))
+                  errs += int(s.get('errors', 0))
+                  skips += int(s.get('skipped', 0))
               for tc in root.iter('testcase'):
                   for tag in ('failure', 'error'):
                       bad = tc.find(tag)
@@ -113,7 +129,8 @@ jobs:
                       msg = msg[0][:500] if msg else tag
                       print(f"::error file={testfile},title=FAIL {classname}#{tc.get('name')}::{msg}")
                       hits += 1
-          print(f"reported {hits} failed test(s)")
+          print(f"::notice::tests={total} failures={fails} errors={errs} "
+                f"skipped={skips} annotated={hits}")
           PYEOF
 
       - name: Run Android Lint Checks
