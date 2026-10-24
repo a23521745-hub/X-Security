@@ -141,4 +141,24 @@ class ScanHistoryStoreTest {
         assertTrue(ScanHistoryStore.load(file).isEmpty())
         assertTrue(!file.exists())
     }
+
+    @Test
+    fun partialFlagRoundTripsAndDefaultsFalse_ALI18_EK2() {
+        val partial = entry(2000L).copy(partialScan = true)
+        ScanHistoryStore.record(file, partial)
+
+        val loaded = ScanHistoryStore.load(file).single()
+        assertEquals(true, loaded.partialScan)
+        assertTrue(loaded.isPartial)
+
+        // Alanin olmadigi eski kayitlar: false (onceki davranis korunur).
+        file.writeText(
+            """
+            [{"timestamp":1,"type":"FILE","trigger":"t","title":"x","status":"CLEAN","duration":5,"bytes":10}]
+            """.trimIndent()
+        )
+        val legacy = ScanHistoryStore.load(file).single()
+        assertEquals(false, legacy.partialScan)
+        assertTrue(!legacy.isPartial)
+    }
 }

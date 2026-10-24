@@ -177,6 +177,7 @@ object DeviceScanStore {
         item.put("bytes", entry.bytesScanned)
         item.put("duration", entry.durationMillis)
         item.put("systemPackage", entry.isSystemPackage)
+        item.put("partial", entry.partialScan)
         return item
     }
 
@@ -210,7 +211,8 @@ object DeviceScanStore {
             durationMillis = item.optLong("duration"),
             // Older caches have no flag; false keeps the previous (actionable) rendering for
             // those rows, never the reverse.
-            isSystemPackage = item.optBoolean("systemPackage", false)
+            isSystemPackage = item.optBoolean("systemPackage", false),
+            partialScan = item.optBoolean("partial", false)
         )
     }.getOrNull()
 

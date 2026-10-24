@@ -17,6 +17,7 @@ import org.xsecurity.scanner.data.ScanNotifications
 import org.xsecurity.scanner.data.ScanStore
 import org.xsecurity.scanner.community.CommunityStore
 import org.xsecurity.scanner.data.SignatureStore
+import org.xsecurity.scanner.engine.ApkScannerEngine
 import org.xsecurity.scanner.engine.ScanEngines
 import org.xsecurity.scanner.engine.ScanResult
 import java.io.File
@@ -96,9 +97,14 @@ class ApkScanWorker(
         val engineInfo = EngineInfo.from(engine, yaraFile?.absolutePath, clamFile?.absolutePath, hashFile?.absolutePath)
         ScanStore.publishEngine(engineInfo)
 
+        // ALI-18 #1: app-private disindaki dosyalar (paylasimli depolama vb.)
+        // snapshot kopyasi uzerinden taranir; pre/post kimlik karsilastirmasi
+        // motorda her durumda calisir.
+        val snapshotDir =
+            if (!ApkScannerEngine.isUnderDir(staged, context.filesDir)) context.cacheDir else null
         var lastNotifiedPercent = -1
         val result = try {
-            engine.scan(staged) { fraction ->
+            engine.scan(staged, snapshotDir = snapshotDir) { fraction ->
                 ScanStore.setProgress(fraction)
                 val percent = (fraction * 100f).toInt()
                 if (percent - lastNotifiedPercent >= PROGRESS_NOTIFY_STEP || percent >= 100) {
@@ -236,7 +242,8 @@ class ApkScanWorker(
             threatCount = result.threats.size,
             threats = ScanHistoryStore.threatsOf(result.threats),
             engineCounters = ScanHistoryStore.counters(engineInfo),
-            warnings = result.engineWarnings + (result.errorMessage?.let { listOf(it) } ?: emptyList())
+            warnings = result.engineWarnings + (result.errorMessage?.let { listOf(it) } ?: emptyList()),
+            partialScan = result.partialScan
         )
         runCatching { ScanHistoryStore.record(context, entry) }
     }

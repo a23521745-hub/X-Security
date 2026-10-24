@@ -3,7 +3,11 @@ package org.xsecurity.scanner.engine
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Test
+import org.xsecurity.scanner.yara.YaraRuleParser
+import org.xsecurity.scanner.yara.YaraScanner
+import java.io.ByteArrayInputStream
 import java.io.File
 import java.io.FileOutputStream
 import java.util.zip.ZipEntry
@@ -178,5 +182,75 @@ class ApkContentScannerTest {
         assertEquals(ScanStatus.THREATS_FOUND, result.status)
         assertEquals(1, result.threats.size)
         assertTrue(result.engineWarnings.isNotEmpty())
+        // ALI-18 EK-2: ham-tura dusen tarama kismidir, durustce isaretlenir.
+        assertTrue(result.partialScan)
+    }
+
+    @Test
+    fun cappedStreamPassesFullReadsAndThrowsOnCapBreach_ALI18_3() {
+        // Cap alti okuma: sessiz, tam.
+        val small = ByteArray(100) { it.toByte() }
+        val ok = ApkContentScanner.CappedInputStream(ByteArrayInputStream(small), 1024L, "small.bin")
+        val buf = ByteArray(200)
+        var total = 0
+        while (true) {
+            val read = ok.read(buf, total, buf.size - total)
+            if (read < 0) break
+            total += read
+        }
+        assertEquals(100, total)
+        assertEquals(100L, ok.bytesRead)
+
+        // Cap asimi + altta veri: raporlu hata (girdi adi + limit mesajda).
+        val big = ByteArray(3000) { 'J'.code.toByte() }
+        val capped = ApkContentScanner.CappedInputStream(ByteArrayInputStream(big), 1024L, "junk.bin")
+        val out = ByteArray(4096)
+        var read = 0
+        try {
+            while (true) {
+                val r = capped.read(out, read, out.size - read)
+                if (r < 0) break
+                read += r
+            }
+            fail("cap asimi EntryCapExceededException firlatmali")
+        } catch (expected: ApkContentScanner.EntryCapExceededException) {
+            assertTrue(expected.message.orEmpty().contains("junk.bin"))
+            assertTrue(expected.message.orEmpty().contains("per-entry limit"))
+        }
+        assertEquals(1024, read)
+    }
+
+    @Test
+    fun junkEntryCannotStarveTailEicar_ALI18_3() {
+        // Killer test: butceyi sismeye calisan junk girdi BASTA, EICAR kuyrukta.
+        // Girdi-basina cap junk'i keser; EICAR yakalanir, asim raporlanir.
+        val junk = ByteArray(256 * 1024) { 'J'.code.toByte() }
+        val apk = zipFile(".apk") { zip ->
+            putDeflated(zip, "classes9.dex", junk)
+            putDeflated(zip, "assets/tail.bin", "xx EICAR-STANDARD-ANTIVIRUS-TEST-FILE xx".toByteArray())
+        }
+        val rules = YaraRuleParser().parseSource(
+            "rule Eicar { strings: \$e = \"EICAR-STANDARD-ANTIVIRUS-TEST-FILE\" condition: any of them }"
+        ).rules
+        val compiled = YaraScanner().compile(rules)
+
+        val (sources, _) = ApkContentScanner.withEntries(
+            apk,
+            budget = 64 * 1024L,
+            maxEntryBytes = 32 * 1024L
+        ) { s, n -> s to n }
+        assertEquals(listOf("classes9.dex", "assets/tail.bin"), sources.map { it.name })
+
+        val outcome = YaraScanner().matchBundle(compiled, apk, sources, 64 * 1024L)
+
+        assertTrue(
+            "kuyruktaki EICAR yakalanmali; eslesen: ${outcome.matches.map { it.ruleName }}",
+            outcome.matches.any { it.ruleName == "Eicar" }
+        )
+        assertTrue(
+            "cap asimi raporlanmali; uyarilar: ${outcome.warnings}",
+            outcome.warnings.any { it.contains("per-entry limit") }
+        )
+        assertTrue(outcome.truncated)
     }
 }

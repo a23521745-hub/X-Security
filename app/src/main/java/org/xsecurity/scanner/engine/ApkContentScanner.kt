@@ -40,6 +40,52 @@ object ApkContentScanner {
         val problems: List<String>
     )
 
+    /**
+     * Girdi-basina acilmis-bayt limiti asildiginda firlatilir (ALI-18 #3).
+     *
+     * `IOException` turevi oldugu icin tarayicilarin girdi-basina `catch`
+     * bloklarina duser ve **raporlu** atlamaya donusur; sessiz eksik tarama olmaz.
+     */
+    class EntryCapExceededException(message: String) : java.io.IOException(message)
+
+    /**
+     * Okunan gercek bayti sayan, [maxBytes] dolup altta veri kalmissa
+     * [EntryCapExceededException] firlatan akis sarmalayici.
+     *
+     * Neden gerekli? `ZipEntry.size` `-1` (bildirilmemis) veya yalan olabilir;
+     * beyan uzerinden planlama yapan secim mantigi tek basina zip-bomb /
+     * butce-tuketimiyle tarama atlatmaya (evasion) karsi yetmez. Bu sinif
+     * girdi-basina 32 MiB ust siniri **akan gercek bayt** uzerinden uygular.
+     * Cap'e ulasilip alt akis da bitmisse normal EOF doner (tam okuma).
+     */
+    class CappedInputStream(
+        private val inner: InputStream,
+        private val maxBytes: Long,
+        private val entryName: String
+    ) : InputStream() {
+        var bytesRead: Long = 0L
+            private set
+
+        override fun read(b: ByteArray, off: Int, len: Int): Int {
+            if (bytesRead >= maxBytes) {
+                // Cap doldu: altta okunmamis veri kaldi mi?
+                val probe = inner.read()
+                if (probe < 0) return -1 // Gercekten bitti: tam okuma, sessiz EOF.
+                throw EntryCapExceededException(
+                    "ZIP entry '$entryName' exceeded the per-entry limit " +
+                        "(${maxBytes / (1024L * 1024L)} MiB); remaining bytes were not scanned."
+                )
+            }
+            val allowed = minOf(len.toLong(), maxBytes - bytesRead).toInt().coerceAtLeast(1)
+            val read = inner.read(b, off, allowed)
+            if (read < 0) return -1
+            bytesRead += read
+            return read
+        }
+
+        override fun close() = inner.close()
+    }
+
     /** Tum ZIP girdilerinin acilmis toplami icin butce (64 MiB). */
     const val MAX_TOTAL_ENTRY_BYTES: Long = 64L * 1024L * 1024L
 
@@ -124,7 +170,11 @@ object ApkContentScanner {
                     skippedBudget++
                     continue
                 }
-                chosen += EntrySource(entry.name, size) { zip.getInputStream(entry).buffered() }
+                // ALI-18 #3: beyan ne olursa olsun (-1 dahil) akan gercek bayt
+                // girdi-basina cap ile sinirlanir; asim raporlu atlamadir.
+                chosen += EntrySource(entry.name, size) {
+                    CappedInputStream(zip.getInputStream(entry).buffered(), maxEntryBytes, entry.name)
+                }
                 if (size > 0L) planned += size
             }
 

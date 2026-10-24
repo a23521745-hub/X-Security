@@ -125,6 +125,7 @@
     <string name="history_threats_count">%1$d tehdit</string>
     <string name="history_clean">temiz</string>
     <string name="history_failed">hata</string>
+    <string name="history_partial">kısmi tarama</string>
     <string name="history_detail_time">Zaman</string>
     <string name="history_detail_type">Tür</string>
     <string name="history_detail_apps">%1$d tarandı · %2$d işaretli · %3$d önbellekten</string>

@@ -270,11 +270,15 @@ class BytePatternMatcher(
 
         if (cand.pattern.matchesAt(window, start)) {
             val absolutePos = dataStart + start
-            // Tarama-yerel bayrak: matcher'in paylasilan yapisi degismez.
-            consumed[cand.slot] = true
 
             val shouldRecord = positionFilter == null || positionFilter(cand.pattern.id, absolutePos)
             if (shouldRecord) {
+                // Tarama-yerel bayrak: matcher'in paylasilan yapisi degismez.
+                // Yalnizca kaydedilen eslesme tuketir; filtre tarafindan
+                // reddedilen konum, ayni kalibin sonraki (gecerli) konumlarini
+                // engellemez (ALI-18 #5b: offset-kisitli ClamAV imzalarinda
+                // false-negative deligi kapatildi).
+                consumed[cand.slot] = true
                 val id = cand.pattern.id
                 matchedIds.add(id)
                 val list = positionsMap.getOrPut(id) { ArrayList() }

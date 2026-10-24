@@ -16,6 +16,7 @@ import org.xsecurity.scanner.R
 import org.xsecurity.scanner.community.CommunityStore
 import org.xsecurity.scanner.data.SignatureStore
 import org.xsecurity.scanner.data.UpdatePreferences
+import org.xsecurity.scanner.engine.ApkScannerEngine
 import org.xsecurity.scanner.engine.ScanEngines
 import org.xsecurity.scanner.ota.OtaConfig
 import org.xsecurity.scanner.ota.OtaController
@@ -99,6 +100,11 @@ object DefinitionsController {
         val staged = LinkedHashMap<SignatureStore.Kind, File>()
         val downloader = DefinitionsDownloader(config)
 
+        // Trial motorunun sayilari: bildirimde yedek deger olarak kullanilir.
+        var trialYaraRules = 0
+        var trialClamSignatures = 0
+        var trialHashSignatures = 0
+
         try {
             var completed = 0
             for (file in manifest.files) {
@@ -126,14 +132,45 @@ object DefinitionsController {
                 completed++
             }
 
-            // Tum dosyalar dogrulandi; hepsi tek nefeste kurulur.
-            for ((kind, file) in staged) {
-                SignatureStore.installFromDownload(
-                    context = appContext,
-                    kind = kind,
-                    temp = file,
-                    source = "ota-v${manifest.defVersion}"
+            // ALI-18 #2: (1) trial-load — efektif set (staged + degismeyen aktif
+            // dosyalar) motor tarafindan yuklenebiliyor mu? Aktif sete dokunmadan
+            // dogrulanir; yuklenemeyen set kurulmaz.
+            val trial = runCatching {
+                ApkScannerEngine.load(
+                    staged[SignatureStore.Kind.YARA]
+                        ?: SignatureStore.fileOrNull(appContext, SignatureStore.Kind.YARA),
+                    staged[SignatureStore.Kind.CLAM_AV]
+                        ?: SignatureStore.fileOrNull(appContext, SignatureStore.Kind.CLAM_AV),
+                    staged[SignatureStore.Kind.CLAM_HASHES]
+                        ?: SignatureStore.fileOrNull(appContext, SignatureStore.Kind.CLAM_HASHES),
+                    CommunityStore.enabledYaraFiles(appContext),
+                    CommunityStore.enabledHashFiles(appContext)
                 )
+            }.getOrElse { Result.failure(it) }
+            if (trial.isFailure) {
+                val reason = trial.exceptionOrNull()?.message
+                    ?: appContext.getString(R.string.def_error_generic)
+                val message = "Definitions update rejected: staged set cannot be loaded ($reason)."
+                staged.values.forEach { runCatching { it.delete() } }
+                DefinitionsStore.error(message)
+                return@withContext Outcome.Error(message)
+            }
+            trial.getOrThrow().let { trialEngine ->
+                trialYaraRules = trialEngine.yaraStats.ruleCount
+                trialClamSignatures = trialEngine.clamAvSignatureCount
+                trialHashSignatures = trialEngine.hashSignatureCount
+            }
+
+            // (2) Atomik kurulum: ya hep ya hic. Hatada eski set + prefs korunur.
+            val installError = SignatureStore.installSetFromDownload(
+                context = appContext,
+                staged = staged,
+                source = "ota-v${manifest.defVersion}"
+            )
+            staged.values.forEach { runCatching { it.delete() } }
+            if (installError != null) {
+                DefinitionsStore.error(installError)
+                return@withContext Outcome.Error(installError)
             }
         } catch (error: Exception) {
             staged.values.forEach { runCatching { it.delete() } }
@@ -144,7 +181,8 @@ object DefinitionsController {
 
         DefinitionsStore.installed(manifest.defVersion)
 
-        // Bildirim icin motoru yeni dosyalardan bir kez kur (kural/imza sayilari).
+        // Bildirim icin motoru yeni dosyalardan bir kez kur (kural/imza sayilari
+        // + onbellek isitma). Yukleme patlarsa trial sayilari kullanilir.
         val yaraFile = SignatureStore.fileOrNull(appContext, SignatureStore.Kind.YARA)
         val clamFile = SignatureStore.fileOrNull(appContext, SignatureStore.Kind.CLAM_AV)
         val hashFile = SignatureStore.fileOrNull(appContext, SignatureStore.Kind.CLAM_HASHES)
@@ -161,9 +199,9 @@ object DefinitionsController {
             DefinitionsNotifications.showInstalled(
                 context = appContext,
                 defVersion = manifest.defVersion,
-                yaraRules = engine?.yaraStats?.ruleCount ?: 0,
-                clamSignatures = engine?.clamAvSignatureCount ?: 0,
-                hashSignatures = engine?.hashSignatureCount ?: 0
+                yaraRules = engine?.yaraStats?.ruleCount ?: trialYaraRules,
+                clamSignatures = engine?.clamAvSignatureCount ?: trialClamSignatures,
+                hashSignatures = engine?.hashSignatureCount ?: trialHashSignatures
             )
         }
 

@@ -55,10 +55,16 @@ data class ScanHistoryEntry(
     val threats: List<ScanHistoryThreat> = emptyList(),
     val flaggedApps: List<ScanHistoryFlaggedApp> = emptyList(),
     val engineCounters: Map<String, Int> = emptyMap(),
-    val warnings: List<String> = emptyList()
+    val warnings: List<String> = emptyList(),
+    /**
+     * ALI-18 EK-2: icerigin tamami taranamadi (truncation / atlanan girdi).
+     * Eski kayitlarda yoktur -> `false` (onceki davranis korunur).
+     */
+    val partialScan: Boolean = false
 ) {
     val isThreats: Boolean get() = status == "THREATS_FOUND"
     val isFailed: Boolean get() = status == "FAILED"
+    val isPartial: Boolean get() = partialScan && !isFailed
 }
 
 /**
@@ -201,6 +207,7 @@ object ScanHistoryStore {
             val warnings = JSONArray()
             entry.warnings.take(MAX_WARNINGS).forEach { warnings.put(it) }
             item.put("warnings", warnings)
+            item.put("partial", entry.partialScan)
 
             array.put(item)
         }
@@ -268,7 +275,8 @@ object ScanHistoryStore {
                 threats = threats,
                 flaggedApps = flaggedApps,
                 engineCounters = counters,
-                warnings = warnings
+                warnings = warnings,
+                partialScan = item.optBoolean("partial", false)
             )
         }
         return out

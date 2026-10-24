@@ -167,6 +167,13 @@ class YaraScanner(
                     sourceScanned = scan.bytesScanned
                     if (scan.truncated) truncated = true
                 }
+            } catch (capped: ApkContentScanner.EntryCapExceededException) {
+                // ALI-18 #3: girdi-basina cap asimi — girdinin basi tarandi, kalani
+                // raporlu atlandi. onBytesConsumed ile biriken sourceScanned
+                // korunur ki toplam butce muhasebesi gercekci kalsin.
+                warnings += capped.message
+                    ?: "ZIP entry '${source.name}' exceeded the per-entry limit."
+                truncated = true
             } catch (error: Exception) {
                 // Tek bir bozuk girdi (CRC vb.) taramayi oldurmaz; uyari uretir.
                 warnings += "ZIP entry '${source.name}' could not be scanned" +

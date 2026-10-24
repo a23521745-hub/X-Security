@@ -125,6 +125,7 @@
     <string name="history_threats_count">%1$d threat(s)</string>
     <string name="history_clean">clean</string>
     <string name="history_failed">failed</string>
+    <string name="history_partial">partial scan</string>
     <string name="history_detail_time">Time</string>
     <string name="history_detail_type">Type</string>
     <string name="history_detail_apps">%1$d scanned · %2$d flagged · %3$d from cache</string>

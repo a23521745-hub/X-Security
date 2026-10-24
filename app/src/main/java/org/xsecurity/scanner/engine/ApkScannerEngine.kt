@@ -69,9 +69,23 @@ class ApkScannerEngine private constructor(
     }
     private val hashScanner: ClamHashScanner = ClamHashScanner()
 
-    fun scan(apkFile: File, onProgress: (fraction: Float) -> Unit = {}): ScanResult {
-        val startedAt = System.currentTimeMillis()
-        val name = apkFile.name
+    /**
+     * Tek dosya taramasi (ALI-18 #1: TOCTOU korumali).
+     *
+     * Garanti: raporun `sha256`'si **taranan icerigin** baslangic kimligidir ve
+     * orijinal tarama sirasinda degisirse sonuc asla CLEAN/THREATS_FOUND olmaz —
+     * INVALIDATED semantigiyle FAILED doner (cagiran yeniden tarar).
+     *
+     * @param snapshotDir verilirse ve dosya bu dizinin disindaysa, tarama
+     *   app-private bir snapshot kopyasi uzerinden yapilir (paylasimli depolamada
+     *   baska uygulamalarin eszamanli yazmasina karsi). `null` ise dosya
+     *   dogrudan taranir ama pre/post kimlik karsilastirmasi yine uygulanir.
+     */
+    fun scan(
+        apkFile: File,
+        onProgress: (fraction: Float) -> Unit = {},
+        snapshotDir: File? = null
+    ): ScanResult {
         if (!apkFile.isFile) {
             return ScanResult.failed(
                 filePath = apkFile.absolutePath,
@@ -83,7 +97,87 @@ class ApkScannerEngine private constructor(
             return ScanResult.failed(apkFile.absolutePath, "No signature layer was loaded", warnings)
         }
 
-        val size = apkFile.length()
+        // Tarama kimligi basta yakalanir.
+        val preSize = apkFile.length()
+        val preModified = apkFile.lastModified()
+        val preSha = runCatching { Digest.sha256Hex(apkFile) }.getOrNull()
+
+        val snapshot = snapshotDir
+            ?.takeIf { !isUnderDir(apkFile, it) }
+            ?.let { dir ->
+                stageSnapshot(apkFile, dir, preSize, preModified).getOrElse { error ->
+                    return ScanResult.failed(
+                        apkFile.absolutePath,
+                        error.message ?: "Scan staging failed",
+                        warnings
+                    )
+                }
+            }
+        val target = snapshot ?: apkFile
+        try {
+            val result = scanTarget(target, apkFile, preSha, onProgress)
+            // Post-kontrol: orijinal tarama sirasinda degistiyse sonuc COPTUR.
+            if (postChanged(apkFile, preSize, preModified, preSha)) {
+                return ScanResult.failed(
+                    apkFile.absolutePath,
+                    "Scan invalidated: file changed during scan; result discarded.",
+                    result.engineWarnings
+                )
+            }
+            return result
+        } finally {
+            if (snapshot != null) runCatching { snapshot.delete() }
+        }
+    }
+
+    /** Taramadan sonra orijinalin kimligi degisti mi? (boyut + mtime hizli yol, hash kesin hukum.) */
+    private fun postChanged(file: File, preSize: Long, preModified: Long, preSha: String?): Boolean {
+        if (file.length() != preSize || file.lastModified() != preModified) return true
+        if (preSha != null) {
+            val postSha = runCatching { Digest.sha256Hex(file) }.getOrNull()
+            if (postSha != null && postSha != preSha) return true
+        }
+        return false
+    }
+
+    /**
+     * [source]'u [dir] altina kopyalar; kopya penceresi sirasinda orijinal
+     * degisirse yirtik kopya birakmadan hata doner.
+     */
+    private fun stageSnapshot(source: File, dir: File, preSize: Long, preModified: Long): Result<File> {
+        return runCatching {
+            dir.mkdirs()
+            val copy = File.createTempFile("xsec-scan-", ".bin", dir)
+            copy.deleteOnExit()
+            try {
+                source.inputStream().use { input -> copy.outputStream().use { output -> input.copyTo(output) } }
+            } catch (error: Throwable) {
+                runCatching { copy.delete() }
+                throw error
+            }
+            if (source.length() != preSize || source.lastModified() != preModified) {
+                runCatching { copy.delete() }
+                throw java.io.IOException("Scan invalidated: file changed while being staged for scanning.")
+            }
+            copy
+        }
+    }
+
+    /**
+     * Gercek tarama: [target] okunur, rapor kimligi (yol/ad) [reportFile]'dan
+     * alinir. Snapshot kullanildiginda ikisi farklidir; rapor her zaman
+     * kullanicinin dosyasini anlatir, gecici kopyayi degil.
+     */
+    private fun scanTarget(
+        target: File,
+        reportFile: File,
+        preSha256: String?,
+        onProgress: (fraction: Float) -> Unit
+    ): ScanResult {
+        val startedAt = System.currentTimeMillis()
+        val name = reportFile.name
+
+        val size = target.length()
         val reportWarnings = ArrayList(warnings)
         val threats = ArrayList<ThreatMatch>()
         var scanned = 0L
@@ -109,13 +203,15 @@ class ApkScannerEngine private constructor(
 
         // Iki tur: (1) ham baytlar, (2) varsa ZIP girdilerinin acilmis icerigi.
         // Girdi akislari yalnizca bu blogun icinde gecerlidir; ZipFile blok sonunda kapanir.
-        ApkContentScanner.withEntries(apkFile) { entrySources, notes ->
+        var zipProblems = false
+        ApkContentScanner.withEntries(target) { entrySources, notes ->
             totalUnits += notes.plannedBytes
             reportWarnings += notes.problems
+            if (notes.problems.isNotEmpty()) zipProblems = true
 
             yaraOutcome = yaraScanner.matchBundle(
                 compiled = yaraCompiled,
-                file = apkFile,
+                file = target,
                 entrySources = entrySources,
                 entryBudget = ApkContentScanner.MAX_TOTAL_ENTRY_BYTES
             ) { consumed ->
@@ -128,7 +224,7 @@ class ApkScannerEngine private constructor(
             if (compiledClam != null) {
                 clamOutcome = clamScanner.scanBundle(
                     compiled = compiledClam,
-                    file = apkFile,
+                    file = target,
                     entrySources = entrySources,
                     entryBudget = ApkContentScanner.MAX_TOTAL_ENTRY_BYTES
                 ) { consumed ->
@@ -146,7 +242,7 @@ class ApkScannerEngine private constructor(
         if (hashDatabase != null && hashSignatureCount > 0) {
             totalUnits += size
             val preHashScanned = scanned
-            hashOutcome = hashScanner.scan(apkFile, hashDatabase) { consumed ->
+            hashOutcome = hashScanner.scan(target, hashDatabase) { consumed ->
                 scanned = maxOf(scanned, preHashScanned + consumed)
                 publish()
             }
@@ -205,10 +301,15 @@ class ApkScannerEngine private constructor(
         onProgress(1f)
         return ScanResult(
             status = if (threats.isEmpty()) ScanStatus.CLEAN else ScanStatus.THREATS_FOUND,
-            filePath = apkFile.absolutePath,
+            filePath = reportFile.absolutePath,
             fileName = name,
             fileSize = size,
-            sha256 = runCatching { Digest.sha256Hex(apkFile) }.getOrNull(),
+            // ALI-18 #1: rapor, sonda yeniden hesaplanan degil, basta yakalanan
+            // kimligi tasir — boylece rapor her zaman taranan icerigi anlatir.
+            sha256 = preSha256,
+            partialScan = yaraOutcome.truncated ||
+                (clamOutcome?.truncated == true) ||
+                zipProblems,
             threats = threats,
             bytesScanned = scanned,
             durationMillis = System.currentTimeMillis() - startedAt,
@@ -387,5 +488,16 @@ class ApkScannerEngine private constructor(
             files.joinToString("|") { file ->
                 if (file == null || !file.isFile) "missing" else "${file.absolutePath}:${file.length()}:${file.lastModified()}"
             }
+
+        /**
+         * [file] [dir] altinda mi? (canonical karsilastirma; symlink kacislarina
+         * karsi.) Cagiranlar snapshot gerekip gerekmedigine bununla karar verir.
+         */
+        internal fun isUnderDir(file: File, dir: File): Boolean {
+            val base = runCatching { dir.canonicalPath }.getOrNull() ?: dir.absolutePath
+            val path = runCatching { file.canonicalPath }.getOrNull() ?: file.absolutePath
+            val root = base.trimEnd('/')
+            return path == root || path.startsWith("$root/")
+        }
     }
 }

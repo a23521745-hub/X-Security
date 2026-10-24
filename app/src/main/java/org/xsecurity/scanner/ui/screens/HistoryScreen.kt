@@ -328,12 +328,24 @@ private fun HistoryStatusBadge(entry: ScanHistoryEntry) {
         else ->
             stringResource(R.string.history_clean) to MaterialTheme.colorScheme.primary
     }
-    Text(
-        text = label,
-        style = MaterialTheme.typography.labelLarge,
-        color = color,
-        fontWeight = FontWeight.Bold
-    )
+    Column(horizontalAlignment = Alignment.End) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelLarge,
+            color = color,
+            fontWeight = FontWeight.Bold
+        )
+        // ALI-18 EK-2: kismi tarama durustce gosterilir; "temiz" hukmu eksik
+        // kanita dayaniyorsa kullanici bunu kartta gorur (nedeni detayda).
+        if (entry.isPartial) {
+            Text(
+                text = stringResource(R.string.history_partial),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.tertiary,
+                fontWeight = FontWeight.Bold
+            )
+        }
+    }
 }
 
 @Composable

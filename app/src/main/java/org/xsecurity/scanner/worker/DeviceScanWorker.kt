@@ -267,7 +267,8 @@ class DeviceScanWorker(
                     )
                 },
             engineCounters = ScanHistoryStore.counters(engineInfo),
-            warnings = warnings
+            warnings = warnings,
+            partialScan = entries.any { it.partialScan }
         )
         runCatching { ScanHistoryStore.record(context, entry) }
     }

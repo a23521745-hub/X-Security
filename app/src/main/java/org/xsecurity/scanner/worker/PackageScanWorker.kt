@@ -165,7 +165,8 @@ class PackageScanWorker(
                 emptyList()
             },
             engineCounters = ScanHistoryStore.counters(engineInfo),
-            warnings = entry.errorMessage?.let { listOf(it) } ?: emptyList()
+            warnings = entry.errorMessage?.let { listOf(it) } ?: emptyList(),
+            partialScan = entry.partialScan
         )
         runCatching { ScanHistoryStore.record(context, historyEntry) }
     }
