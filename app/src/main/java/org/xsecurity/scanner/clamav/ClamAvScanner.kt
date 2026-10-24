@@ -176,10 +176,21 @@ class ClamAvScanner(
                     }
                     sourceScanned = scan.bytesScanned
                     if (scan.truncated) truncated = true
+                    // ALI-18 #3: girdi-basina cap asimi — girdinin basi tarandi
+                    // (eslesmeler YUKARIDA islendi, kayip yok), kalani raporlu
+                    // atlandi. Bayrak temiz-EOF ile birlikte gelir; istisna yok.
+                    if ((stream as? ApkContentScanner.CappedInputStream)?.capBreached == true) {
+                        warnings += "ZIP entry '${source.name}' exceeded the per-entry limit " +
+                            "(${ApkContentScanner.MAX_ENTRY_BYTES / (1024L * 1024L)} MiB); " +
+                            "remaining bytes were not scanned."
+                        truncated = true
+                    }
                 }
             } catch (error: Exception) {
+                // ALI-18 review: okunamayan girdi = kismi tarama (rozet icin bayrak sart).
                 warnings += "ZIP entry '${source.name}' could not be scanned" +
                     " (${error.message ?: error.javaClass.simpleName})."
+                truncated = true
                 sourceScanned = 0L
             }
             entriesScanned += sourceScanned

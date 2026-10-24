@@ -40,6 +40,63 @@ object ApkContentScanner {
         val problems: List<String>
     )
 
+    /**
+     * Okunan gercek bayti sayan, [maxBytes] dolup altta veri kalmissa temiz
+     * EOF (-1) donup [capBreached] bayragini kaldiran akis sarmalayici.
+     *
+     * Neden gerekli? `ZipEntry.size` `-1` (bildirilmemis) veya yalan olabilir;
+     * beyan uzerinden planlama yapan secim mantigi tek basina zip-bomb /
+     * butce-tuketimiyle tarama atlatmaya (evasion) karsi yetmez. Bu sinif
+     * girdi-basina ust siniri **akan gercek bayt** uzerinden uygular.
+     *
+     * Neden istisna degil bayrak? Firlatilan istisna, eslestiricinin o girdide
+     * o ana kadar buldugu eslesmeleri de copla goturur (kismi sonuc kaybi =
+     * kapsama deligi). Temiz EOF'ta ise bulunanlar islenir, kalan raporlu
+     * atlanir: `matchBundle` akis kapandiktan sonra [CappedInputStream.capBreached]
+     * bayragina bakip uyari + `truncated` uretir.
+     */
+    class CappedInputStream(
+        private val inner: InputStream,
+        private val maxBytes: Long,
+        private val entryName: String
+    ) : InputStream() {
+        var bytesRead: Long = 0L
+            private set
+
+        /**
+         * Cap dolup altta okunmamis veri kaldiginda `true` olur (temiz EOF ile
+         * birlikte). Tuketici ([matchBundle] cagiranlari) bu bayraga bakip
+         * raporlu-atlama uyarisi uretir; bulunan eslesmeler korunur.
+         */
+        var capBreached: Boolean = false
+            private set
+
+        override fun read(): Int {
+            val one = ByteArray(1)
+            val read = read(one, 0, 1)
+            return if (read < 0) -1 else one[0].toInt() and 0xFF
+        }
+
+        override fun read(b: ByteArray, off: Int, len: Int): Int {
+            if (bytesRead >= maxBytes) {
+                // Cap doldu: altta okunmamis veri kaldi mi?
+                val probe = inner.read()
+                if (probe < 0) return -1 // Gercekten bitti: tam okuma, sessiz EOF.
+                // Veri kaldi: temiz EOF + bayrak (istisna firlatilmaz; o ana
+                // kadar bulunan eslesmeler korunur, kalan raporlu atlanir).
+                capBreached = true
+                return -1
+            }
+            val allowed = minOf(len.toLong(), maxBytes - bytesRead).toInt().coerceAtLeast(1)
+            val read = inner.read(b, off, allowed)
+            if (read < 0) return -1
+            bytesRead += read
+            return read
+        }
+
+        override fun close() = inner.close()
+    }
+
     /** Tum ZIP girdilerinin acilmis toplami icin butce (64 MiB). */
     const val MAX_TOTAL_ENTRY_BYTES: Long = 64L * 1024L * 1024L
 
@@ -100,38 +157,71 @@ object ApkContentScanner {
         }
 
         try {
-            val all = zip.entries().toList().filter { !it.isDirectory }
-            val ordered = all.sortedWith(compareBy { entry: ZipEntry -> priorityRank(entry.name) })
+            // ALI-18 review: merkez dizin bellekte tumden listelenmez; tek geciste
+            // en iyi ilk-N (oncelik, sira) adayi tutulur, bellek en fazla
+            // maxEntries ZipEntry referansi tutar. Uretim kosullarinda (genis
+            // butce) secim eski kodla birebirdir; tek fark dar-butce kosesinde:
+            // pencere icindeki butce-atlamalari asagi pencereden doldurulmaz
+            // (her iki atlama da problems'te raporlanir, sonuc kismi isaretlenir).
+            val top = ArrayList<Triple<Int, Int, ZipEntry>>(maxEntries.coerceAtMost(384).coerceAtLeast(0))
+            var seq = 0
+            var overflow = 0
+            val zipEntries = zip.entries()
+            while (zipEntries.hasMoreElements()) {
+                val entry = zipEntries.nextElement()
+                if (entry.isDirectory) continue
+                val candidate = Triple(priorityRank(entry.name), seq++, entry)
+                if (top.size < maxEntries) {
+                    top += candidate
+                } else if (maxEntries <= 0) {
+                    overflow++
+                } else {
+                    var worst = 0
+                    for (i in 1 until top.size) {
+                        val a = top[i]
+                        val b = top[worst]
+                        if (a.first > b.first || (a.first == b.first && a.second > b.second)) worst = i
+                    }
+                    val beaten = top[worst]
+                    if (candidate.first < beaten.first ||
+                        (candidate.first == beaten.first && candidate.second < beaten.second)
+                    ) {
+                        top[worst] = candidate
+                    }
+                    overflow++
+                }
+            }
+            val ordered = top.sortedWith(compareBy({ it.first }, { it.second })).map { it.third }
 
-            val chosen = ArrayList<EntrySource>(minOf(ordered.size, maxEntries))
+            val chosen = ArrayList<EntrySource>(minOf(ordered.size, maxEntries).coerceAtLeast(0))
             val problems = ArrayList<String>()
             var planned = 0L
-            var skippedLarge = 0
             var skippedBudget = 0
-            var skippedCount = 0
+            var skippedCount = overflow
 
             for (entry in ordered) {
-                if (chosen.size >= maxEntries) {
-                    skippedCount++
-                    continue
-                }
                 val size = entry.size // -1 = bildirilmemis
-                if (size > maxEntryBytes) {
-                    skippedLarge++
-                    continue
-                }
-                if (size > 0L && planned + size > budget) {
+                // ALI-18 #3 duzeltmesi (CI kirmizisi): beyan edilen boyut ASLA
+                // eleme nedeni degildir — merkez dizin boyutu saldirgan
+                // kontrolundedir; sismirilmis beyan girdiyi tarama disi
+                // birakamaz (yoksa classes.dex'e 4GB yazan zararli girdiyi
+                // gizler). Gercek sinir okuma aninda CappedInputStream ile
+                // uygulanir: ilk maxEntryBytes her zaman taranir, asim
+                // truncated + uyari olarak raporlanir. Butce planlamasi ise
+                // okunabilecek en fazla bayti (min(beyan, cap)) muhasebelestirir.
+                val accountable = if (size < 0L) 0L else minOf(size, maxEntryBytes)
+                if (accountable > 0L && planned + accountable > budget) {
                     skippedBudget++
                     continue
                 }
-                chosen += EntrySource(entry.name, size) { zip.getInputStream(entry).buffered() }
-                if (size > 0L) planned += size
+                // ALI-18 #3: beyan ne olursa olsun (-1 dahil) akan gercek bayt
+                // girdi-basina cap ile sinirlanir; asim raporlu atlamadir.
+                chosen += EntrySource(entry.name, size) {
+                    CappedInputStream(zip.getInputStream(entry).buffered(), maxEntryBytes, entry.name)
+                }
+                planned += accountable
             }
 
-            if (skippedLarge > 0) {
-                problems += "ZIP content scan skipped $skippedLarge entry(ies) above the per-entry limit " +
-                    "(${maxEntryBytes / (1024L * 1024L)} MiB)."
-            }
             if (skippedBudget > 0) {
                 problems += "ZIP content scan skipped $skippedBudget entry(ies) above the total content budget " +
                     "(${budget / (1024L * 1024L)} MiB); APK content was scanned partially."

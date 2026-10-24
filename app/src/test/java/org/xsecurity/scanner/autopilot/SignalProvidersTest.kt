@@ -31,6 +31,16 @@ class SignalProvidersTest {
     }
 
     @Test
+    fun partialCleanScanIsUnknownNeverKnownGood_ALI18review() {
+        val partialClean = ScanResult(ScanStatus.CLEAN, "/tmp/a.apk", "a.apk", 10, partialScan = true)
+
+        val signal = ScannerVerdictProvider.classify(listOf(partialClean))
+
+        assertEquals(SecuritySignal.Verdict.UNKNOWN, signal.verdict)
+        assertEquals(SecuritySignal.Risk.HIGH, signal.risk)
+    }
+
+    @Test
     fun heuristicProviderTreatsInstallerAsRiskOnlyNotAThreatVerdict() {
         val trusted = HeuristicRiskProvider.classifyInstaller("com.android.vending")
         assertEquals(SecuritySignal.ProviderId.HEURISTIC, trusted.provider)

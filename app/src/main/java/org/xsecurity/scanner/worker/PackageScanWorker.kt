@@ -125,6 +125,7 @@ class PackageScanWorker(
                 ScanNotifications.showInstallThreat(context, entry)
             }
             InstallShieldPolicy.Alert.CLEAN_INFO -> ScanNotifications.showInstallClean(context, entry)
+            InstallShieldPolicy.Alert.PARTIAL_INFO -> ScanNotifications.showInstallPartial(context, entry)
             InstallShieldPolicy.Alert.FAILED_INFO -> notifyFailure(packageName, entry.errorMessage ?: context.getString(R.string.notif_failed_body))
             InstallShieldPolicy.Alert.NONE -> Unit
         }
@@ -165,7 +166,8 @@ class PackageScanWorker(
                 emptyList()
             },
             engineCounters = ScanHistoryStore.counters(engineInfo),
-            warnings = entry.errorMessage?.let { listOf(it) } ?: emptyList()
+            warnings = entry.errorMessage?.let { listOf(it) } ?: emptyList(),
+            partialScan = entry.partialScan
         )
         runCatching { ScanHistoryStore.record(context, historyEntry) }
     }

@@ -108,8 +108,12 @@ class BytePatternMatcherTest {
         val atZero = ByteArray(200) { '.'.code.toByte() }
         val data = "ABCDE".encodeToByteArray() + ByteArray(123) { '-'.code.toByte() } + "ABCDE".encodeToByteArray() + ByteArray(120) { '+'.code.toByte() }
 
+        // ALI-18 #5b: 0'daki red, 128'deki gecerli eslesmeyi engellemez.
+        // (Onceki davranis — red + tuketim — offset-kisitli ClamAV imzalarinda
+        // false-negative deligiydi.)
         val exact = matcher.scan(tempFile(data), positionFilter = { _, position -> position == 128L })
-        assertTrue("128 haric, filtre buraya dusmuyor", exact.matchedIds.isEmpty())
+        assertEquals(setOf(0), exact.matchedIds)
+        assertEquals(listOf(128L), exact.positions.getValue(0))
 
         val anchored = matcher.scan(tempFile(data), positionFilter = { _, position -> position == 0L })
         assertEquals(setOf(0), anchored.matchedIds)
@@ -122,5 +126,21 @@ class BytePatternMatcherTest {
         )
         assertTrue("ofset 0 ve 128, 16..47 araligi disinda", ranged.matchedIds.isEmpty())
         assertFalse("bos veri taramasi da ayni mantikla calismali", matcher.scan(tempFile(atZero)).truncated)
+    }
+
+    @Test
+    fun rejectedFilterDoesNotConsumePattern_ALI18_5b() {
+        // ClamAV offset-kisitli imza senaryosu: erken-decoy reddedilir, gec-geçerli
+        // konum kaydedilmelidir (onceki surumde ikisi de kayboluyordu: FN deligi).
+        val matcher = BytePatternMatcher(listOf(pattern("AB")), chunkSize = 16)
+        val data = "ABxxxAB".encodeToByteArray()
+
+        val result = matcher.scan(
+            tempFile(data),
+            positionFilter = { _, position -> position >= 5L }
+        )
+
+        assertEquals(setOf(0), result.matchedIds)
+        assertEquals(listOf(5L), result.positions.getValue(0))
     }
 }

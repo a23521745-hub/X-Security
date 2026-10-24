@@ -107,4 +107,27 @@ class DeviceScanSummaryTest {
         assertEquals(ScanStatus.CLEAN, result.status)
         assertTrue(result.isComplete)
     }
+
+    @Test
+    fun mergeEntryPropagatesPartialScan_ALI18_EK2() {
+        val entry = DeviceScanSummary.mergeEntry(
+            app,
+            listOf(
+                clean("/a/base.apk"),
+                ScanResult(
+                    status = ScanStatus.CLEAN,
+                    filePath = "/a/split.apk",
+                    fileName = "split.apk",
+                    fileSize = 10L,
+                    sha256 = "x",
+                    partialScan = true
+                )
+            )
+        )
+        assertEquals(ScanStatus.CLEAN, entry.status)
+        assertTrue("split kismi tarandiysa girdi kismidir", entry.partialScan)
+
+        val summary = DeviceScanSummary.toScanResult(listOf(entry), 1L, "x")
+        assertTrue(summary.partialScan)
+    }
 }

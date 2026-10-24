@@ -38,7 +38,13 @@ data class ScanResult(
     val bytesScanned: Long = 0L,
     val durationMillis: Long = 0L,
     val engineWarnings: List<String> = emptyList(),
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    /**
+     * ALI-18 EK-2: icerigin tamami taranamadi (truncation / atlanan ZIP girdisi /
+     * bozuk arsiv). `true` ise "temiz" hukmu eksik kanita dayanir; arayuz bunu
+     * durustce gosterir.
+     */
+    val partialScan: Boolean = false
 ) {
     val isInfected: Boolean get() = threats.isNotEmpty()
     val isComplete: Boolean get() = status.isComplete && errorMessage == null

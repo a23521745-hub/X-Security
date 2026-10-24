@@ -3,6 +3,7 @@ package org.xsecurity.scanner.data
 import android.content.Context
 import android.net.Uri
 import org.xsecurity.scanner.core.Digest
+import org.xsecurity.scanner.engine.ApkScannerEngine
 import org.xsecurity.scanner.engine.ScanEngines
 import java.io.File
 import java.io.IOException
@@ -16,7 +17,7 @@ import java.io.IOException
  *      calismada `filesDir/signatures/` kopyalanir (kaynak `definitions/`),
  *  (2) kullanicini SAF ile kendi kural/veritabanini secip atomik olarak kurabilir,
  *  (3) imzali tanim kanali (`org.xsecurity.scanner.definitions`) guncel paketi
- *      indirip [installFromDownload] ile ayni hedefe kurar.
+ *      indirip [installSetFromDownload] ile ayni hedefe atomik kurar.
  */
 object SignatureStore {
 
@@ -122,23 +123,70 @@ object SignatureStore {
     }
 
     /**
-     * OTA tanim kanali icin: indirilip SHA-256 ile dogrulanmis gecici dosyayi
-     * `filesDir/signatures/` altina atomik olarak kurar. Kaynak etiketi
-     * (`"ota-v7"` gibi) prefs'e yazilir; UI ve surum cozumlemesi bunu okur.
+     * ALI-18 #2: dogrulanmis tanim setini atomik kurar (ya hep ya hic).
+     *
+     * Prefs yalan soylemez: kaynak/SHA isaretlemesi yalnizca takas BASARILI
+     * olursa yazilir; hata durumunda eski dosyalar + eski prefs aynen korunur.
+     *
+     * @return basarida `null`, hatada kullaniciya gosterilebilir neden.
      */
-    fun installFromDownload(context: Context, kind: Kind, temp: File, source: String) {
-        if (!temp.isFile || temp.length() <= 0L) {
-            throw IOException("Downloaded definitions file is empty or missing: ${temp.absolutePath}")
+    fun installSetFromDownload(context: Context, staged: Map<Kind, File>, source: String): String? {
+        if (staged.isEmpty()) return null
+        val shas = LinkedHashMap<Kind, String>()
+        for ((kind, temp) in staged) {
+            shas[kind] = runCatching { Digest.sha256Hex(temp) }.getOrNull()
+                ?: return "Could not hash staged file: ${temp.absolutePath}"
         }
-        val target = file(context, kind)
-        val sha = Digest.sha256Hex(temp)
-        if (target.isFile) target.delete()
-        if (!temp.renameTo(target)) {
-            temp.delete()
-            throw IOException("Downloaded definitions could not be moved into place: ${target.absolutePath}")
+        return when (val outcome = AtomicFileSet.installSet(directory(context), staged.mapKeys { it.key.fileName })) {
+            is AtomicFileSet.Outcome.Committed -> {
+                for ((kind, sha) in shas) markInstalled(context, kind, source, sha)
+                ScanEngines.invalidate()
+                null
+            }
+            is AtomicFileSet.Outcome.RolledBack ->
+                "Definitions update was rolled back and the previous set was kept (${outcome.reason})."
         }
-        markInstalled(context, kind, source, sha)
-        ScanEngines.invalidate()
+    }
+
+    /**
+     * Onceki kurulumda process coktuysa yarim seti toparlar (ALI-18 review):
+     * hedefi kayip yedekler geri yuklenir; hedef+yedek birlikte varsa oracle
+     * (mevcut set yuklenebiliyor mu?) karar verir — yukleniyorsa yedek bayattir,
+     * yuklenemiyorsa eski sete donulur.
+     *
+     * @return toparlanan/belirsiz bir durum bulunduysa `true`.
+     */
+    fun recoverInterruptedInstall(context: Context): Boolean {
+        val directory = directory(context)
+        val names = Kind.values().map { it.fileName }
+        val outcome = AtomicFileSet.recover(directory, names)
+        if (outcome.ambiguous.isEmpty()) return outcome.recovered.isNotEmpty()
+
+        val currentLoads = runCatching {
+            ApkScannerEngine.load(
+                fileOrNull(context, Kind.YARA),
+                fileOrNull(context, Kind.CLAM_AV),
+                fileOrNull(context, Kind.CLAM_HASHES)
+            ).isSuccess
+        }.getOrDefault(false)
+        if (currentLoads) {
+            // Yeni set saglam; yedekler onceki committen kalma bayat artiklar.
+            outcome.ambiguous.forEach { name ->
+                runCatching { File(directory, name + AtomicFileSet.BACKUP_SUFFIX).delete() }
+            }
+        } else {
+            // Mevcut set olu; yedeklerdeki eski sete don (bulunabilen kadariyla).
+            outcome.ambiguous.forEach { name ->
+                runCatching {
+                    val target = File(directory, name)
+                    val backup = File(directory, name + AtomicFileSet.BACKUP_SUFFIX)
+                    if (target.isFile) target.delete()
+                    if (backup.isFile) backup.renameTo(target)
+                }
+            }
+            ScanEngines.invalidate()
+        }
+        return true
     }
 
     fun clear(context: Context, kind: Kind) {

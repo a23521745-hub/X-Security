@@ -172,6 +172,24 @@ object ScanNotifications {
         notifyOn(context, shieldNotificationId(entry.packageName), notification)
     }
 
+    /**
+     * Kismi tarama bilgisi: tehdit bulunamadi ama APK'nin bir kismi taranamadi;
+     * bu yuzden sonuc "temiz" degil "dogrulanamadi" olarak sunulur. Sessiz ve
+     * dusuk onceliklidir (tehdit degil), ancak gosterilmesi zorunludur.
+     */
+    fun showInstallPartial(context: Context, entry: AppScanEntry) {
+        val body = context.getString(R.string.notif_shield_partial_body, entry.label, entry.packageName)
+        val notification = base(context)
+            .setContentTitle(context.getString(R.string.notif_shield_partial_title))
+            .setContentText(body)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+            .setSmallIcon(R.drawable.ic_stat_shield)
+            .setSilent(true)
+            .setAutoCancel(true)
+            .build()
+        notifyOn(context, shieldNotificationId(entry.packageName), notification)
+    }
+
     fun showInstallFailed(context: Context, entry: AppScanEntry) {
         val body = context.getString(
             R.string.notif_shield_failed_body,

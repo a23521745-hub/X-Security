@@ -9,12 +9,17 @@ import java.io.File
  * uygulamayi yeniden taramayin der.
  *
  * Kalicilik: `filesDir/device-scan-cache.json`, icerigi
- * `{ "fingerprint": "<motor parmak izi>", "apps": { "<paket>": { versionCode, lastUpdateTime, entry } } }`.
+ * `{ "fingerprint": "<motor parmak izi>", "scannerVersion": <uygulama surum kodu>,
+ *   "apps": { "<paket>": { versionCode, lastUpdateTime, entry } } }`.
  *
  *  - `fingerprint` [org.xsecurity.scanner.engine.ApkScannerEngine.fingerprint]'dir
  *    (imza dosyalarinin yol+boyut+mtime zinciri). Imza veritabani degisince parmak
  *    izi de degisir ve **tumu** onbellek gecerli sayilmaz — yeniden tarama dogru
  *    davranistir.
+ *  - `scannerVersion` uygulama surum kodudur (ALI-18 review): motor/tespit mantigi
+ *    uygulama guncellemesiyle degisebilir; imza parmak izi ayni kalsa bile eski
+ *    surumun sonuclari yeniden kullanilmaz. Anahtari olmayan eski onbellekler
+ *    ilk turda miss sayilir (guvenli yon).
  *  - Uygulama anahtari `(versionCode, lastUpdateTime)` ikilidir: surum atlayan veya
  *    yerinde guncellenen APK yeniden taranir.
  *  - Kayit `entry-lite`'tir: [DeviceScanStore.encodeEntry] codec'iyle uretilen
@@ -35,7 +40,9 @@ object DeviceScanCache {
 
     data class Snapshot(
         val fingerprint: String,
-        val apps: Map<String, CachedApp>
+        val apps: Map<String, CachedApp>,
+        /** Uygulama surum kodu (motor/tespit mantigi surumu vekili). */
+        val scannerVersion: Long
     )
 
     fun file(context: Context): File = File(context.filesDir, FILE_NAME)
@@ -57,7 +64,7 @@ object DeviceScanCache {
             val cachedApp = decodeCachedApp(item) ?: continue
             apps[key] = cachedApp
         }
-        return Snapshot(fingerprint, apps)
+        return Snapshot(fingerprint, apps, root.optLong("scannerVersion", -1L))
     }
 
     /** Atomik yazi: once `.tmp`, sonra rename (rename basaramazsa kopya). */
@@ -76,12 +83,19 @@ object DeviceScanCache {
     }
 
     /**
-     * Onbellek islemi kontrolu: parmak izi AYNI ve paketin surum kodu + guncelleme
-     * zamani AYNI ise onceden taranmis girdi doner; aksi halde `null` (yeniden tara).
+     * Onbellek islemi kontrolu: parmak izi AYNI, tarayici surumu AYNI ve paketin
+     * surum kodu + guncelleme zamani AYNI ise onceden taranmis girdi doner;
+     * aksi halde `null` (yeniden tara).
      */
-    fun hitFor(snapshot: Snapshot?, engineFingerprint: String, app: InstalledApp): AppScanEntry? {
+    fun hitFor(
+        snapshot: Snapshot?,
+        engineFingerprint: String,
+        scannerVersion: Long,
+        app: InstalledApp
+    ): AppScanEntry? {
         if (snapshot == null) return null
         if (snapshot.fingerprint != engineFingerprint) return null
+        if (snapshot.scannerVersion != scannerVersion) return null
         val cached = snapshot.apps[app.packageName] ?: return null
         if (cached.versionCode != app.versionCode) return null
         if (cached.lastUpdateTime != app.lastUpdateTime) return null
@@ -106,6 +120,7 @@ object DeviceScanCache {
         }
         val root = JSONObject()
         root.put("fingerprint", snapshot.fingerprint)
+        root.put("scannerVersion", snapshot.scannerVersion)
         root.put("apps", apps)
         return root.toString()
     }

@@ -1,5 +1,7 @@
 # NOT: Bu dosya SADECE REFERANS kopyasidir (bot .github/workflows/ altina
 # dokunamaz). Remote'teki gercek dosya: .github/workflows/android-release-apk.yml
+# EK-6 (ALI-18, 24.10.2026): fail-closed satirlari SAHIP-ONAYLI dar istisnayla
+# eklendi (secret yoksa push derlemesi PATLAR, PR derlemesi etkilenmez).
 # Asagidaki icerik, remote'un guncel hali + "Build & Sign Definitions Package"
 # adimi + release asset listesine eklenen 4 tanim dosyasidir. Uygulamak icin
 # dosyanin TAMAMINI kopyalayip Termux/web UI uzerinden uzerine yazin.
@@ -28,12 +30,12 @@ jobs:
 
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5 (v4 deprecated, CI uyarisi)
         with:
           distribution: temurin
           java-version: '17'
@@ -82,19 +84,72 @@ jobs:
       - name: Run Unit Tests
         run: ./gradlew --no-daemon :app:testDebugUnitTest
 
+      - name: Report failed test names
+        # Kirmizi CI'da basarisiz testin ADINI annotation olarak yazar (ALI-18:
+        # log/artifact erisimi kisitli ortamlarda kor tani icin). Gradle JUnit
+        # XML'lerini okur; yeni action/permission gerektirmez (stdlib python3).
+        # Yesil kosularda calismaz (failure kosulu).
+        # v2: her durumda ozet annotation yazar — XML yoksa derleme/gorev
+        # hatasi, 0 hata varsa test-disi basarisizlik demektir.
+        if: failure()
+        run: |
+          python3 - <<'PYEOF'
+          import glob, os, xml.etree.ElementTree as ET
+          xmls = sorted(glob.glob('app/build/test-results/**/*.xml', recursive=True))
+          print(f"::notice::junit xml files found: {len(xmls)}")
+          if not xmls:
+              have_dir = os.path.isdir('app/build/test-results')
+              print("::error::NO JUnit XML found at app/build/test-results "
+                    f"(dir exists: {have_dir}). The failure is a COMPILATION or "
+                    "task error, not a test assertion.")
+          total = fails = errs = skips = 0
+          hits = 0
+          for path in xmls:
+              try:
+                  root = ET.parse(path).getroot()
+              except Exception as exc:
+                  print(f"::warning::could not parse {path}: {exc}")
+                  continue
+              suites = [root] if root.tag == 'testsuite' else list(root.iter('testsuite'))
+              for s in suites:
+                  total += int(s.get('tests', 0))
+                  fails += int(s.get('failures', 0))
+                  errs += int(s.get('errors', 0))
+                  skips += int(s.get('skipped', 0))
+              for tc in root.iter('testcase'):
+                  for tag in ('failure', 'error'):
+                      bad = tc.find(tag)
+                      if bad is None:
+                          continue
+                      classname = tc.get('classname') or '?'
+                      testfile = 'app/src/test/java/' + classname.replace('.', '/') + '.kt'
+                      if not os.path.isfile(testfile):
+                          testfile = path
+                      msg = (bad.get('message') or tag).strip().splitlines()
+                      msg = msg[0][:500] if msg else tag
+                      print(f"::error file={testfile},title=FAIL {classname}#{tc.get('name')}::{msg}")
+                      hits += 1
+          print(f"::notice::tests={total} failures={fails} errors={errs} "
+                f"skipped={skips} annotated={hits}")
+          PYEOF
+
       - name: Run Android Lint Checks
         run: ./gradlew --no-daemon :app:lintDebug
 
-      - name: Prepare Release Keystore (Optional)
+      - name: Prepare Release Keystore
         env:
           KEYSTORE_BASE64: ${{ secrets.XSEC_KEYSTORE_BASE64 }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
           if [ -n "$KEYSTORE_BASE64" ]; then
             printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/xsecurity-release.jks"
             echo "XSEC_KEYSTORE=$RUNNER_TEMP/xsecurity-release.jks" >> "$GITHUB_ENV"
             echo "Release keystore hazirlandi."
+          elif [ "$EVENT_NAME" = "push" ]; then
+            echo "HATA: XSEC_KEYSTORE_BASE64 tanimli degil; imzasiz release YASAK (fail-closed, ALI-18 EK-6)." >&2
+            exit 1
           else
-            echo "XSEC_KEYSTORE_BASE64 tanimli degil: release APK imzasiz uretilecek."
+            echo "XSEC_KEYSTORE_BASE64 tanimli degil: PR derlemesi imzasiz devam ediyor (yayinlanmaz)."
           fi
 
       - name: Build Release APK
@@ -113,6 +168,7 @@ jobs:
           VER_NAME: ${{ steps.version.outputs.version_name }}
           TAG_NAME: ${{ steps.version.outputs.tag }}
           OTA_SIGNING_KEY_B64: ${{ secrets.XSEC_OTA_SIGNING_KEY }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
           set -euo pipefail
           APK_PATH=$(find app/build/outputs/apk/release/ -name "*.apk" | head -n 1)
@@ -140,9 +196,11 @@ jobs:
               -out update.json.sig update.json
             rm -f "$RUNNER_TEMP/ota-signing-private.pem"
             echo "update.json imzalandi (update.json.sig uretildi)."
+          elif [ "$EVENT_NAME" = "push" ]; then
+            echo "HATA: XSEC_OTA_SIGNING_KEY tanimli degil; imzasiz update.json YASAK (fail-closed, ALI-18 EK-6)." >&2
+            exit 1
           else
-            echo "UYARI: XSEC_OTA_SIGNING_KEY tanimli degil; update.json IMZASIZ." >&2
-            echo "Uygulama bu manifesti reddeder (imza dogrulamasi basarisi olur)." >&2
+            echo "UYARI: XSEC_OTA_SIGNING_KEY tanimli degil; PR derlemesinde update.json IMZASIZ (yayinlanmaz)." >&2
           fi
 
       - name: Build & Sign Definitions Package
@@ -196,8 +254,8 @@ jobs:
             rm -f "$RUNNER_TEMP/ota-signing-private.pem"
             echo "definitions.json imzalandi (definitions.json.sig uretildi)."
           else
-            echo "UYARI: XSEC_OTA_SIGNING_KEY tanimli degil; definitions.json IMZASIZ." >&2
-            echo "Uygulama tanim paketini reddeder (imza dogrulamasi basarisi olur)." >&2
+            echo "HATA: XSEC_OTA_SIGNING_KEY tanimli degil; imzasiz definitions.json YASAK (fail-closed, ALI-18 EK-6)." >&2
+            exit 1
           fi
 
           cp definitions/rules.yar .
@@ -206,7 +264,7 @@ jobs:
 
       - name: 🚀 Publish GitHub Release
         if: github.event_name == 'push'
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           tag_name: ${{ steps.version.outputs.tag }}
           name: "X-Security OTA Build v${{ steps.version.outputs.next }}"
@@ -239,7 +297,7 @@ jobs:
 
       - name: Upload Test/Lint Reports on Failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: reports
           path: app/build/reports/

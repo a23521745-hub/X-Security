@@ -25,7 +25,12 @@ data class AppScanEntry(
      * `FLAG_UPDATED_SYSTEM_APP`). Scan-result UI must never offer Remove/Quarantine for it.
      * Defaults to false for entries decoded from older caches.
      */
-    val isSystemPackage: Boolean = false
+    val isSystemPackage: Boolean = false,
+    /**
+     * ALI-18 EK-2: uygulamanin en az bir APK'si kismi tarandi. Eski
+     * onbelleklerde yoktur -> `false`.
+     */
+    val partialScan: Boolean = false
 ) {
     val isInfected: Boolean get() = threats.isNotEmpty()
     val isFailed: Boolean get() = status == ScanStatus.FAILED
@@ -62,7 +67,8 @@ object DeviceScanSummary {
             durationMillis = results.sumOf { it.durationMillis },
             // System and updated-system apps are carried into the UI so it can show the
             // "no action" treatment instead of a Remove button.
-            isSystemPackage = app.isSystem || app.isUpdatedSystem
+            isSystemPackage = app.isSystem || app.isUpdatedSystem,
+            partialScan = results.any { it.partialScan }
         )
     }
 
@@ -96,7 +102,8 @@ object DeviceScanSummary {
             bytesScanned = 0L,
             durationMillis = durationMillis,
             engineWarnings = warnings,
-            errorMessage = if (status == ScanStatus.FAILED) "No installed app could be scanned" else null
+            errorMessage = if (status == ScanStatus.FAILED) "No installed app could be scanned" else null,
+            partialScan = entries.any { it.partialScan }
         )
     }
 

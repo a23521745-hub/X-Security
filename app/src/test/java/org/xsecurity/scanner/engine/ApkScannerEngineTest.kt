@@ -4,7 +4,9 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.xsecurity.scanner.core.Digest
 import java.io.File
+import java.nio.file.Files
 
 /**
  * Motorun uctan uca davranisi. Buradaki ilk iki test, projedeki en tehlikeli hataya
@@ -217,5 +219,100 @@ class ApkScannerEngineTest {
 
         val second = ScanEngines.acquire(yara, null).getOrThrow()
         assertEquals(listOf("V2", "V3"), second.yaraRules.map { it.name })
+    }
+
+    @Test
+    fun fileChangedMidScanInvalidatesResult_ALI18_1() {
+        val yara = fileWith(
+            ".yar",
+            "rule Demo { strings: ${'$'}a = \"NEEDLE\" condition: any of them }"
+        )
+        val engine = ApkScannerEngine.load(yara, File("absent-${System.nanoTime()}.ndb")).getOrThrow()
+        val target = fileWith(".apk", "junk NEEDLE junk")
+
+        var mutated = false
+        val result = engine.scan(target) {
+            if (!mutated) {
+                mutated = true
+                target.appendText("MUTATED")
+            }
+        }
+
+        assertTrue("mutasyon gerceklesmeli", mutated)
+        assertEquals(ScanStatus.FAILED, result.status)
+        assertTrue(
+            "gecersiz kilma mesaji beklenir: ${result.errorMessage}",
+            result.errorMessage.orEmpty().contains("changed during scan")
+        )
+        assertTrue("gecersiz sonuc tehdit tasimamali", result.threats.isEmpty())
+    }
+
+    @Test
+    fun reportShaDescribesScannedContent_ALI18_1() {
+        val yara = fileWith(
+            ".yar",
+            "rule Demo { strings: ${'$'}a = \"NEEDLE\" condition: any of them }"
+        )
+        val engine = ApkScannerEngine.load(yara, File("absent-${System.nanoTime()}.ndb")).getOrThrow()
+        val target = fileWith(".apk", "junk NEEDLE junk")
+
+        val result = engine.scan(target)
+
+        assertEquals(ScanStatus.THREATS_FOUND, result.status)
+        // Rapor, sonda yeniden hesaplanan degil, basta yakalanan kimliktir.
+        assertEquals(Digest.sha256Hex(target), result.sha256)
+    }
+
+    @Test
+    fun snapshotDirIsUsedForOutsideFilesAndCleanedUp_ALI18_1() {
+        val yara = fileWith(
+            ".yar",
+            "rule Demo { strings: ${'$'}a = \"NEEDLE\" condition: any of them }"
+        )
+        val engine = ApkScannerEngine.load(yara, File("absent-${System.nanoTime()}.ndb")).getOrThrow()
+        val outside = fileWith(".apk", "junk NEEDLE junk")
+        val snapDir = Files.createTempDirectory("xsec-snap-").toFile()
+
+        try {
+            val result = engine.scan(outside, snapshotDir = snapDir)
+
+            assertEquals(ScanStatus.THREATS_FOUND, result.status)
+            assertEquals("rapor orijinali anlatmali", outside.absolutePath, result.filePath)
+            assertEquals(Digest.sha256Hex(outside), result.sha256)
+            assertEquals(
+                "snapshot tarama sonunda silinmeli",
+                0,
+                snapDir.listFiles()?.size ?: -1
+            )
+        } finally {
+            snapDir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun fileAlreadyInsideSnapshotDirIsScannedDirectly_ALI18_1() {
+        val yara = fileWith(
+            ".yar",
+            "rule Demo { strings: ${'$'}a = \"NEEDLE\" condition: any of them }"
+        )
+        val engine = ApkScannerEngine.load(yara, File("absent-${System.nanoTime()}.ndb")).getOrThrow()
+        val snapDir = Files.createTempDirectory("xsec-snap-").toFile()
+
+        try {
+            val inside = File(snapDir, "inner.apk").apply {
+                writeText("junk NEEDLE junk")
+                deleteOnExit()
+            }
+            val result = engine.scan(inside, snapshotDir = snapDir)
+
+            assertEquals(ScanStatus.THREATS_FOUND, result.status)
+            assertEquals(
+                "dizin icindeki dosya icin kopya alinmamali",
+                listOf("inner.apk"),
+                snapDir.listFiles()?.map { it.name }
+            )
+        } finally {
+            snapDir.deleteRecursively()
+        }
     }
 }

@@ -44,9 +44,14 @@ class DeviceScanCacheTest {
         durationMillis = 42L
     )
 
-    private fun snapshotFor(app: InstalledApp, fingerprint: String = "fp-1") = DeviceScanCache.Snapshot(
+    private fun snapshotFor(
+        app: InstalledApp,
+        fingerprint: String = "fp-1",
+        scannerVersion: Long = 42L
+    ) = DeviceScanCache.Snapshot(
         fingerprint = fingerprint,
-        apps = mapOf(app.packageName to DeviceScanCache.CachedApp(app.versionCode, app.lastUpdateTime, entry(app.packageName)))
+        apps = mapOf(app.packageName to DeviceScanCache.CachedApp(app.versionCode, app.lastUpdateTime, entry(app.packageName))),
+        scannerVersion = scannerVersion
     )
 
     @Test
@@ -57,12 +62,30 @@ class DeviceScanCacheTest {
         val loaded = DeviceScanCache.load(file)
         assertNotNull(loaded)
 
-        assertEquals(entry(), DeviceScanCache.hitFor(loaded, "fp-1", app()))
-        assertNull("farkli parmak izi: tum onbellek gecerli degil", DeviceScanCache.hitFor(loaded, "fp-2", app()))
-        assertNull("surum degisti: yeniden tara", DeviceScanCache.hitFor(loaded, "fp-1", app(versionCode = 8L)))
-        assertNull("yerinde guncelleme: yeniden tara", DeviceScanCache.hitFor(loaded, "fp-1", app(lastUpdateTime = 2_000L)))
-        assertNull("bilinmeyen paket", DeviceScanCache.hitFor(loaded, "fp-1", app(packageName = "com.other")))
-        assertNull("snapshot null (dosya yok) her zaman miss", DeviceScanCache.hitFor(null, "fp-1", app()))
+        assertEquals(entry(), DeviceScanCache.hitFor(loaded, "fp-1", 42L, app()))
+        assertNull("farkli parmak izi: tum onbellek gecerli degil", DeviceScanCache.hitFor(loaded, "fp-2", 42L, app()))
+        assertNull("surum degisti: yeniden tara", DeviceScanCache.hitFor(loaded, "fp-1", 42L, app(versionCode = 8L)))
+        assertNull("yerinde guncelleme: yeniden tara", DeviceScanCache.hitFor(loaded, "fp-1", 42L, app(lastUpdateTime = 2_000L)))
+        assertNull("bilinmeyen paket", DeviceScanCache.hitFor(loaded, "fp-1", 42L, app(packageName = "com.other")))
+        assertNull("snapshot null (dosya yok) her zaman miss", DeviceScanCache.hitFor(null, "fp-1", 42L, app()))
+        assertNull("tarayici surumu degisti: yeniden tara", DeviceScanCache.hitFor(loaded, "fp-1", 43L, app()))
+    }
+
+    @Test
+    fun legacySnapshotWithoutScannerVersionIsAlwaysMiss() {
+        val file = tempFile()
+        val entryJson = DeviceScanStore.encodeEntry(entry())
+        file.writeText(
+            "{\"fingerprint\":\"fp-1\",\"apps\":{\"com.example.app\":" +
+                "{\"versionCode\":7,\"lastUpdateTime\":1000,\"entry\":$entryJson}}}"
+        )
+        val loaded = DeviceScanCache.load(file)
+        assertNotNull(loaded)
+        assertEquals(-1L, loaded!!.scannerVersion)
+        assertNull(
+            "surum anahtari olmayan eski onbellek guvenli yone miss sayilir",
+            DeviceScanCache.hitFor(loaded, "fp-1", 42L, app())
+        )
     }
 
     @Test
@@ -78,13 +101,15 @@ class DeviceScanCacheTest {
                 apps = mapOf(
                     appA.packageName to DeviceScanCache.CachedApp(appA.versionCode, appA.lastUpdateTime, entry("com.a")),
                     appB.packageName to DeviceScanCache.CachedApp(appB.versionCode, appB.lastUpdateTime, infected)
-                )
+                ),
+                scannerVersion = 42L
             )
         )
 
         val loaded = DeviceScanCache.load(file)
         assertNotNull(loaded)
         assertEquals("fp-9", loaded!!.fingerprint)
+        assertEquals(42L, loaded.scannerVersion)
         assertEquals(2, loaded.apps.size)
         assertEquals(infected, loaded.apps.getValue("com.b").entry)
         assertEquals(1L, loaded.apps.getValue("com.a").versionCode)
@@ -122,7 +147,7 @@ class DeviceScanCacheTest {
             cacheMap[a.packageName] =
                 DeviceScanCache.CachedApp(a.versionCode, a.lastUpdateTime, entry(a.packageName))
         }
-        val snapshot = DeviceScanCache.Snapshot(fingerprint = "fp-1", apps = cacheMap)
+        val snapshot = DeviceScanCache.Snapshot(fingerprint = "fp-1", apps = cacheMap, scannerVersion = 42L)
 
         val pruned = DeviceScanCache.prune(snapshot, setOf("com.a", "com.c"))
 

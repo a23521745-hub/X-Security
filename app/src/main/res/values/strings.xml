@@ -90,6 +90,8 @@
     <string name="notif_shield_password_advice">If you did not install this app yourself or suspect stalkerware, change your important passwords from another device and review account sessions.</string>
     <string name="notif_shield_clean_title">New app scanned</string>
     <string name="notif_shield_clean_body">%1$s (%2$s) was scanned right after installation; no signature matched.</string>
+    <string name="notif_shield_partial_title">New app only partly scanned</string>
+    <string name="notif_shield_partial_body">%1$s (%2$s) could only be partly scanned after installation; some areas could not be verified, so it cannot be called clean. Run a manual scan for full coverage.</string>
     <string name="notif_shield_failed_title">New app could not be scanned</string>
     <string name="notif_shield_failed_body">%1$s: %2$s</string>
     <string name="shield_result_name">Install shield: %1$s</string>
@@ -125,6 +127,7 @@
     <string name="history_threats_count">%1$d threat(s)</string>
     <string name="history_clean">clean</string>
     <string name="history_failed">failed</string>
+    <string name="history_partial">partial scan</string>
     <string name="history_detail_time">Time</string>
     <string name="history_detail_type">Type</string>
     <string name="history_detail_apps">%1$d scanned · %2$d flagged · %3$d from cache</string>

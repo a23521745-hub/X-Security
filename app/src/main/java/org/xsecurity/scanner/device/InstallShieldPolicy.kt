@@ -33,15 +33,21 @@ object InstallShieldPolicy {
         return name.ifBlank { null }
     }
 
-    enum class Alert { THREAT, CLEAN_INFO, FAILED_INFO, NONE }
+    enum class Alert { THREAT, CLEAN_INFO, PARTIAL_INFO, FAILED_INFO, NONE }
 
     /**
      * Tarama sonucuna gore bildirim karari.
+     *
+     * Kismi tarama (`partialScan`) temiz sayilmaz: tehdit bulunamamis olsa bile
+     * taranamayan alanlar kaldigindan ayri bir [Alert.PARTIAL_INFO] bilgisi
+     * gosterilir — sessiz modda bile (sessizlik yalnizca *tam temiz* sonuclar
+     * icindir; kismi sonuc "temizdir" mesaji vermemelidir).
      * @param quietWhenClean kullanici temiz kurulumlar icin bildirim istemiyorsa true.
      */
     fun alertFor(entry: AppScanEntry, quietWhenClean: Boolean): Alert = when {
         entry.isInfected -> Alert.THREAT
         entry.isFailed -> Alert.FAILED_INFO
+        entry.partialScan -> Alert.PARTIAL_INFO
         quietWhenClean -> Alert.NONE
         else -> Alert.CLEAN_INFO
     }
