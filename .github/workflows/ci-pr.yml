@@ -1,0 +1,126 @@
+# X-Security — PR dogrulama hatti (v23, C-1).
+#
+# Tetikleyici: SADECE pull_request (main hedefli).
+# Yaptigi: SADECE JVM unit testleri + Android Lint.
+# Yapmadigi: secret okumaz (`secrets.*` referansi YOK), imzalama yapmaz,
+#   release yayinlamaz, dala push yapmaz. GITHUB_TOKEN salt-okunur.
+#
+# Neden: PR kodu (Gradle dahil) guvenilmezdir; bu kosucuda hicbir gizli
+# anahtar ortama enjekte edilmedigi icin sizdirilacak secret yoktur (C-1).
+# Imzali APK + GitHub Release SADECE `android-release-apk.yml` ile, main'e
+# push sonrasi MANUEL `workflow_dispatch` + `production` ortami insan
+# onayiyla uretilir.
+#
+# Action pinleri (yorumdaki tag = pinlenen surum):
+#   actions/checkout v5, actions/setup-java v5, actions/upload-artifact v4.
+
+name: PR checks (test + lint, secretsiz)
+
+on:
+  pull_request:
+    branches:
+      - main
+
+# C-1: PR hatti salt-okunur; yazma yetkisi YOK.
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Unit testleri + lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Ensure Android SDK components
+        run: |
+          echo "ANDROID_HOME=${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
+          SDKMGR="${ANDROID_HOME:-$ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager"
+          if [ -x "$SDKMGR" ]; then
+            yes | "$SDKMGR" --licenses >/dev/null || true
+            "$SDKMGR" "platform-tools" "platforms;android-35" "build-tools;34.0.0" || true
+          else
+            echo "sdkmanager bulunamadi; runner'daki onyuklu SDK kullanilacak"
+          fi
+
+      - name: Make gradlew executable
+        run: chmod +x gradlew
+
+      - name: Run Unit Tests
+        run: ./gradlew --no-daemon :app:testDebugUnitTest
+
+      - name: Report failed test names
+        # Kirmizi CI'da basarisiz testin ADINI annotation olarak yazar (ALI-18:
+        # log/artifact erisimi kisitli ortamlarda kor tani icin). Gradle JUnit
+        # XML'lerini okur; yeni action/permission gerektirmez (stdlib python3).
+        # Yesil kosularda calismaz (failure kosulu).
+        # v2: her durumda ozet annotation yazar — XML yoksa derleme/gorev
+        # hatasi, 0 hata varsa test-disi basarisizlik demektir.
+        if: failure()
+        run: |
+          python3 - <<'PYEOF'
+          import glob, os, xml.etree.ElementTree as ET
+          xmls = sorted(glob.glob('app/build/test-results/**/*.xml', recursive=True))
+          print(f"::notice::junit xml files found: {len(xmls)}")
+          if not xmls:
+              have_dir = os.path.isdir('app/build/test-results')
+              print("::error::NO JUnit XML found at app/build/test-results "
+                    f"(dir exists: {have_dir}). The failure is a COMPILATION or "
+                    "task error, not a test assertion.")
+          total = fails = errs = skips = 0
+          hits = 0
+          for path in xmls:
+              try:
+                  root = ET.parse(path).getroot()
+              except Exception as exc:
+                  print(f"::warning::could not parse {path}: {exc}")
+                  continue
+              suites = [root] if root.tag == 'testsuite' else list(root.iter('testsuite'))
+              for s in suites:
+                  total += int(s.get('tests', 0))
+                  fails += int(s.get('failures', 0))
+                  errs += int(s.get('errors', 0))
+                  skips += int(s.get('skipped', 0))
+              for tc in root.iter('testcase'):
+                  for tag in ('failure', 'error'):
+                      bad = tc.find(tag)
+                      if bad is None:
+                          continue
+                      classname = tc.get('classname') or '?'
+                      testfile = 'app/src/test/java/' + classname.replace('.', '/') + '.kt'
+                      if not os.path.isfile(testfile):
+                          testfile = path
+                      msg = (bad.get('message') or tag).strip().splitlines()
+                      msg = msg[0][:500] if msg else tag
+                      print(f"::error file={testfile},title=FAIL {classname}#{tc.get('name')}::{msg}")
+                      hits += 1
+          print(f"::notice::tests={total} failures={fails} errors={errs} "
+                f"skipped={skips} annotated={hits}")
+          PYEOF
+
+      - name: Run Android Lint Checks
+        run: ./gradlew --no-daemon :app:lintDebug
+
+      - name: Upload Test/Lint Reports on Failure
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: reports
+          path: app/build/reports/
+          if-no-files-found: ignore

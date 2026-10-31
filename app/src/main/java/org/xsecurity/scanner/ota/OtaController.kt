@@ -38,7 +38,9 @@ object OtaController {
     /** Derleme zamaninda enjekte edilen degerlerden calisma yapilandirmasini kurar. */
     fun currentConfig(): OtaConfig {
         val manifestUrl = BuildConfig.OTA_MANIFEST_URL.orEmpty().trim()
-        val pem = BuildConfig.OTA_PUBLIC_KEY_PEM.ifBlank { OtaConfig.SAMPLE_PUBLIC_KEY_PEM }
+        // H-1: ornek-anahtar geri donusu KALDIRILDI. Uretim anahtari verilmemis
+        // derlemelerde OTA kanali "yapilandirilmamis" olur (fail-closed).
+        val pem = BuildConfig.OTA_PUBLIC_KEY_PEM.trim()
         val configured = manifestUrl.isNotBlank()
         val hosts = LinkedHashSet<String>()
         BuildConfig.OTA_ALLOWED_HOSTS.split(',').map { it.trim().lowercase() }

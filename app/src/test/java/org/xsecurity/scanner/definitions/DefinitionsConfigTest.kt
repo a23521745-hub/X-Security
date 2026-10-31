@@ -40,6 +40,19 @@ class DefinitionsConfigTest {
     }
 
     @Test
+    fun blankOtaKeyDisablesDefinitionsChannel() {
+        // H-1: OTA anahtari bossa tanim kanali da kapalidir
+        // (ornek-anahtar geri donusu YOK).
+        val config = DefinitionsConfig.derive(
+            otaManifestUrl = "https://github.com/a/b/releases/latest/download/update.json",
+            otaPublicKeyPem = "   ",
+            otaAllowedHostsCsv = "github.com"
+        )
+
+        assertFalse(config.isConfigured)
+    }
+
+    @Test
     fun deriveManifestUrlRejectsMalformedUrls() {
         assertEquals("", DefinitionsConfig.deriveManifestUrl(""))
         assertEquals("", DefinitionsConfig.deriveManifestUrl("not-a-url"))

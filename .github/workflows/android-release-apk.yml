@@ -1,10 +1,35 @@
-# NOT: Bu dosya SADECE REFERANS kopyasidir (bot .github/workflows/ altina
-# dokunamaz). Remote'teki gercek dosya: .github/workflows/android-release-apk.yml
-# EK-6 (ALI-18, 24.10.2026): fail-closed satirlari SAHIP-ONAYLI dar istisnayla
-# eklendi (secret yoksa push derlemesi PATLAR, PR derlemesi etkilenmez).
-# Asagidaki icerik, remote'un guncel hali + "Build & Sign Definitions Package"
-# adimi + release asset listesine eklenen 4 tanim dosyasidir. Uygulamak icin
-# dosyanin TAMAMINI kopyalayip Termux/web UI uzerinden uzerine yazin.
+# X-Security — surum hatti (v23: C-1/C-2/H-1/M-10/M-11).
+#
+# Tetikleyici: main'e push + MANUEL workflow_dispatch. pull_request YOK:
+# PR kodu bu dosyadaki secret'lara erisemez (C-1; PR dogrulamasi secretsiz
+# `ci-pr.yml`'dedir).
+#
+# Isleyis:
+#   build   (push + dispatch): test + lint + surum hesabi + secret
+#           mevcudiyet kapisi (H-1 CI kontrolu) + imzali APK + imzali
+#           update.json + imzali definitions paketi. HICBIR SEY YAYINLAMAZ;
+#           ciktiyi `release-bundle` artifact'i olarak yukler.
+#   publish (SADECE dispatch): `production` ortami INSAN ONAYI (C-2)
+#           ardindan bundle'i indirir, butunluk + surum beyaz-listesini
+#           dogrular (M-10/M-11), surum bump'ini push'lar, tag atar ve
+#           GitHub Release acar.
+#
+# RITUEL (surum yayinlamak icin):
+#   1. Degisiklikleri PR ile main'e birlestir (PR hatti yesil olmali).
+#   2. GitHub > Actions > "Build & Release OTA APK" > Run workflow > calistir.
+#   3. `production` ortami onay istegi gelince inceleyip onayla (C-2 kapisi).
+# Otomatik push-yayinlama DEVRE DISI: main'e push tek basina release acmaz.
+#
+# SAHIP KURULUMU (bir kez, repo Settings > Environments):
+#   `production` ortami olustur + "Required reviewers" olarak kendini ekle.
+#   Bu ayar YAPILMADAN dispatch calismalari kapisiz gecer (GitHub ortami
+#   bos kurallarla otomatik yaratir) — C-2 kapisi bu ayara baglidir!
+#
+# Action pinleri (yorumdaki tag = pinlenen surum):
+#   actions/checkout v5, actions/setup-java v5,
+#   actions/upload-artifact v4, actions/download-artifact v4,
+#   softprops/action-gh-release v2.
+# SDK icin ucuncu-parti action YOK (runner SDK + sdkmanager betigi).
 
 name: Build & Release OTA APK
 
@@ -12,30 +37,32 @@ on:
   push:
     branches:
       - main
-  pull_request:
-    branches:
-      - main
   workflow_dispatch:
 
-permissions:
-  contents: write
+# C-1: en az yetki; yazma SADECE publish job'indadir.
+permissions: {}
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  build-and-release:
+  build:
+    name: Derle + test + imzala (yayin YOK)
     runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    outputs:
+      next: ${{ steps.version.outputs.next }}
+      tag: ${{ steps.version.outputs.tag }}
 
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          fetch-depth: 0
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: Set up JDK 17
-        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5 (v4 deprecated, CI uyarisi)
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
         with:
           distribution: temurin
           java-version: '17'
@@ -61,8 +88,21 @@ jobs:
           set -euo pipefail
           GRADLE_FILE="app/build.gradle.kts"
 
-          CURRENT_CODE=$(grep -E 'versionCode\s*=' "$GRADLE_FILE" | grep -oE '[0-9]+' || echo "1")
-          CURRENT_NAME=$(grep -E 'versionName\s*=' "$GRADLE_FILE" | sed -E 's/.*"([^"]+)".*/\1/' || echo "1.0.0")
+          CURRENT_CODE=$(grep -E 'versionCode\s*=' "$GRADLE_FILE" | grep -oE '[0-9]+' | head -n 1)
+          CURRENT_NAME=$(grep -E 'versionName\s*=' "$GRADLE_FILE" | sed -E 's/.*"([^"]+)".*/\1/' | head -n 1)
+
+          # M-10: surum girdileri fail-closed dogrulanir (tag/heredoc enjeksiyonu YOK).
+          case "$CURRENT_CODE" in
+            ''|*[!0-9]*)
+              echo "HATA: versionCode sayi degil: '$CURRENT_CODE'" >&2; exit 1 ;;
+          esac
+          if [ "$CURRENT_CODE" -lt 1 ] || [ "$CURRENT_CODE" -gt 999999 ]; then
+            echo "HATA: versionCode aralik disi: '$CURRENT_CODE'" >&2; exit 1
+          fi
+          case "$CURRENT_NAME" in
+            ''|*[!A-Za-z0-9._-]*)
+              echo "HATA: versionName bicimi bozuk: '$CURRENT_NAME'" >&2; exit 1 ;;
+          esac
 
           NEXT_CODE=$((CURRENT_CODE + 1))
 
@@ -80,6 +120,30 @@ jobs:
         run: |
           set -euo pipefail
           sed -i -E "s/(versionCode\s*=\s*)$CURRENT_VER/\1$NEXT_VER/" "$GRADLE_FILE"
+          grep -qE "versionCode\s*=\s*$NEXT_VER" "$GRADLE_FILE" \
+            || { echo "HATA: versionCode bump dogrulanamadi" >&2; exit 1; }
+
+      - name: Check required secrets are present (fail-closed)
+        # H-1 CI kontrolu + C-2: imzali surum icin gereken tum secret'lar
+        # yoksa erken PATLA. Degerler ASLA yazdirilmaz; sadece isim kontrolu.
+        env:
+          S_KEYSTORE_B64: ${{ secrets.XSEC_KEYSTORE_BASE64 }}
+          S_KEYSTORE_PW: ${{ secrets.XSEC_KEYSTORE_PASSWORD }}
+          S_KEY_ALIAS: ${{ secrets.XSEC_KEY_ALIAS }}
+          S_KEY_PW: ${{ secrets.XSEC_KEY_PASSWORD }}
+          S_OTA_PUBKEY: ${{ secrets.XSEC_OTA_PUBLIC_KEY_PEM }}
+          S_OTA_SIGNKEY: ${{ secrets.XSEC_OTA_SIGNING_KEY }}
+        run: |
+          set -uo pipefail
+          missing=0
+          if [ -z "$S_KEYSTORE_B64" ]; then echo "HATA: XSEC_KEYSTORE_BASE64 yok" >&2; missing=1; fi
+          if [ -z "$S_KEYSTORE_PW" ]; then echo "HATA: XSEC_KEYSTORE_PASSWORD yok" >&2; missing=1; fi
+          if [ -z "$S_KEY_ALIAS" ]; then echo "HATA: XSEC_KEY_ALIAS yok" >&2; missing=1; fi
+          if [ -z "$S_KEY_PW" ]; then echo "HATA: XSEC_KEY_PASSWORD yok" >&2; missing=1; fi
+          if [ -z "$S_OTA_PUBKEY" ]; then echo "HATA: XSEC_OTA_PUBLIC_KEY_PEM yok" >&2; missing=1; fi
+          if [ -z "$S_OTA_SIGNKEY" ]; then echo "HATA: XSEC_OTA_SIGNING_KEY yok" >&2; missing=1; fi
+          if [ "$missing" -ne 0 ]; then exit 1; fi
+          echo "6/6 secret mevcut."
 
       - name: Run Unit Tests
         run: ./gradlew --no-daemon :app:testDebugUnitTest
@@ -139,18 +203,15 @@ jobs:
       - name: Prepare Release Keystore
         env:
           KEYSTORE_BASE64: ${{ secrets.XSEC_KEYSTORE_BASE64 }}
-          EVENT_NAME: ${{ github.event_name }}
         run: |
-          if [ -n "$KEYSTORE_BASE64" ]; then
-            printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/xsecurity-release.jks"
-            echo "XSEC_KEYSTORE=$RUNNER_TEMP/xsecurity-release.jks" >> "$GITHUB_ENV"
-            echo "Release keystore hazirlandi."
-          elif [ "$EVENT_NAME" = "push" ]; then
-            echo "HATA: XSEC_KEYSTORE_BASE64 tanimli degil; imzasiz release YASAK (fail-closed, ALI-18 EK-6)." >&2
+          set -euo pipefail
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "HATA: XSEC_KEYSTORE_BASE64 tanimli degil; imzasiz release YASAK (fail-closed)." >&2
             exit 1
-          else
-            echo "XSEC_KEYSTORE_BASE64 tanimli degil: PR derlemesi imzasiz devam ediyor (yayinlanmaz)."
           fi
+          printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/xsecurity-release.jks"
+          echo "XSEC_KEYSTORE=$RUNNER_TEMP/xsecurity-release.jks" >> "$GITHUB_ENV"
+          echo "Release keystore hazirlandi."
 
       - name: Build Release APK
         env:
@@ -167,8 +228,8 @@ jobs:
           NEXT_VER: ${{ steps.version.outputs.next }}
           VER_NAME: ${{ steps.version.outputs.version_name }}
           TAG_NAME: ${{ steps.version.outputs.tag }}
+          REPO: ${{ github.repository }}
           OTA_SIGNING_KEY_B64: ${{ secrets.XSEC_OTA_SIGNING_KEY }}
-          EVENT_NAME: ${{ github.event_name }}
         run: |
           set -euo pipefail
           APK_PATH=$(find app/build/outputs/apk/release/ -name "*.apk" | head -n 1)
@@ -180,7 +241,7 @@ jobs:
           {
             "versionCode": ${NEXT_VER},
             "versionName": "${VER_NAME}",
-            "apkUrl": "https://github.com/${{ github.repository }}/releases/download/${TAG_NAME}/X-Security.apk",
+            "apkUrl": "https://github.com/${REPO}/releases/download/${TAG_NAME}/X-Security.apk",
             "apkSha256": "${SHA256}",
             "apkSizeBytes": $(stat -c%s X-Security.apk),
             "minSdk": 26,
@@ -190,27 +251,29 @@ jobs:
           }
           EOF
 
-          if [ -n "$OTA_SIGNING_KEY_B64" ]; then
-            printf '%s' "$OTA_SIGNING_KEY_B64" | base64 -d > "$RUNNER_TEMP/ota-signing-private.pem"
-            openssl dgst -sha256 -sign "$RUNNER_TEMP/ota-signing-private.pem" \
-              -out update.json.sig update.json
-            rm -f "$RUNNER_TEMP/ota-signing-private.pem"
-            echo "update.json imzalandi (update.json.sig uretildi)."
-          elif [ "$EVENT_NAME" = "push" ]; then
-            echo "HATA: XSEC_OTA_SIGNING_KEY tanimli degil; imzasiz update.json YASAK (fail-closed, ALI-18 EK-6)." >&2
+          if [ -z "$OTA_SIGNING_KEY_B64" ]; then
+            echo "HATA: XSEC_OTA_SIGNING_KEY tanimli degil; imzasiz update.json YASAK (fail-closed)." >&2
             exit 1
-          else
-            echo "UYARI: XSEC_OTA_SIGNING_KEY tanimli degil; PR derlemesinde update.json IMZASIZ (yayinlanmaz)." >&2
           fi
+          printf '%s' "$OTA_SIGNING_KEY_B64" | base64 -d > "$RUNNER_TEMP/ota-signing-private.pem"
+          openssl dgst -sha256 -sign "$RUNNER_TEMP/ota-signing-private.pem" \
+            -out update.json.sig update.json
+          rm -f "$RUNNER_TEMP/ota-signing-private.pem"
+          echo "update.json imzalandi (update.json.sig uretildi)."
 
       - name: Build & Sign Definitions Package
-        if: github.event_name == 'push'
         env:
           TAG_NAME: ${{ steps.version.outputs.tag }}
+          REPO: ${{ github.repository }}
           OTA_SIGNING_KEY_B64: ${{ secrets.XSEC_OTA_SIGNING_KEY }}
         run: |
           set -euo pipefail
           DEF_VERSION=$(tr -d '[:space:]' < definitions/db-version.txt)
+          # M-10: tanim surumu sayi olmak zorunda (heredoc enjeksiyonu YOK).
+          case "$DEF_VERSION" in
+            ''|*[!0-9]*)
+              echo "HATA: definitions/db-version.txt sayi degil: '$DEF_VERSION'" >&2; exit 1 ;;
+          esac
           YAR_SHA=$(sha256sum definitions/rules.yar | awk '{print $1}')
           NDB_SHA=$(sha256sum definitions/signatures.ndb | awk '{print $1}')
           HSB_SHA=$(sha256sum definitions/hashes.hsb | awk '{print $1}')
@@ -225,21 +288,21 @@ jobs:
               {
                 "kind": "YARA",
                 "name": "rules.yar",
-                "url": "https://github.com/${{ github.repository }}/releases/download/${TAG_NAME}/rules.yar",
+                "url": "https://github.com/${REPO}/releases/download/${TAG_NAME}/rules.yar",
                 "sha256": "${YAR_SHA}",
                 "sizeBytes": $(stat -c%s definitions/rules.yar)
               },
               {
                 "kind": "CLAM_AV",
                 "name": "signatures.ndb",
-                "url": "https://github.com/${{ github.repository }}/releases/download/${TAG_NAME}/signatures.ndb",
+                "url": "https://github.com/${REPO}/releases/download/${TAG_NAME}/signatures.ndb",
                 "sha256": "${NDB_SHA}",
                 "sizeBytes": $(stat -c%s definitions/signatures.ndb)
               },
               {
                 "kind": "CLAM_HASHES",
                 "name": "hashes.hsb",
-                "url": "https://github.com/${{ github.repository }}/releases/download/${TAG_NAME}/hashes.hsb",
+                "url": "https://github.com/${REPO}/releases/download/${TAG_NAME}/hashes.hsb",
                 "sha256": "${HSB_SHA}",
                 "sizeBytes": $(stat -c%s definitions/hashes.hsb)
               }
@@ -247,53 +310,37 @@ jobs:
           }
           EOF
 
-          if [ -n "$OTA_SIGNING_KEY_B64" ]; then
-            printf '%s' "$OTA_SIGNING_KEY_B64" | base64 -d > "$RUNNER_TEMP/ota-signing-private.pem"
-            openssl dgst -sha256 -sign "$RUNNER_TEMP/ota-signing-private.pem" \
-              -out definitions.json.sig definitions.json
-            rm -f "$RUNNER_TEMP/ota-signing-private.pem"
-            echo "definitions.json imzalandi (definitions.json.sig uretildi)."
-          else
-            echo "HATA: XSEC_OTA_SIGNING_KEY tanimli degil; imzasiz definitions.json YASAK (fail-closed, ALI-18 EK-6)." >&2
+          if [ -z "$OTA_SIGNING_KEY_B64" ]; then
+            echo "HATA: XSEC_OTA_SIGNING_KEY tanimli degil; imzasiz definitions.json YASAK (fail-closed)." >&2
             exit 1
           fi
+          printf '%s' "$OTA_SIGNING_KEY_B64" | base64 -d > "$RUNNER_TEMP/ota-signing-private.pem"
+          openssl dgst -sha256 -sign "$RUNNER_TEMP/ota-signing-private.pem" \
+            -out definitions.json.sig definitions.json
+          rm -f "$RUNNER_TEMP/ota-signing-private.pem"
+          echo "definitions.json imzalandi (definitions.json.sig uretildi)."
 
           cp definitions/rules.yar .
           cp definitions/signatures.ndb .
           cp definitions/hashes.hsb .
 
-      - name: 🚀 Publish GitHub Release
-        if: github.event_name == 'push'
-        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
-        with:
-          tag_name: ${{ steps.version.outputs.tag }}
-          name: "X-Security OTA Build v${{ steps.version.outputs.next }}"
-          make_latest: true
-          files: |
-            X-Security.apk
-            update.json
-            update.json.sig
-            rules.yar
-            signatures.ndb
-            hashes.hsb
-            definitions.json
-            definitions.json.sig
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: 💾 Commit and Push Updated Files (build.gradle.kts & update.json)
-        if: github.event_name == 'push'
-        env:
-          GRADLE_FILE: ${{ steps.version.outputs.gradle_file }}
-          NEXT_VER: ${{ steps.version.outputs.next }}
+      - name: Stage release bundle for the publish job
         run: |
           set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          mkdir -p bundle/pushback
+          cp X-Security.apk update.json update.json.sig definitions.json definitions.json.sig \
+            rules.yar signatures.ndb hashes.hsb bundle/
+          cp app/build.gradle.kts bundle/pushback/build.gradle.kts
+          cp update.json bundle/pushback/update.json
+          ls -la bundle bundle/pushback
 
-          git add "$GRADLE_FILE" update.json
-          git commit -m "chore(release): Auto-build X-Security v$NEXT_VER [skip ci]" || echo "No changes to commit"
-          git push origin main
+      - name: Upload release bundle
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-bundle
+          path: bundle/
+          if-no-files-found: error
+          retention-days: 30
 
       - name: Upload Test/Lint Reports on Failure
         if: failure()
@@ -302,3 +349,129 @@ jobs:
           name: reports
           path: app/build/reports/
           if-no-files-found: ignore
+
+  publish:
+    name: Yayinla (Release + tag + surum push'u)
+    needs: [build]
+    # C-2: yayin SADECE manuel tetiklemede; main'e push tek basina acmaz.
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # C-2: insan onayi kapisi. Repo Settings > Environments > `production`
+    # altinda "Required reviewers" ZORUNLU (sahip kurar; kurulmadan kapisiz gecer!).
+    environment: production
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 0
+
+      - name: Download release bundle
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: release-bundle
+          path: bundle/
+
+      - name: Verify bundle integrity (M-10)
+        env:
+          NEXT_VER: ${{ needs.build.outputs.next }}
+          TAG_NAME: ${{ needs.build.outputs.tag }}
+        run: |
+          set -euo pipefail
+          # M-10: job'lar arasi surum girdileri yeniden dogrulanir.
+          case "$NEXT_VER" in
+            ''|*[!0-9]*)
+              echo "HATA: surum numarasi sayi degil: '$NEXT_VER'" >&2; exit 1 ;;
+          esac
+          case "$TAG_NAME" in
+            v[0-9]*)
+              case "$TAG_NAME" in
+                ''|*[!v0-9]*)
+                  echo "HATA: tag bicimi bozuk: '$TAG_NAME'" >&2; exit 1 ;;
+              esac ;;
+            *)
+              echo "HATA: tag bicimi bozuk: '$TAG_NAME'" >&2; exit 1 ;;
+          esac
+          if [ "$TAG_NAME" != "v$NEXT_VER" ]; then
+            echo "HATA: tag ($TAG_NAME) ile surum (v$NEXT_VER) uyusmuyor" >&2; exit 1
+          fi
+          # Bundle butunlugu: APK sha256 == manifestteki apkSha256,
+          # manifest versionCode == beklenen surum, imzalar bos degil.
+          for f in bundle/X-Security.apk bundle/update.json bundle/update.json.sig \
+              bundle/definitions.json bundle/definitions.json.sig \
+              bundle/rules.yar bundle/signatures.ndb bundle/hashes.hsb \
+              bundle/pushback/build.gradle.kts bundle/pushback/update.json; do
+            if [ ! -s "$f" ]; then echo "HATA: bundle dosyasi eksik/bos: $f" >&2; exit 1; fi
+          done
+          python3 - "$NEXT_VER" <<'PYEOF'
+          import hashlib, json, sys
+          want_code = int(sys.argv[1])
+          manifest = json.load(open('bundle/update.json'))
+          if manifest.get('versionCode') != want_code:
+              sys.exit(f"HATA: manifest versionCode {manifest.get('versionCode')} != {want_code}")
+          apk_sha = hashlib.sha256(open('bundle/X-Security.apk', 'rb').read()).hexdigest()
+          if manifest.get('apkSha256') != apk_sha:
+              sys.exit("HATA: APK sha256 manifest ile uyusmuyor")
+          print(f"bundle OK: versionCode={want_code} apkSha256={apk_sha[:16]}...")
+          PYEOF
+
+      - name: Push version bump (whitelisted, C-2/M-11)
+        env:
+          NEXT_VER: ${{ needs.build.outputs.next }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          cp bundle/pushback/build.gradle.kts app/build.gradle.kts
+          cp bundle/pushback/update.json update.json
+
+          # C-2/M-11: bot SADECE bu iki dosyayi, SADECE surum satirlarini degistirebilir.
+          git diff --name-only | sort > /tmp/changed.txt
+          printf 'app/build.gradle.kts\nupdate.json\n' > /tmp/expected.txt
+          if ! diff /tmp/expected.txt /tmp/changed.txt; then
+            echo "HATA: beyaz-liste disi dosya degisikligi; push YASAK." >&2
+            exit 1
+          fi
+          OFFENDERS=$(git diff -U0 -- app/build.gradle.kts update.json \
+            | grep -E '^[+-][^+-]' \
+            | grep -v -E 'versionCode|versionName|apkUrl|apkSha256|apkSizeBytes|changelog|releaseNotes' \
+            || true)
+          if [ -n "$OFFENDERS" ]; then
+            echo "$OFFENDERS" >&2
+            echo "HATA: surum-disi satir degisikligi; push YASAK." >&2
+            exit 1
+          fi
+
+          git add app/build.gradle.kts update.json
+          git commit -m "chore(release): Auto-build X-Security v$NEXT_VER [skip ci]"
+          git push origin main
+
+      - name: Tag the release
+        env:
+          TAG_NAME: ${{ needs.build.outputs.tag }}
+        run: |
+          set -euo pipefail
+          git tag "$TAG_NAME"
+          git push origin "$TAG_NAME"
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
+        with:
+          tag_name: ${{ needs.build.outputs.tag }}
+          name: "X-Security OTA Build v${{ needs.build.outputs.next }}"
+          make_latest: true
+          files: |
+            bundle/X-Security.apk
+            bundle/update.json
+            bundle/update.json.sig
+            bundle/rules.yar
+            bundle/signatures.ndb
+            bundle/hashes.hsb
+            bundle/definitions.json
+            bundle/definitions.json.sig
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

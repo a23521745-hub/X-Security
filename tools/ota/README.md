@@ -46,7 +46,7 @@ the matching signature key **and** a user tap.
 | `generate-ota-key.sh` | Creates an RSA-2048 keypair (`ota-signing-private.pem` / `ota-signing-public.pem`). For an Ed25519 keypair instead: `openssl genpkey -algorithm ed25519 -out ota-signing-private.pem && openssl pkey -pubout -in ota-signing-private.pem -out ota-signing-public.pem` (Ed25519 needs Android 13+ / JVM 15+ on the client — keep RSA for broad device coverage). The private key is secret and stays offline — never commit it. |
 | `sign-manifest.sh <update.json> <private.pem>` | Signs the manifest and writes `update.json.sig` next to it. Signs the **exact file bytes** — re-sign after any edit. |
 | `sample/update.json` + `sample/update.json.sig` | A worked example, signed with the bundled **development** key. |
-| `ota-signing-dev-public.pem` | The development public key. This is the key compiled in as `OtaConfig.SAMPLE_PUBLIC_KEY_PEM` for builds that don't inject their own. **Do not use for production releases.** |
+| `ota-signing-dev-public.pem` | The development public key. It is **no longer compiled into the app** (H-1, v23): builds without an injected key ship with the OTA/definitions channels DISABLED (fail-closed). The PEM survives only as a unit-test fixture. **Do not use for production releases.** |
 
 ## Publishing an update
 
@@ -100,7 +100,7 @@ in source (see `app/build.gradle.kts`):
 | Gradle property | Env var | Meaning |
 | --- | --- | --- |
 | `xsecOtaManifestUrl` | `XSEC_OTA_MANIFEST_URL` | Full `https://…/update.json` URL. Empty = OTA disabled ("not configured"). |
-| `xsecOtaPublicKeyPem` | `XSEC_OTA_PUBLIC_KEY_PEM` | Public key (PEM or single-line base64). Empty falls back to the dev sample key. |
+| `xsecOtaPublicKeyPem` | `XSEC_OTA_PUBLIC_KEY_PEM` | Public key (PEM or single-line base64). Empty DISABLES the OTA and definitions channels (fail-closed, H-1). |
 | `xsecOtaAllowedHosts` | `XSEC_OTA_ALLOWED_HOSTS` | Comma-separated host allowlist. The manifest host is added automatically. |
 
 Example:

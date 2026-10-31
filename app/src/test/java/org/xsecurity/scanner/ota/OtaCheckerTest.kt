@@ -119,11 +119,12 @@ class OtaCheckerTest {
 
     @Test
     fun embeddedSamplePublicKeyLoadsAndIsRsa() {
-        // Gomulu ornek anahtar yuklenebilmeli (yapilandirma bozulursa erken fark edilsin).
-        val key = SignatureVerifier.loadPublicKey(OtaConfig.SAMPLE_PUBLIC_KEY_PEM)
+        // Test kurgusu anahtari (tools/ota/ota-signing-dev-public.pem ile ayni)
+        // yuklenebilmeli; uretim kodu bu anahtari KULLANMAZ (H-1).
+        val key = SignatureVerifier.loadPublicKey(TestKeys.SAMPLE_PUBLIC_KEY_PEM)
         assertEquals("RSA", key.algorithm)
         // Bilinen anahtarin base64 govdesi 392 karakterdir (2048 bit SPKI).
-        val body = OtaConfig.SAMPLE_PUBLIC_KEY_PEM
+        val body = TestKeys.SAMPLE_PUBLIC_KEY_PEM
             .replace("-----BEGIN PUBLIC KEY-----", "")
             .replace("-----END PUBLIC KEY-----", "")
             .replace("""\s""".toRegex(), "")
