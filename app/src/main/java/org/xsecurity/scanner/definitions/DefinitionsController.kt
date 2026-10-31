@@ -47,7 +47,8 @@ object DefinitionsController {
     fun currentConfig(context: Context): DefinitionsConfig =
         DefinitionsConfig.derive(
             otaManifestUrl = BuildConfig.OTA_MANIFEST_URL.orEmpty(),
-            otaPublicKeyPem = BuildConfig.OTA_PUBLIC_KEY_PEM.ifBlank { OtaConfig.SAMPLE_PUBLIC_KEY_PEM },
+            // H-1: ornek-anahtar geri donusu KALDIRILDI (fail-closed).
+            otaPublicKeyPem = BuildConfig.OTA_PUBLIC_KEY_PEM.trim(),
             otaAllowedHostsCsv = BuildConfig.OTA_ALLOWED_HOSTS
         )
 

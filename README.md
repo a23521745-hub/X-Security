@@ -272,28 +272,32 @@ adds no real security here, and an unverified optimizer could change scan behavi
 
 ## CI
 
-The **fixed** pipeline is staged in **`.github/ci/android-release-apk.yml`**: the
-automation account used to prepare this branch has no `workflows` permission, so
-GitHub rejects any push that touches `.github/workflows/`. Activate it with:
+Two pipelines, split by trust level (v23 supply-chain hardening):
 
-```bash
-git checkout .github/workflows/android-release-apk.yml  # eski (kusurlu) surumden kurtul
-git mv .github/ci/android-release-apk.yml .github/workflows/android-release-apk.yml
-git commit -m "ci: enable the fixed test/lint/release pipeline (signed update.json)"
-```
+- **`.github/workflows/ci-pr.yml`** — pull-request checks: JVM unit tests +
+  Android Lint only. Reads **no secrets** and publishes nothing, so untrusted
+  PR code (Gradle included) has nothing to exfiltrate.
+- **`.github/workflows/android-release-apk.yml`** — the release line, triggered
+  by pushes to `main` plus **manual** `workflow_dispatch`. Its `build` job runs
+  tests + lint, computes the next version, asserts all six release secrets are
+  present (fail-closed), then produces the signed APK, the signed `update.json`
+  and the signed definitions package (`definitions.json` + `rules.yar` +
+  `signatures.ndb` + `hashes.hsb`) — but publishes **nothing**. Its `publish`
+  job runs **only on manual dispatch**, behind a `production` environment
+  approval gate, and only then pushes the version bump (strictly whitelisted to
+  `app/build.gradle.kts` + `update.json`, version lines only), tags the release
+  and opens the GitHub Release.
 
-The staged pipeline sets up JDK 17 + the Android SDK, runs the JVM unit tests and
-lint (both abort the build on failure), builds the release APK (signed when the
-`XSEC_KEYSTORE_*` secrets exist), computes its SHA-256, writes an `update.json`
-**with the correct schema and signs it** with the `XSEC_OTA_SIGNING_KEY` secret
-(base64 PEM of the OTA private key — without it the manifest stays unsigned and the
-app will refuse it), and publishes the APK + manifest + signature as a GitHub
-Release. Test/lint reports are uploaded as artifacts on failure.
+To cut a release: merge to `main` (PR checks green), then GitHub > Actions >
+"Build & Release OTA APK" > **Run workflow**, and approve the `production`
+environment prompt when it arrives. Pushing to `main` alone never publishes.
 
-> The workflow currently still under `.github/workflows/` is the older revision:
-> it emits `update.json` with wrong field names (`url`/`sha256`) and never signs
-> it, so OTA clients would reject those manifests. Activate the staged fix above
-> (a one-time action that needs an account with `workflows` permission).
+Required secrets (`fail-closed` if any is missing): `XSEC_KEYSTORE_BASE64`,
+`XSEC_KEYSTORE_PASSWORD`, `XSEC_KEY_ALIAS`, `XSEC_KEY_PASSWORD`,
+`XSEC_OTA_PUBLIC_KEY_PEM`, `XSEC_OTA_SIGNING_KEY`. Test/lint reports are
+uploaded as artifacts on failure. One-time owner setup: create the
+`production` environment under repo Settings > Environments and add yourself
+as a required reviewer — without it the approval gate is silently open.
 
 ## Before publishing on Google Play
 

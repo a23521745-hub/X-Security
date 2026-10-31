@@ -16,7 +16,8 @@ val hasSigningMaterial = keystoreFile != null && keystoreFile.isFile
 // OTA yapilandirmasi da yalnizca derleme ortamindan (Gradle property / ortam degiskeni)
 // gelir; depoya sunucu adresi ya da dogrulama anahtari sabitlenmez. Public anahtar
 // zaten gizli degildir (istemcide gomulu olur) ama uretim degeri boylece disaridan
-// yonetilir. Bos manifest URL'i = OTA kapali (uygulama "yapilandirilmamis" der).
+// yonetilir. Bos manifest URL'i veya bos public anahtar = OTA kapali
+// (uygulama "yapilandirilmamis" der; ornek-anahtar geri donusu YOK, H-1).
 val otaManifestUrl = providers.gradleProperty("xsecOtaManifestUrl").orNull
     ?: System.getenv("XSEC_OTA_MANIFEST_URL") ?: ""
 val otaPublicKeyPem = providers.gradleProperty("xsecOtaPublicKeyPem").orNull
